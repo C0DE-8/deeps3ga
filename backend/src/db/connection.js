@@ -44,4 +44,20 @@ async function query(sql, params = []) {
   return rows
 }
 
-module.exports = { getDatabaseConfig, getDatabaseInfo, getPool, query }
+async function withTransaction(work) {
+  const connection = await getPool().getConnection()
+
+  try {
+    await connection.beginTransaction()
+    const result = await work(connection)
+    await connection.commit()
+    return result
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+}
+
+module.exports = { getDatabaseConfig, getDatabaseInfo, getPool, query, withTransaction }

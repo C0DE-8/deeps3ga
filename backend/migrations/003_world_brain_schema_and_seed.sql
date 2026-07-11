@@ -5,26 +5,26 @@ ALTER TABLE dungeons
   ADD COLUMN place_kind VARCHAR(120) NOT NULL DEFAULT 'Dungeon' AFTER name,
   ADD COLUMN description TEXT AFTER place_kind,
   ADD COLUMN difficulty INT NOT NULL DEFAULT 1 AFTER theme,
-  ADD COLUMN unlock_requirements_json VARCHAR(4096) NOT NULL DEFAULT '{}' AFTER difficulty;
+  ADD COLUMN unlock_requirements_json TEXT NOT NULL DEFAULT '{}' AFTER difficulty;
 
 ALTER TABLE dungeon_floors
   ADD COLUMN floor_name VARCHAR(160) NOT NULL DEFAULT '' AFTER floor_number,
   ADD COLUMN description TEXT AFTER floor_name,
   ADD COLUMN atmosphere VARCHAR(1000) NOT NULL DEFAULT '' AFTER description,
-  ADD COLUMN enemies_available_json VARCHAR(4096) NOT NULL DEFAULT '[]' AFTER atmosphere,
-  ADD COLUMN npcs_available_json VARCHAR(4096) NOT NULL DEFAULT '[]' AFTER enemies_available_json,
-  ADD COLUMN hidden_events_json VARCHAR(4096) NOT NULL DEFAULT '[]' AFTER npcs_available_json;
+  ADD COLUMN enemies_available_json TEXT NOT NULL DEFAULT '[]' AFTER atmosphere,
+  ADD COLUMN npcs_available_json TEXT NOT NULL DEFAULT '[]' AFTER enemies_available_json,
+  ADD COLUMN hidden_events_json TEXT NOT NULL DEFAULT '[]' AFTER npcs_available_json;
 
 CREATE TABLE world_npcs (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   race VARCHAR(80) NOT NULL DEFAULT '',
-  personality_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  personality_json TEXT NOT NULL DEFAULT '{}',
   backstory TEXT,
   current_dungeon_id BIGINT UNSIGNED,
   current_floor_id BIGINT UNSIGNED,
-  dialogue_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  relationship_with_player_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  dialogue_json TEXT NOT NULL DEFAULT '[]',
+  relationship_with_player_json TEXT NOT NULL DEFAULT '{}',
   quest_status ENUM('none', 'available', 'active', 'complete', 'failed') NOT NULL DEFAULT 'none',
   life_status ENUM('alive', 'dead', 'missing') NOT NULL DEFAULT 'alive',
   CONSTRAINT fk_world_npcs_dungeon
@@ -37,10 +37,10 @@ CREATE TABLE world_monsters (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   species VARCHAR(120) NOT NULL,
-  stats_json VARCHAR(4096) NOT NULL DEFAULT '{}',
-  skills_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  loot_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  behavior_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  stats_json TEXT NOT NULL DEFAULT '{}',
+  skills_json TEXT NOT NULL DEFAULT '[]',
+  loot_json TEXT NOT NULL DEFAULT '[]',
+  behavior_json TEXT NOT NULL DEFAULT '{}',
   habitat_dungeon_id BIGINT UNSIGNED,
   habitat_floor_id BIGINT UNSIGNED,
   CONSTRAINT fk_world_monsters_dungeon
@@ -54,9 +54,9 @@ CREATE TABLE world_items (
   name VARCHAR(120) NOT NULL,
   item_type VARCHAR(80) NOT NULL,
   description TEXT,
-  effects_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  effects_json TEXT NOT NULL DEFAULT '{}',
   rarity ENUM('common', 'uncommon', 'rare', 'epic', 'legendary', 'cursed') NOT NULL DEFAULT 'common',
-  story_flags_json VARCHAR(4096) NOT NULL DEFAULT '{}'
+  story_flags_json TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE world_story_chapters (
@@ -67,7 +67,7 @@ CREATE TABLE world_story_chapters (
   description TEXT NOT NULL,
   required_dungeon_id BIGINT UNSIGNED,
   required_floor_id BIGINT UNSIGNED,
-  required_events_json VARCHAR(4096) NOT NULL DEFAULT '[]',
+  required_events_json TEXT NOT NULL DEFAULT '[]',
   CONSTRAINT fk_world_story_chapters_dungeon
     FOREIGN KEY (required_dungeon_id) REFERENCES dungeons(id) ON DELETE SET NULL,
   CONSTRAINT fk_world_story_chapters_floor

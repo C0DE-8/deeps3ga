@@ -1,5 +1,5 @@
 const express = require('express')
-const { continueScene } = require('../modules/deepSaga/deepSaga.service')
+const { continueGame } = require('../modules/gameEngine/gameEngine.service')
 
 const router = express.Router()
 
@@ -13,7 +13,7 @@ router.get('/', (req, res) => {
 
 router.post('/continue', async (req, res) => {
   try {
-    const scene = await continueScene(req.body)
+    const scene = await continueGame(req.body)
     res.json({
       success: true,
       data: scene,

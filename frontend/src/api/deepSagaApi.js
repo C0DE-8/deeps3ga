@@ -11,6 +11,21 @@ export async function fetchDeepSagaWorld() {
 }
 
 export async function continueNarrative(payload) {
-  const response = await httpClient.post('/story/continue', payload)
+  const response = await httpClient.post('/game/continue', payload)
+  return response.data.data
+}
+
+export async function fetchGameState(storyCycleId) {
+  const response = await httpClient.get(`/game/state/${storyCycleId}`)
+  return response.data.data
+}
+
+export async function recordCharacterDeath(storyCycleId, deathScene) {
+  const response = await httpClient.post(`/game/cycles/${storyCycleId}/death`, { deathScene })
+  return response.data.data
+}
+
+export async function completeStoryCycle(storyCycleId, bossData) {
+  const response = await httpClient.post(`/game/cycles/${storyCycleId}/complete`, { bossData })
   return response.data.data
 }

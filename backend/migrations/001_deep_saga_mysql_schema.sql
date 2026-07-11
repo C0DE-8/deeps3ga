@@ -16,8 +16,8 @@ CREATE TABLE soul_profiles (
   soul_level INT NOT NULL DEFAULT 1,
   total_deaths INT NOT NULL DEFAULT 0,
   total_completed_runs INT NOT NULL DEFAULT 0,
-  remembered_knowledge_json VARCHAR(4096) NOT NULL DEFAULT '{}',
-  personality_drift_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  remembered_knowledge_json TEXT NOT NULL DEFAULT '{}',
+  personality_drift_json TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_soul_profiles_account
@@ -30,7 +30,7 @@ CREATE TABLE story_cycles (
   previous_guardian_id BIGINT UNSIGNED,
   cycle_number INT NOT NULL,
   status ENUM('opening_death', 'awake', 'in_progress', 'dead', 'completed') NOT NULL DEFAULT 'opening_death',
-  opening_death_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  opening_death_json TEXT NOT NULL DEFAULT '{}',
   ending_summary TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP NULL,
@@ -44,7 +44,7 @@ CREATE TABLE dungeons (
   dungeon_number INT NOT NULL UNIQUE,
   name VARCHAR(120) NOT NULL,
   theme VARCHAR(255) NOT NULL DEFAULT '',
-  story_arc_json VARCHAR(4096) NOT NULL DEFAULT '{}'
+  story_arc_json TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE dungeon_floors (
@@ -53,7 +53,7 @@ CREATE TABLE dungeon_floors (
   floor_number INT NOT NULL,
   floor_type ENUM('story', 'boss') NOT NULL,
   story_purpose VARCHAR(1000) NOT NULL DEFAULT '',
-  boss_rules_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  boss_rules_json TEXT NOT NULL DEFAULT '{}',
   UNIQUE KEY uq_dungeon_floors_dungeon_floor (dungeon_id, floor_number),
   CONSTRAINT chk_dungeon_floor_number CHECK (floor_number BETWEEN 1 AND 5),
   CONSTRAINT fk_dungeon_floors_dungeon
@@ -65,7 +65,7 @@ CREATE TABLE character_lives (
   soul_profile_id BIGINT UNSIGNED NOT NULL,
   story_cycle_id BIGINT UNSIGNED NOT NULL,
   life_number INT NOT NULL,
-  avatar_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  avatar_json TEXT NOT NULL DEFAULT '{}',
   origin_death_scene TEXT,
   status ENUM('alive', 'dead', 'completed', 'claimed_by_dungeon') NOT NULL DEFAULT 'alive',
   death_scene TEXT,
@@ -84,7 +84,7 @@ CREATE TABLE story_progress (
   story_cycle_id BIGINT UNSIGNED NOT NULL UNIQUE,
   current_dungeon_id BIGINT UNSIGNED,
   current_floor_id BIGINT UNSIGNED,
-  story_state_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  story_state_json TEXT NOT NULL DEFAULT '{}',
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_story_progress_cycle
     FOREIGN KEY (story_cycle_id) REFERENCES story_cycles(id) ON DELETE CASCADE,
@@ -100,9 +100,9 @@ CREATE TABLE narrative_messages (
   character_life_id BIGINT UNSIGNED,
   speaker ENUM('narrator', 'player', 'system') NOT NULL,
   message_text TEXT NOT NULL,
-  choices_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  parsed_intent_json VARCHAR(4096) NOT NULL DEFAULT '{}',
-  consequence_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  choices_json TEXT NOT NULL DEFAULT '[]',
+  parsed_intent_json TEXT NOT NULL DEFAULT '{}',
+  consequence_json TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_narrative_messages_cycle_created (story_cycle_id, created_at),
   CONSTRAINT fk_narrative_messages_cycle
@@ -117,7 +117,7 @@ CREATE TABLE story_choices (
   choice_text VARCHAR(1000) NOT NULL,
   choice_kind ENUM('suggested', 'typed') NOT NULL DEFAULT 'suggested',
   resolved TINYINT(1) NOT NULL DEFAULT 0,
-  outcome_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  outcome_json TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_story_choices_message
     FOREIGN KEY (narrative_message_id) REFERENCES narrative_messages(id) ON DELETE CASCADE
@@ -126,13 +126,13 @@ CREATE TABLE story_choices (
 CREATE TABLE player_behavior_profiles (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   character_life_id BIGINT UNSIGNED NOT NULL UNIQUE,
-  favorite_weapons_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  preferred_skills_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  combat_rhythm_json VARCHAR(4096) NOT NULL DEFAULT '{}',
-  decision_style_json VARCHAR(4096) NOT NULL DEFAULT '{}',
-  personality_json VARCHAR(4096) NOT NULL DEFAULT '{}',
-  strengths_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  weaknesses_json VARCHAR(4096) NOT NULL DEFAULT '[]',
+  favorite_weapons_json TEXT NOT NULL DEFAULT '[]',
+  preferred_skills_json TEXT NOT NULL DEFAULT '[]',
+  combat_rhythm_json TEXT NOT NULL DEFAULT '{}',
+  decision_style_json TEXT NOT NULL DEFAULT '{}',
+  personality_json TEXT NOT NULL DEFAULT '{}',
+  strengths_json TEXT NOT NULL DEFAULT '[]',
+  weaknesses_json TEXT NOT NULL DEFAULT '[]',
   recklessness_score DECIMAL(6,2) NOT NULL DEFAULT 0,
   caution_score DECIMAL(6,2) NOT NULL DEFAULT 0,
   mercy_score DECIMAL(6,2) NOT NULL DEFAULT 0,
@@ -147,9 +147,9 @@ CREATE TABLE eternal_guardians (
   source_character_life_id BIGINT UNSIGNED NOT NULL UNIQUE,
   guardian_name VARCHAR(120) NOT NULL,
   guardian_title VARCHAR(120) NOT NULL DEFAULT 'Eternal Guardian',
-  boss_profile_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  boss_profile_json TEXT NOT NULL DEFAULT '{}',
   opening_line VARCHAR(1000) NOT NULL DEFAULT '',
-  combat_script_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  combat_script_json TEXT NOT NULL DEFAULT '{}',
   active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_eternal_guardians_active (active, created_at),
@@ -169,7 +169,7 @@ CREATE TABLE dungeon_memory_events (
   event_type VARCHAR(80) NOT NULL,
   event_text TEXT NOT NULL,
   importance INT NOT NULL DEFAULT 1,
-  memory_payload_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  memory_payload_json TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_dungeon_memory_soul_created (soul_profile_id, created_at),
   CONSTRAINT fk_dungeon_memory_soul
@@ -185,7 +185,7 @@ CREATE TABLE dungeon_adaptations (
   soul_profile_id BIGINT UNSIGNED NOT NULL,
   strategy_signature VARCHAR(255) NOT NULL,
   countermeasure_text VARCHAR(1000) NOT NULL,
-  affected_enemy_rules_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  affected_enemy_rules_json TEXT NOT NULL DEFAULT '{}',
   intensity INT NOT NULL DEFAULT 1,
   active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -4,7 +4,7 @@
 ALTER TABLE dungeon_floors
   ADD COLUMN purpose_type ENUM('introduction', 'puzzle', 'mystery', 'npc_decision', 'moral_decision', 'mini_boss', 'intense_challenge', 'boss', 'quiet') NOT NULL DEFAULT 'introduction' AFTER floor_type,
   ADD COLUMN quiet_chapter_allowed TINYINT(1) NOT NULL DEFAULT 0 AFTER story_purpose,
-  ADD COLUMN floor_memory_json VARCHAR(4096) NOT NULL DEFAULT '{}' AFTER quiet_chapter_allowed;
+  ADD COLUMN floor_memory_json TEXT NOT NULL DEFAULT '{}' AFTER quiet_chapter_allowed;
 
 CREATE TABLE companions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -12,9 +12,9 @@ CREATE TABLE companions (
   character_life_id BIGINT UNSIGNED,
   name VARCHAR(120) NOT NULL,
   role_name VARCHAR(120) NOT NULL DEFAULT '',
-  personality_json VARCHAR(4096) NOT NULL DEFAULT '{}',
-  secrets_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  relationship_state_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  personality_json TEXT NOT NULL DEFAULT '{}',
+  secrets_json TEXT NOT NULL DEFAULT '[]',
+  relationship_state_json TEXT NOT NULL DEFAULT '{}',
   advice_style VARCHAR(255) NOT NULL DEFAULT '',
   active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -46,11 +46,11 @@ CREATE TABLE boss_profiles (
   dungeon_floor_id BIGINT UNSIGNED NOT NULL UNIQUE,
   boss_name VARCHAR(120) NOT NULL,
   reason_for_existing TEXT NOT NULL,
-  personality_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  personality_json TEXT NOT NULL DEFAULT '{}',
   entrance_text TEXT,
   defeat_text TEXT,
-  dialogue_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  mechanics_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  dialogue_json TEXT NOT NULL DEFAULT '[]',
+  mechanics_json TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_boss_profiles_floor
@@ -64,7 +64,7 @@ CREATE TABLE quiet_chapters (
   chapter_type ENUM('campfire', 'traveler', 'library', 'diary', 'reflection', 'rest') NOT NULL,
   chapter_title VARCHAR(160) NOT NULL,
   chapter_text TEXT NOT NULL,
-  discovered_lore_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  discovered_lore_json TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_quiet_chapters_cycle
     FOREIGN KEY (story_cycle_id) REFERENCES story_cycles(id) ON DELETE CASCADE,
@@ -96,10 +96,10 @@ CREATE TABLE response_sections (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   narrative_message_id BIGINT UNSIGNED NOT NULL,
   story_text TEXT NOT NULL,
-  character_changes_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  new_items_or_skills_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  choices_json VARCHAR(4096) NOT NULL DEFAULT '[]',
-  hidden_stats_json VARCHAR(4096) NOT NULL DEFAULT '{}',
+  character_changes_json TEXT NOT NULL DEFAULT '[]',
+  new_items_or_skills_json TEXT NOT NULL DEFAULT '[]',
+  choices_json TEXT NOT NULL DEFAULT '[]',
+  hidden_stats_json TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_response_sections_message
     FOREIGN KEY (narrative_message_id) REFERENCES narrative_messages(id) ON DELETE CASCADE

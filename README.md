@@ -24,6 +24,12 @@ POST /api/souls
 GET  /api/story
 POST /api/story/continue
 
+GET  /api/game
+GET  /api/game/state/:storyCycleId
+POST /api/game/continue
+POST /api/game/cycles/:storyCycleId/death
+POST /api/game/cycles/:storyCycleId/complete
+
 GET  /api/deep-saga
 GET  /api/deep-saga/flow
 GET  /api/deep-saga/world
@@ -40,6 +46,8 @@ Current backend pieces:
 - World brain endpoint for the realm/floor/boss bible
 - MySQL database connection through `mysql2`
 - MySQL schema migrations in `backend/migrations`
+- Database-backed game engine and state loader
+- Immutable Legacy Hero snapshots for completed runs
 - Helmet security headers
 - Nodemon development server
 - Environment loading from `backend/.env`
@@ -125,6 +133,18 @@ Game updates the database.
 ```
 
 This keeps the story consistent, lets the world be edited through data, and prevents the AI from forgetting or contradicting important facts.
+
+The client sends only the story cycle, the player's action, and whether the action was typed or selected:
+
+```json
+{
+  "storyCycleId": 12,
+  "playerAction": "I break the lantern and use the flame to drive the wolves back.",
+  "actionKind": "typed"
+}
+```
+
+The engine loads the character sheet, location, floor, present NPCs and monsters, boss state, active quests, companions, skills, inventory, previous choices, Dungeon adaptations, soul memories, and previous Legacy Hero before calling the narrator.
 
 ### Story Flow
 
@@ -241,6 +261,10 @@ The world treats the new avatar as a stranger, but the soul remembers previous l
 When a player completes the full cycle, that completed character becomes part of Deep Saga's history.
 
 In the next completed journey, the final enemy is the previous completed hero. The goal is for that boss to fight like the player once did, based on remembered behavior, favorite weapons, preferred skills, strengths, weaknesses, and decision style.
+
+A death never creates a Legacy Hero. It closes the current body and updates the soul's reincarnation history only.
+
+After all 10 realm bosses are recorded as defeated, completion creates a separate, locked Legacy Hero. It freezes identity, appearance, personality, titles, final stats, every skill and skill level, equipment, inventory, combat behavior, arena, music, dialogue, passives, and phase rules. Later reincarnations cannot modify that snapshot.
 
 ### Companions
 
@@ -368,6 +392,7 @@ Backend:
 ```sh
 cd backend
 npm install
+npm run migrate
 npm run dev
 ```
 
@@ -391,4 +416,4 @@ Frontend: http://localhost:5173
 - `node_modules` and build output are ignored.
 - Real secrets belong only in local `.env` files.
 - The current story UI has local sample scenes.
-- The backend story route is prepared for AI-driven continuation, but full persistence and production auth are still future work.
+- Story continuation is database-backed. Production authentication and authorization middleware are still future work.
