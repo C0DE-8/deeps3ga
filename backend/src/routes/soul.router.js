@@ -1,5 +1,6 @@
 const express = require('express')
 const { createSoul } = require('../db/repositories/soul.repository')
+const { requireAuth } = require('../middleware/auth')
 
 const router = express.Router()
 
@@ -11,17 +12,17 @@ router.get('/', (req, res) => {
   })
 })
 
-router.post('/', async (req, res) => {
-  if (!req.body.accountId || !req.body.soulName) {
+router.post('/', requireAuth, async (req, res) => {
+  if (!req.body.soulName) {
     res.status(400).json({
       success: false,
-      message: 'accountId and soulName are required',
+      message: 'soulName is required',
     })
     return
   }
 
   try {
-    const soul = await createSoul({ accountId: req.body.accountId, soulName: req.body.soulName })
+    const soul = await createSoul({ accountId: req.auth.account.id, soulName: req.body.soulName })
     res.status(201).json({
       success: true,
       message: 'Soul endpoint is ready.',

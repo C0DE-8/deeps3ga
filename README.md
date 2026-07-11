@@ -17,6 +17,8 @@ GET  /api/health
 GET  /api/auth
 POST /api/auth/register
 POST /api/auth/login
+GET  /api/auth/me
+POST /api/auth/logout
 
 GET  /api/souls
 POST /api/souls
@@ -29,6 +31,9 @@ GET  /api/game/state/:storyCycleId
 POST /api/game/continue
 POST /api/game/cycles/:storyCycleId/death
 POST /api/game/cycles/:storyCycleId/complete
+
+GET  /api/admin/overview
+GET  /api/admin/data/:dataset
 
 GET  /api/deep-saga
 GET  /api/deep-saga/flow
@@ -395,6 +400,15 @@ npm install
 npm run migrate
 npm run dev
 ```
+
+Public registration always creates a player. To grant God's Eye access, register the account normally and promote it from the backend:
+
+```sh
+cd backend
+npm run make-admin -- username-or-email
+```
+
+God's Eye exposes read-only, paginated views of players, souls, characters, cycles, dungeons, floors, bosses, NPCs, monsters, skills, items, quests, memories, choices, companions, and Legacy Heroes. Its API requires an active administrator session.
 
 Frontend:
 

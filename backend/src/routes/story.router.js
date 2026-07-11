@@ -1,5 +1,6 @@
 const express = require('express')
 const { continueGame } = require('../modules/gameEngine/gameEngine.service')
+const { requireAuth } = require('../middleware/auth')
 
 const router = express.Router()
 
@@ -11,9 +12,9 @@ router.get('/', (req, res) => {
   })
 })
 
-router.post('/continue', async (req, res) => {
+router.post('/continue', requireAuth, async (req, res) => {
   try {
-    const scene = await continueGame(req.body)
+    const scene = await continueGame(req.body, req.auth.account.id)
     res.json({
       success: true,
       data: scene,

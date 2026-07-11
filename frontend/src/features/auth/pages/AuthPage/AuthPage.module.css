@@ -1,0 +1,21 @@
+.page { min-height: 100svh; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); align-items: center; gap: clamp(40px, 8vw, 120px); padding: clamp(24px, 6vw, 88px); overflow: hidden; color: #eef2f0; background: #070b0c; }
+.backdrop { position: absolute; inset: 0; background: url('../../../../assets/hero.png') center/cover no-repeat; opacity: .2; filter: grayscale(.55) contrast(1.15); }
+.page::after { content: ''; position: absolute; inset: 0; background: rgba(3, 7, 8, .58); pointer-events: none; }
+.intro, .form { position: relative; z-index: 1; }
+.intro { max-width: 700px; align-self: end; padding-bottom: 7vh; }
+.mark { display: inline-flex; align-items: center; gap: 9px; color: #bb9a61; font-size: .76rem; font-weight: 800; text-transform: uppercase; }
+.intro h1 { margin: 18px 0; max-width: 650px; font-family: Georgia, serif; font-size: clamp(3rem, 7vw, 6.8rem); line-height: .96; font-weight: 500; }
+.intro p { max-width: 590px; color: #b9c2bf; font-family: Georgia, serif; font-size: 1.1rem; line-height: 1.75; }
+.form { width: 100%; padding: 30px; border: 1px solid #34413e; border-radius: 8px; background: rgba(9, 15, 16, .94); box-shadow: 0 28px 80px rgba(0,0,0,.45); }
+.formHead { display: flex; gap: 14px; align-items: center; margin-bottom: 28px; color: #bb9a61; }
+.formHead span { color: #77837f; font-size: .7rem; text-transform: uppercase; }
+.formHead h2 { color: #f0f1ed; font-family: Georgia, serif; font-size: 1.55rem; font-weight: 500; }
+.form label { display: grid; gap: 7px; margin-top: 17px; }
+.form label > span { display: flex; align-items: center; gap: 7px; color: #aeb8b5; font-size: .78rem; font-weight: 700; }
+.form input { width: 100%; min-height: 48px; border: 1px solid #35423f; border-radius: 5px; background: #0c1314; color: #f4f5f2; padding: 0 13px; }
+.form input:focus { outline: 2px solid #8c7247; outline-offset: 2px; }
+.submit { width: 100%; min-height: 48px; margin-top: 24px; border: 1px solid #c0a16d; border-radius: 5px; background: #a58450; color: #070a0a; font-weight: 900; }
+.error { margin-top: 14px; color: #ef9b90; font-size: .85rem; }
+.switch { margin-top: 19px; color: #85918d; text-align: center; font-size: .82rem; }
+.switch a { color: #d5bb8e; }
+@media (max-width: 800px) { .page { grid-template-columns: 1fr; align-content: center; padding: 24px; } .intro { align-self: auto; padding: 0; } .intro h1 { font-size: 2.6rem; } .intro p { display: none; } .form { padding: 22px; } }

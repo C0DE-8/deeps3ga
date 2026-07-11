@@ -1,0 +1,19 @@
+.page { min-height: 100svh; background: #0b1011; color: #e8ebe7; }
+.hero { min-height: 410px; display: flex; flex-direction: column; justify-content: end; align-items: flex-start; padding: 60px max(6vw, 22px); background: linear-gradient(rgba(5,9,10,.25), #0b1011), url('../../../../assets/hero.png') center 38%/cover no-repeat; }
+.hero > p, .shelf header span { color: #c1a36b; font-size: .72rem; font-weight: 800; text-transform: uppercase; }
+.hero h1 { max-width: 760px; margin: 10px 0 25px; font-family: Georgia, serif; font-size: clamp(2.8rem, 7vw, 5.8rem); line-height: .98; font-weight: 500; }
+.hero button { display: inline-flex; align-items: center; gap: 9px; min-height: 46px; padding: 0 18px; border: 1px solid #c0a16d; border-radius: 5px; background: #a58450; color: #080b0b; font-weight: 900; }
+.shelf { max-width: 1180px; margin: 0 auto; padding: 38px 22px 80px; }
+.shelf > header { display: flex; justify-content: space-between; align-items: end; padding-bottom: 18px; border-bottom: 1px solid #293230; }
+.shelf h2 { margin-top: 5px; font-family: Georgia, serif; font-size: 2rem; font-weight: 500; }
+.shelf small { color: #77837f; }
+.list article { min-height: 104px; display: grid; grid-template-columns: 48px minmax(220px, 1.3fr) minmax(180px, 1fr) 110px 42px; gap: 18px; align-items: center; border-bottom: 1px solid #252e2c; }
+.recordIcon { color: #927b53; }
+.recordTitle span, .location span { color: #7e8a86; font-size: .7rem; text-transform: uppercase; }
+.recordTitle h3 { font-family: Georgia, serif; font-size: 1.25rem; font-weight: 500; }
+.recordTitle p, .location p { color: #97a19e; font-size: .82rem; }
+.status { color: #bba071; font-size: .7rem; text-transform: uppercase; }
+.dead { color: #b26e68; }.completed { color: #d7bd79; }
+.open { width: 38px; height: 38px; display: grid; place-items: center; padding: 0; border: 1px solid #34403d; border-radius: 5px; background: transparent; color: #d1d7d3; }
+.empty { padding: 70px 10px; text-align: center; color: #7f8b87; }.empty h3 { margin-top: 12px; color: #d7dcd8; font-family: Georgia, serif; }.error { margin: 20px 0; color: #e3978e; }
+@media (max-width: 760px) { .list article { grid-template-columns: 38px 1fr 38px; padding: 18px 0; }.location,.status { display:none; }.hero { min-height: 350px; }.hero h1 { font-size: 3rem; } }

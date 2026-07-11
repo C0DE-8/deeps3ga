@@ -20,6 +20,16 @@ export async function fetchGameState(storyCycleId) {
   return response.data.data
 }
 
+export async function fetchGameSaves() {
+  const response = await httpClient.get('/game/saves')
+  return response.data.data
+}
+
+export async function startGame() {
+  const response = await httpClient.post('/game/start')
+  return response.data.data
+}
+
 export async function recordCharacterDeath(storyCycleId, deathScene) {
   const response = await httpClient.post(`/game/cycles/${storyCycleId}/death`, { deathScene })
   return response.data.data

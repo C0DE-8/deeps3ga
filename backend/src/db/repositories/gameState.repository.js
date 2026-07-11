@@ -20,11 +20,91 @@ function hydrate(row, jsonFields) {
   return result
 }
 
+const avatarOptions = {
+  races: ['Human', 'Ash Elf', 'Marsh Goblin', 'Moonkin', 'Ironborn'],
+  classes: ['Wayfarer', 'Spellblade', 'Warden', 'Hex Weaver', 'Soul Scout'],
+  personalities: ['watchful', 'defiant', 'compassionate', 'restless', 'methodical'],
+}
+
+function randomFrom(values) {
+  return values[Math.floor(Math.random() * values.length)]
+}
+
+async function listGameSaves(accountId) {
+  return query(
+    `SELECT sc.id AS story_cycle_id, sc.cycle_number, sc.status, sc.created_at, sc.ended_at,
+            cl.id AS character_life_id, cl.status AS character_status, cs.character_name, cs.race_name,
+            cs.class_name, cs.level, d.name AS dungeon_name, df.floor_number, df.floor_name
+       FROM soul_profiles s JOIN story_cycles sc ON sc.soul_profile_id = s.id
+       LEFT JOIN character_lives cl ON cl.story_cycle_id = sc.id
+       LEFT JOIN character_sheets cs ON cs.character_life_id = cl.id
+       LEFT JOIN story_progress sp ON sp.story_cycle_id = sc.id
+       LEFT JOIN dungeons d ON d.id = sp.current_dungeon_id
+       LEFT JOIN dungeon_floors df ON df.id = sp.current_floor_id
+      WHERE s.account_id = ? ORDER BY sc.created_at DESC`,
+    [accountId],
+  )
+}
+
+async function createGame(accountId) {
+  return withTransaction(async (connection) => {
+    const [existingActive] = await connection.execute(
+      `SELECT sc.id FROM story_cycles sc JOIN soul_profiles s ON s.id = sc.soul_profile_id
+        WHERE s.account_id = ? AND sc.status IN ('opening_death', 'awake', 'in_progress') LIMIT 1`,
+      [accountId],
+    )
+    if (existingActive[0]) return { storyCycleId: existingActive[0].id, resumed: true }
+
+    let [souls] = await connection.execute('SELECT * FROM soul_profiles WHERE account_id = ? LIMIT 1', [accountId])
+    if (!souls[0]) {
+      const [accounts] = await connection.execute('SELECT username FROM accounts WHERE id = ?', [accountId])
+      const [created] = await connection.execute('INSERT INTO soul_profiles (account_id, soul_name) VALUES (?, ?)', [accountId, accounts[0].username])
+      ;[souls] = await connection.execute('SELECT * FROM soul_profiles WHERE id = ?', [created.insertId])
+    }
+    const soul = souls[0]
+    const [cycleCounts] = await connection.execute('SELECT COALESCE(MAX(cycle_number), 0) AS count FROM story_cycles WHERE soul_profile_id = ?', [soul.id])
+    const [lifeCounts] = await connection.execute('SELECT COALESCE(MAX(life_number), 0) AS count FROM character_lives WHERE soul_profile_id = ?', [soul.id])
+    const cycleNumber = Number(cycleCounts[0].count) + 1
+    const lifeNumber = Number(lifeCounts[0].count) + 1
+    const [legacy] = await connection.execute('SELECT id FROM legacy_heroes WHERE soul_profile_id = ? ORDER BY legacy_number DESC LIMIT 1', [soul.id])
+    const [cycleResult] = await connection.execute(
+      `INSERT INTO story_cycles (soul_profile_id, previous_guardian_id, cycle_number, status, opening_death_json)
+       VALUES (?, NULL, ?, 'in_progress', ?)`,
+      [soul.id, cycleNumber, JSON.stringify({ setting: 'rain-soaked city street', finalSense: 'the sound of rain fading', chosenByPlayer: false })],
+    )
+    const storyCycleId = cycleResult.insertId
+    const race = randomFrom(avatarOptions.races)
+    const className = randomFrom(avatarOptions.classes)
+    const personality = randomFrom(avatarOptions.personalities)
+    const characterName = `${randomFrom(['Aren', 'Veya', 'Korr', 'Mira', 'Solen'])} ${randomFrom(['Ashwake', 'Thorn', 'Vale', 'Rune', 'Dusk'])}`
+    const [lifeResult] = await connection.execute(
+      `INSERT INTO character_lives (soul_profile_id, story_cycle_id, life_number, avatar_json, origin_death_scene)
+       VALUES (?, ?, ?, ?, ?)`,
+      [soul.id, storyCycleId, lifeNumber, JSON.stringify({ name: characterName, race, class: className, personality }), 'Rain erased the city as the soul took its final breath.'],
+    )
+    const lifeId = lifeResult.insertId
+    await connection.execute(
+      `INSERT INTO character_sheets (character_life_id, character_name, race_name, class_name, appearance_json, personality_json, titles_json, stats_json, blessings_json, curses_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [lifeId, characterName, race, className, JSON.stringify({ cloak: 'torn', eyes: 'unfamiliar', condition: 'newly awakened' }), JSON.stringify({ primary: personality }), '[]', JSON.stringify({ strength: 6, agility: 6, intelligence: 6, will: 7, perception: 5 }), '[]', '[]'],
+    )
+    await connection.execute('INSERT INTO story_progress (story_cycle_id, current_dungeon_id, current_floor_id, story_state_json) VALUES (?, 1, 101, ?)', [storyCycleId, JSON.stringify({ chapter: 1, scene: 'last-breath', legacyHeroId: legacy[0]?.id || null })])
+    await connection.execute('INSERT INTO player_behavior_profiles (character_life_id) VALUES (?)', [lifeId])
+    await connection.execute("INSERT INTO character_inventory (character_life_id, item_id, quantity, equipped_slot, item_state_json) SELECT ?, id, 1, CASE item_key WHEN 'rust-dagger' THEN 'weapon' WHEN 'torn-cloak' THEN 'armor' END, '{}' FROM items WHERE item_key IN ('rust-dagger', 'torn-cloak')", [lifeId])
+    await connection.execute("INSERT INTO character_skills (character_life_id, skill_id) SELECT ?, id FROM skills WHERE skill_key IN ('brace', 'soul-echo')", [lifeId])
+    await connection.execute('INSERT INTO cycle_dungeon_progress (story_cycle_id, dungeon_id, highest_floor) VALUES (?, 1, 1)', [storyCycleId])
+    await connection.execute("INSERT INTO cycle_npc_states (story_cycle_id, npc_id, current_floor_id, relationship_json, dialogue_state_json) SELECT ?, id, current_floor_id, '{}', '{}' FROM world_npcs WHERE current_floor_id = 101", [storyCycleId])
+    await connection.execute("INSERT INTO cycle_monster_states (story_cycle_id, monster_id, current_floor_id, current_hp, state_json) SELECT ?, id, habitat_floor_id, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(stats_json, '$.hp')) AS UNSIGNED), 20), '{}' FROM world_monsters WHERE habitat_floor_id = 101", [storyCycleId])
+    await connection.execute("INSERT INTO cycle_boss_states (story_cycle_id, boss_profile_id, status, memory_of_player_json, encounter_state_json) SELECT ?, id, 'locked', '{}', '{}' FROM boss_profiles", [storyCycleId])
+    return { storyCycleId, characterLifeId: lifeId, resumed: false }
+  })
+}
+
 async function getGameState(storyCycleId) {
   const cycles = await query(
     `SELECT sc.*, sp.current_dungeon_id, sp.current_floor_id, sp.story_state_json,
             cl.id AS character_life_id, cl.life_number, cl.status AS character_status,
-            s.id AS soul_profile_id, s.soul_name, s.total_deaths, s.total_completed_runs,
+            s.id AS soul_profile_id, s.account_id, s.soul_name, s.total_deaths, s.total_completed_runs,
             s.remembered_knowledge_json
        FROM story_cycles sc
        JOIN soul_profiles s ON s.id = sc.soul_profile_id
@@ -210,4 +290,4 @@ async function createLegacyHero(storyCycleId, bossData = {}) {
   })
 }
 
-module.exports = { createLegacyHero, getGameState, markCharacterDead, saveNarrativeTurn }
+module.exports = { createGame, createLegacyHero, getGameState, listGameSaves, markCharacterDead, saveNarrativeTurn }

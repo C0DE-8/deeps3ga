@@ -1,60 +1,90 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { useParams } from 'react-router-dom'
+import { continueNarrative, fetchGameState } from '../../../../api/deepSagaApi'
+import { AppHeader } from '../../../shell/AppHeader/AppHeader'
 import { CharacterSheet } from '../../components/CharacterSheet/CharacterSheet'
 import { ChoiceComposer } from '../../components/ChoiceComposer/ChoiceComposer'
 import { StatusBar } from '../../components/StatusBar/StatusBar'
 import { StoryPanel } from '../../components/StoryPanel/StoryPanel'
-import { WorldCodex } from '../../components/WorldCodex/WorldCodex'
-import { characterSheet, openingScenes } from '../../data/openingStory'
+import { openingScenes } from '../../data/openingStory'
 import styles from './StorySimulation.module.css'
 
+function characterFromState(state) {
+  const sheet = state.characterSheet
+  return {
+    name: sheet.character_name,
+    race: sheet.race_name,
+    className: sheet.class_name,
+    stats: Object.entries(sheet.stats_json || {}),
+    skills: state.skills.map((skill) => `${skill.name} · ${skill.skill_level}`),
+    inventory: state.inventory.map((item) => `${item.name}${item.quantity > 1 ? ` ×${item.quantity}` : ''}`),
+    titles: sheet.titles_json || [],
+  }
+}
+
+function sceneFromNarrator(result, index, state, action) {
+  const scene = result.scene || result
+  const story = scene.story || 'The Dungeon waits, listening for what you will do next.'
+  return {
+    id: `narrative-${result.saved?.narrativeMessageId || index}`,
+    chapter: state.currentDungeon?.name || 'Deep Saga',
+    title: state.currentFloor?.floor_name || 'The next page',
+    playerAction: action,
+    paragraphs: story.split(/\n\s*\n/).filter(Boolean),
+    choices: scene.choices || [],
+    status: {
+      hp: state.characterSheet.hp,
+      mp: state.characterSheet.mana,
+      level: state.characterSheet.level,
+      dungeon: state.currentDungeon?.name,
+      floor: `Floor ${state.currentFloor?.floor_number}`,
+    },
+  }
+}
+
 export function StorySimulation() {
-  const [sceneIndex, setSceneIndex] = useState(0)
+  const { cycleId } = useParams()
+  const [state, setState] = useState(null)
+  const [scenes, setScenes] = useState([openingScenes[0]])
   const [customAction, setCustomAction] = useState('')
-  const [history, setHistory] = useState([])
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [busy, setBusy] = useState(true)
+  const [error, setError] = useState('')
+  const endRef = useRef(null)
 
-  const scene = openingScenes[sceneIndex]
-  const nextScene = useMemo(() => Math.min(sceneIndex + 1, openingScenes.length - 1), [sceneIndex])
+  useEffect(() => { fetchGameState(cycleId).then(setState).catch((e) => setError(e.response?.data?.message || 'This story could not be opened.')).finally(() => setBusy(false)) }, [cycleId])
+  useEffect(() => { if (scenes.length > 1) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [scenes.length])
 
-  function submitAction(action) {
-    setHistory((current) => [...current, action].slice(-4))
-    setCustomAction('')
-    setSceneIndex(nextScene)
+  async function submitAction(action, actionKind = 'typed') {
+    if (busy) return
+    setBusy(true); setError('')
+    try {
+      const result = await continueNarrative({ storyCycleId: Number(cycleId), playerAction: action, actionKind })
+      setScenes((current) => [...current, sceneFromNarrator(result, current.length, state, action)])
+      setCustomAction('')
+      setState(await fetchGameState(cycleId))
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'The narrator fell silent. Try this action again.')
+    } finally { setBusy(false) }
   }
 
+  const latest = scenes.at(-1)
+  const status = state ? { hp: state.characterSheet.hp, mp: state.characterSheet.mana, level: state.characterSheet.level, dungeon: state.currentDungeon.name, floor: `Floor ${state.currentFloor.floor_number}` } : latest.status
   return (
     <main className={styles.reader}>
-      <StatusBar status={scene.status} />
-      <section className={styles.layout}>
-        <div className={styles.storyColumn}>
-          <StoryPanel scene={scene} />
-          <ChoiceComposer
-            choices={scene.choices}
-            customAction={customAction}
-            onCustomActionChange={setCustomAction}
-            onSubmitAction={submitAction}
-          />
+      <AppHeader compact />
+      <StatusBar status={status} />
+      <button className={styles.sheetToggle} type="button" onClick={() => setSheetOpen((open) => !open)} title={sheetOpen ? 'Close character sheet' : 'Open character sheet'}>{sheetOpen ? <PanelRightClose /> : <PanelRightOpen />}</button>
+      <aside className={`${styles.sheetDrawer} ${sheetOpen ? styles.open : ''}`}>{state && <CharacterSheet character={characterFromState(state)} />}</aside>
+      <div className={styles.storyStream}>
+        {scenes.map((scene, index) => <div className={styles.sceneWrap} key={scene.id} ref={index === scenes.length - 1 ? endRef : null}><StoryPanel scene={scene} />{index < scenes.length - 1 && <ChevronDown className={styles.pageBreak} size={20} />}</div>)}
+        {error && <p className={styles.error} role="alert">{error}</p>}
+        <div className={styles.currentChoice}>
+          {busy && scenes.length === 1 && <p className={styles.loading}>The record is opening...</p>}
+          <ChoiceComposer choices={latest.choices || []} customAction={customAction} onCustomActionChange={setCustomAction} onSubmitAction={(action) => submitAction(action, latest.choices?.includes(action) ? 'suggested' : 'typed')} disabled={busy} />
         </div>
-        <aside className={styles.sidePanel}>
-          <CharacterSheet character={characterSheet} />
-          <section className={styles.memoryPanel}>
-            <h2>Soul Memory</h2>
-            {history.length ? (
-              <ol>
-                {history.map((entry, index) => (
-                  <li key={`${entry}-${index}`}>{entry}</li>
-                ))}
-              </ol>
-            ) : (
-              <p>No remembered choices yet.</p>
-            )}
-          </section>
-          <section className={styles.memoryPanel}>
-            <h2>Dungeon Structure</h2>
-            <p>The database owns the realms, floors, NPCs, monsters, bosses, items, quests, memory, and progress. The AI only narrates from that state.</p>
-          </section>
-          <WorldCodex />
-        </aside>
-      </section>
+      </div>
     </main>
   )
 }

@@ -1,58 +1,7 @@
-.reader {
-  min-height: 100svh;
-  padding: 18px;
-}
-
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 16px;
-  margin-top: 16px;
-  align-items: start;
-}
-
-.storyColumn {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-
-.sidePanel {
-  position: sticky;
-  top: 84px;
-  display: grid;
-  gap: 12px;
-}
-
-.memoryPanel {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 253, 248, 0.94);
-  padding: 14px;
-}
-
-.memoryPanel h2 {
-  font-size: 1rem;
-}
-
-.memoryPanel p,
-.memoryPanel li {
-  color: var(--muted);
-}
-
-.memoryPanel ol {
-  display: grid;
-  gap: 8px;
-  margin: 10px 0 0;
-  padding-left: 20px;
-}
-
-@media (max-width: 940px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
-  .sidePanel {
-    position: static;
-  }
-}
+.reader { min-height:100svh;background:#eeeae0;color:#1b1b18; }
+.storyStream { width:min(820px,calc(100% - 36px));margin:0 auto;padding:60px 0 140px; }
+.sceneWrap { scroll-margin-top:140px; }.sceneWrap + .sceneWrap { margin-top:70px; }.pageBreak { display:block;margin:55px auto 0;color:#a3967d; }
+.currentChoice { margin-top:30px; }.sheetToggle { position:fixed;z-index:31;right:18px;top:112px;width:42px;height:42px;display:grid;place-items:center;padding:0;border:1px solid #c9c0af;border-radius:5px;background:#f8f4eb;color:#3c3932;box-shadow:0 8px 25px rgba(42,34,24,.12); }
+.sheetDrawer { position:fixed;z-index:30;right:0;top:105px;width:min(360px,calc(100vw - 28px));height:calc(100svh - 105px);padding:58px 16px 20px;background:#e5ded0;border-left:1px solid #c9c0af;transform:translateX(102%);transition:transform 220ms ease;overflow:auto; }.sheetDrawer.open { transform:translateX(0); }
+.error { margin:18px 0;padding:12px;border-left:3px solid #9a4035;background:#ead7d1;color:#743127; }.loading { color:#746d61;font-family:Georgia,serif;font-style:italic;text-align:center; }
+@media(max-width:600px){.storyStream{width:calc(100% - 24px);padding-top:30px}.sheetToggle{top:104px;right:10px}.sceneWrap+.sceneWrap{margin-top:45px}}

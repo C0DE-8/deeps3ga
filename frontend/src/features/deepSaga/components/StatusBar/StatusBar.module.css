@@ -1,12 +1,12 @@
 .statusBar {
   position: sticky;
-  top: 0;
-  z-index: 5;
+  top: 56px;
+  z-index: 19;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 0;
   overflow: hidden;
   background: var(--line);
   box-shadow: 0 10px 24px rgba(23, 20, 17, 0.08);

@@ -44,6 +44,12 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api', routes)
 
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error)
+  console.error(error)
+  res.status(500).json({ success: false, message: 'The Deep Saga service encountered an error.' })
+})
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,

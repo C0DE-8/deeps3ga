@@ -1,0 +1,9 @@
+.header { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 clamp(18px, 4vw, 56px); border-bottom: 1px solid #28312f; background: #0a0f10; color: #e9ece8; }
+.compact { position: sticky; top: 0; z-index: 20; min-height: 56px; }
+.brand, .header nav, .header nav a { display: flex; align-items: center; gap: 9px; }
+.brand { color: #d0b47e; font-family: Georgia, serif; font-size: 1.2rem; text-decoration: none; }
+.header nav { gap: 18px; }
+.header nav a { color: #aab4b1; text-decoration: none; font-size: .82rem; }
+.identity { color: #75817d; font-size: .76rem; }
+.header button { width: 38px; height: 38px; display: grid; place-items: center; padding: 0; border: 1px solid #303a38; border-radius: 5px; background: transparent; color: #aab4b1; }
+@media (max-width: 600px) { .identity, .header nav a span { display: none; } .header { padding: 0 14px; } }
