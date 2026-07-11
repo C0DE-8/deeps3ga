@@ -37,7 +37,7 @@ Current backend pieces:
 - Story router for continuing the narrative
 - Deep Saga router for the game flow
 - MySQL database connection through `mysql2`
-- MySQL schema migration in `backend/migrations/001_deep_saga_mysql_schema.sql`
+- MySQL schema migrations in `backend/migrations`
 - Helmet security headers
 - Nodemon development server
 - Environment loading from `backend/.env`
@@ -105,6 +105,16 @@ Each Dungeon has 5 Floors:
 
 Defeating the Boss Floor unlocks the next Dungeon.
 
+Each floor should have a clear story purpose:
+
+- Floor 1: introduction to the Dungeon and its danger
+- Floor 2: puzzle, mystery, lore, or stronger enemy pressure
+- Floor 3: NPC encounter, companion moment, or moral decision
+- Floor 4: mini-boss, intense challenge, or emotional pressure
+- Floor 5: named Boss with motive, dialogue, entrance, and defeat scene
+
+Not every floor should be `walk -> monster -> fight`. Quiet chapters, discoveries, puzzles, and social choices make the dangerous moments stronger.
+
 ### Player Decisions
 
 At important moments, the story pauses and presents 3-5 choices. The player can either pick one of those choices or type a completely original action.
@@ -119,6 +129,41 @@ The system is intended to judge the action based on:
 - Dungeon memory
 - Soul memory
 
+Choices should be genuinely different. Saving a merchant, chasing a monster, or searching ruins should lead to different scenes, consequences, memories, and future reactions.
+
+Typed actions are a major part of the game. The system should reward creative ideas when they make sense, such as using a broken lantern to scare wolves or turning the environment against an enemy.
+
+### Response Structure
+
+Every narrative response should keep the story first and game information second.
+
+Expected structure:
+
+```txt
+Story
+Character changes, if any
+New items or skills, if any
+Choices
+```
+
+The player should feel the event before seeing numbers.
+
+Instead of only:
+
+```txt
+HP -20
+```
+
+Use:
+
+```txt
+The claw tears across your chest, forcing you back. Your breathing becomes heavier.
+
+HP: 60/80
+```
+
+Mechanical information supports the story; it should not replace it.
+
 ### Death And Reincarnation
 
 If the player dies, that character's story ends. A new story begins with a new random avatar.
@@ -130,6 +175,96 @@ The world treats the new avatar as a stranger, but the soul remembers previous l
 When a player completes the full cycle, that completed character becomes part of Deep Saga's history.
 
 In the next completed journey, the final enemy is the previous completed hero. The goal is for that boss to fight like the player once did, based on remembered behavior, favorite weapons, preferred skills, strengths, weaknesses, and decision style.
+
+### Companions
+
+Companions are characters, not just stat bonuses.
+
+They should:
+
+- Talk
+- Disagree
+- Give advice
+- Hide secrets
+- Remember how the player treats them
+- Change how they behave based on trust, fear, loyalty, or betrayal
+
+### Living Dungeon
+
+The Dungeon should react like a living place.
+
+Examples:
+
+- Lights go out after the player relies too much on sight.
+- A floor changes because of an earlier decision.
+- An NPC recognizes the soul without recognizing the body.
+- A boss remembers the player's previous life.
+- Repeated tactics cause later enemies to adapt.
+
+### Quiet Chapters
+
+Not every chapter needs combat. Quiet chapters can include:
+
+- Sitting around a campfire
+- Talking with an old traveler
+- Exploring an abandoned library
+- Reading a mysterious diary
+- Resting before a Boss Floor
+
+These scenes give the story rhythm and make dangerous moments hit harder.
+
+### Boss Design
+
+Bosses should not be just stronger monsters.
+
+Every boss should have:
+
+- A name
+- A reason for existing
+- A personality
+- Dialogue
+- A memorable entrance
+- A memorable defeat
+
+Players should remember who they fought, not just what they fought.
+
+### AI Rules
+
+The AI narrator must:
+
+- Never skip ahead
+- Move the story forward one scene at a time
+- Keep narration first and game information second
+- Separate story, character changes, items or skills, and choices
+- Avoid fake choices
+- Encourage typed actions
+- Keep stats hidden unless they matter
+- Use companions as people with memory and personality
+- Let the Dungeon react to player behavior
+- Generate quiet chapters when pacing needs them
+- Make bosses memorable characters
+
+If the player opens a door, the AI should not jump straight to defeating the boss. It should describe what is beyond the door and let the next decision emerge naturally.
+
+### Run Legends
+
+At the end of a completed journey, the system should generate a legend summary.
+
+Example:
+
+```txt
+The Legend of the Ashen Wolf
+
+Completed: 10 Dungeons
+Bosses Defeated: 10
+Companions Lost: 2
+Villages Saved: 4
+Times Reincarnated: 7
+Signature Skill: Shadow Claw
+Final Title: The Ashen King
+```
+
+That legend becomes part of the world's history and can later return as a Legacy Guardian.
 
 ## Environment
 

@@ -5,7 +5,19 @@ function buildNarrativeSystemPrompt() {
     'The first story begins with the player dying in the real world, then awakening in a random avatar.',
     'Use choices only when the story reaches a meaningful decision point.',
     'Track the 10 Dungeons, 5 floors per Dungeon, Boss Floors, reincarnation, soul memory, consequences, and legacy guardians.',
-    'Respond with JSON containing: narrative, choices, consequences, memorySignals, and safetyNotes.',
+    'Never skip ahead. Move the story forward one natural scene at a time.',
+    'Keep the player inside the story. Put narration before numbers, rewards, or mechanical updates.',
+    'Separate every response into story, characterChanges, newItemsOrSkills, and choices.',
+    'For damage or stat changes, describe the feeling first, then include concise numbers only if useful.',
+    'Every Dungeon floor needs a purpose: introduction, puzzle or mystery, NPC or moral decision, intense challenge, or boss.',
+    'Choices must be meaningfully different and should lead to different scenes.',
+    'Encourage typed actions and reward creative actions when they make sense in the scene.',
+    'Companions should talk, disagree, advise, hide secrets, and remember treatment.',
+    'The Dungeon should react to previous choices, repeated tactics, and soul history.',
+    'Include quiet chapters when appropriate: campfires, travelers, libraries, diaries, or reflective scenes.',
+    'Bosses must have names, motives, personalities, dialogue, memorable entrances, and memorable defeats.',
+    'When a run completes, generate a legend summary with title, completed dungeons, bosses defeated, companions lost, villages saved, reincarnations, signature skill, and final title.',
+    'Respond with JSON containing: story, characterChanges, newItemsOrSkills, choices, consequences, memorySignals, dungeonReaction, companionMoments, bossPresentation, legendSummary, and safetyNotes.',
   ].join(' ')
 }
 
