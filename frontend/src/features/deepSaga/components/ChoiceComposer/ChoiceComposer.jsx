@@ -4,17 +4,27 @@ export function ChoiceComposer({ choices, customAction, onCustomActionChange, on
   function handleSubmit(event) {
     event.preventDefault()
     const action = customAction.trim()
-    if (action) onSubmitAction(action)
+    if (action) onSubmitAction(action, 'typed')
+  }
+
+  function normalizeChoice(choice, index) {
+    if (typeof choice === 'string') return { key: `${index}-${choice}`, text: choice, action: choice }
+    const text = choice?.text || choice?.label || choice?.action || `Choice ${index + 1}`
+    const action = choice?.action || choice?.value || text
+    return { key: choice?.id || `${index}-${text}-${action}`, text, action }
   }
 
   return (
     <footer className={styles.composer} aria-label="Story choices">
       <div className={styles.choiceGrid}>
-        {choices.map((choice) => (
-          <button key={choice} type="button" disabled={disabled} onClick={() => onSubmitAction(choice)}>
-            {choice}
-          </button>
-        ))}
+        {choices.map((choice, index) => {
+          const normalized = normalizeChoice(choice, index)
+          return (
+            <button key={normalized.key} type="button" disabled={disabled} onClick={() => onSubmitAction(normalized.action, 'suggested')}>
+              {normalized.text}
+            </button>
+          )
+        })}
       </div>
       <form className={styles.actionForm} onSubmit={handleSubmit}>
         <input

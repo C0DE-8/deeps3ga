@@ -82,7 +82,7 @@ export function StorySimulation() {
         {error && <p className={styles.error} role="alert">{error}</p>}
         <div className={styles.currentChoice}>
           {busy && scenes.length === 1 && <p className={styles.loading}>The record is opening...</p>}
-          <ChoiceComposer choices={latest.choices || []} customAction={customAction} onCustomActionChange={setCustomAction} onSubmitAction={(action) => submitAction(action, latest.choices?.includes(action) ? 'suggested' : 'typed')} disabled={busy} />
+          <ChoiceComposer choices={latest.choices || []} customAction={customAction} onCustomActionChange={setCustomAction} onSubmitAction={submitAction} disabled={busy} />
         </div>
       </div>
     </main>

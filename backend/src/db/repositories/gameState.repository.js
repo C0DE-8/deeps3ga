@@ -121,7 +121,7 @@ async function getGameState(storyCycleId) {
   ])
   if (!run) return null
 
-  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, skills, inventory, adaptations, legacyHeroes] = await Promise.all([
+  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, companionMemories, skills, inventory, adaptations, legacyHeroes] = await Promise.all([
     query('SELECT * FROM character_sheets WHERE character_life_id = ?', [run.character_life_id]),
     query('SELECT * FROM dungeons WHERE id = ?', [run.current_dungeon_id]),
     query('SELECT * FROM dungeon_floors WHERE id = ?', [run.current_floor_id]),
@@ -163,9 +163,13 @@ async function getGameState(storyCycleId) {
       [storyCycleId],
     ),
     query(
-      `SELECT c.*, COALESCE(JSON_ARRAYAGG(JSON_OBJECT('type', cm.memory_type, 'text', cm.memory_text, 'sentiment', cm.sentiment)), JSON_ARRAY()) AS memories
-         FROM companions c LEFT JOIN companion_memories cm ON cm.companion_id = c.id
-        WHERE c.story_cycle_id = ? AND c.active = 1 GROUP BY c.id`,
+      'SELECT * FROM companions WHERE story_cycle_id = ? AND active = 1',
+      [storyCycleId],
+    ),
+    query(
+      `SELECT cm.companion_id, cm.memory_type, cm.memory_text, cm.sentiment, cm.created_at
+         FROM companion_memories cm JOIN companions c ON c.id = cm.companion_id
+        WHERE c.story_cycle_id = ? AND c.active = 1 ORDER BY cm.created_at`,
       [storyCycleId],
     ),
     query(
@@ -201,7 +205,17 @@ async function getGameState(storyCycleId) {
     activeQuests: quests.map((row) => hydrate(row, [['objectives_json', []], ['rewards_json', []], ['consequence_rules_json', {}], ['progress_json', {}], ['choices_json', []]])),
     storyMemory: memories.map((row) => hydrate(row, [['facts_json', {}]])),
     previousChoices: choices.map((row) => hydrate(row, [['intent_json', {}], ['outcome_json', {}]])),
-    companions: companions.map((row) => hydrate(row, [['personality_json', {}], ['secrets_json', []], ['relationship_state_json', {}], ['memories', []]])),
+    companions: companions.map((row) => ({
+      ...hydrate(row, [['personality_json', {}], ['secrets_json', []], ['relationship_state_json', {}]]),
+      memories: companionMemories
+        .filter((memory) => Number(memory.companion_id) === Number(row.id))
+        .map((memory) => ({
+          type: memory.memory_type,
+          text: memory.memory_text,
+          sentiment: memory.sentiment,
+          createdAt: memory.created_at,
+        })),
+    })),
     skills: skills.map((row) => hydrate(row, [['effects_json', {}]])),
     inventory: inventory.map((row) => hydrate(row, [['effects_json', {}], ['item_state_json', {}]])),
     dungeonAdaptations: adaptations.map((row) => hydrate(row, [['affected_enemy_rules_json', {}]])),
@@ -231,7 +245,8 @@ async function saveNarrativeTurn({ state, playerAction, actionKind, scene }) {
        VALUES (?, ?, ?, ?, ?)`,
       [narratorMessage.insertId, scene.story || '', JSON.stringify(scene.characterChanges || []), JSON.stringify(scene.newItemsOrSkills || []), JSON.stringify(scene.choices || [])],
     )
-    for (const memory of scene.memorySignals || []) {
+    const memorySignals = Array.isArray(scene.memorySignals) ? scene.memorySignals : []
+    for (const memory of memorySignals) {
       const normalized = typeof memory === 'string' ? { summary: memory } : memory
       await connection.execute(
         `INSERT INTO story_memories (soul_profile_id, story_cycle_id, character_life_id, scope, memory_key, summary, facts_json, importance, remembered_across_lives)
