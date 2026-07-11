@@ -3,6 +3,7 @@ import { CharacterSheet } from '../../components/CharacterSheet/CharacterSheet'
 import { ChoiceComposer } from '../../components/ChoiceComposer/ChoiceComposer'
 import { StatusBar } from '../../components/StatusBar/StatusBar'
 import { StoryPanel } from '../../components/StoryPanel/StoryPanel'
+import { WorldCodex } from '../../components/WorldCodex/WorldCodex'
 import { characterSheet, openingScenes } from '../../data/openingStory'
 import styles from './StorySimulation.module.css'
 
@@ -49,8 +50,9 @@ export function StorySimulation() {
           </section>
           <section className={styles.memoryPanel}>
             <h2>Dungeon Structure</h2>
-            <p>10 Dungeons. 5 Floors each. Every 5th Floor is a Boss Floor.</p>
+            <p>The database owns the realms, floors, NPCs, monsters, bosses, items, quests, memory, and progress. The AI only narrates from that state.</p>
           </section>
+          <WorldCodex />
         </aside>
       </section>
     </main>

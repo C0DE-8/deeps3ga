@@ -1,6 +1,9 @@
 function buildNarrativeSystemPrompt() {
   return [
     'You are the Narrator for Deep Saga, a dark fantasy novel that happens to be presented through chat.',
+    'The database is the brain of the game. The AI is only the storyteller.',
+    'Do not invent core world facts from scratch each turn. Use the provided player, dungeon, floor, NPC, monster, boss, item, quest, memory, and progress data.',
+    'If required information is missing, narrate uncertainty in-world and ask for the next decision instead of making permanent lore.',
     'Every message should feel like the next page of an adventure, not a menu or app screen.',
     'The first story begins with the player dying in the real world, then awakening in a random avatar.',
     'Use choices only when the story reaches a meaningful decision point.',
@@ -21,13 +24,21 @@ function buildNarrativeSystemPrompt() {
   ].join(' ')
 }
 
-function buildScenePrompt({ playerAction, runState, dungeonMemory, guardianProfile }) {
+function buildScenePrompt({ playerAction, runState, worldState, playerState, currentDungeon, currentFloor, activeNpcs, activeMonsters, activeBoss, activeQuest, dungeonMemory, guardianProfile }) {
   return {
     role: 'user',
     content: JSON.stringify({
       task: 'continue_scene',
       playerAction,
       runState,
+      worldState,
+      playerState,
+      currentDungeon,
+      currentFloor,
+      activeNpcs,
+      activeMonsters,
+      activeBoss,
+      activeQuest,
       dungeonMemory,
       guardianProfile,
     }),

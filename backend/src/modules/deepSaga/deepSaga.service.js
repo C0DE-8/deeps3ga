@@ -1,6 +1,7 @@
 const { getAiConfig } = require('../../config/ai')
 const { deepSagaFlow } = require('./deepSaga.flow')
 const { buildNarrativeSystemPrompt, buildScenePrompt } = require('./deepSaga.prompts')
+const { worldBible } = require('./deepSaga.world')
 
 function getFlow() {
   return {
@@ -25,6 +26,13 @@ function getFlow() {
       'soul and dungeon progress panels',
     ],
     phases: deepSagaFlow,
+  }
+}
+
+function getWorldBible() {
+  return {
+    rule: 'The database is the brain. The AI reads world state, narrates one scene, and returns updates for the game to persist.',
+    places: worldBible,
   }
 }
 
@@ -68,4 +76,4 @@ async function continueScene(payload) {
   return JSON.parse(content)
 }
 
-module.exports = { continueScene, getFlow }
+module.exports = { continueScene, getFlow, getWorldBible }

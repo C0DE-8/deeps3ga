@@ -26,6 +26,7 @@ POST /api/story/continue
 
 GET  /api/deep-saga
 GET  /api/deep-saga/flow
+GET  /api/deep-saga/world
 ```
 
 Current backend pieces:
@@ -36,6 +37,7 @@ Current backend pieces:
 - Soul router for reincarnation/soul records
 - Story router for continuing the narrative
 - Deep Saga router for the game flow
+- World brain endpoint for the realm/floor/boss bible
 - MySQL database connection through `mysql2`
 - MySQL schema migrations in `backend/migrations`
 - Helmet security headers
@@ -73,6 +75,57 @@ frontend/src/features/deepSaga/pages
 
 ## What The System Does
 
+### Database Brain, AI Storyteller
+
+Deep Saga should not ask the AI to invent the world from scratch every turn.
+
+The database is the brain of the game. It stores durable facts:
+
+- Player state
+- Character sheet
+- Inventory
+- Skills
+- Titles
+- Story progress
+- Reincarnations
+- Legacy records
+- Current realm or Dungeon
+- Current floor
+- Floor story and purpose
+- NPCs
+- Monsters
+- Bosses
+- Items
+- Quests
+- Hidden events
+- Dungeon memory
+- Player behavior memory
+
+The AI is the storyteller. It reads the current database state, writes the next scene, and returns structured updates for the game to persist.
+
+Example flow:
+
+```txt
+Player: "I open the door."
+
+Game loads:
+- Player
+- Current realm
+- Current floor
+- Floor story
+- NPCs
+- Boss status
+- Monsters
+- Active quest
+- Dungeon memory
+
+AI reads that context.
+AI writes one natural scene.
+Game updates the database.
+```
+
+This keeps the story consistent, lets the world be edited through data, and prevents the AI from forgetting or contradicting important facts.
+
 ### Story Flow
 
 Deep Saga begins with the player's death in the real world. The player does not choose how it happens. They simply experience the opening scene.
@@ -93,7 +146,7 @@ The current flow is:
 
 ### Dungeon Structure
 
-The game is designed around 10 Dungeons.
+The game is designed around 10 major realms. They can be Dungeons, kingdoms, ruins, markets, islands, libraries, or living places. The word Dungeon means a structured story zone, not always an underground cave.
 
 Each Dungeon has 5 Floors:
 
@@ -104,6 +157,19 @@ Each Dungeon has 5 Floors:
 - Floor 5 is always the Boss Floor.
 
 Defeating the Boss Floor unlocks the next Dungeon.
+
+Current realm set:
+
+1. Cradlewood Threshold
+2. Glassweb Hollows
+3. Mire-Crown Principality
+4. Ashbell Academy Ruins
+5. Moon-Eaten Bazaar
+6. Iron Orchard Dominion
+7. Saintless Cathedral
+8. Demon-Seal Archipelago
+9. Chronicle Labyrinth
+10. Throne of the Previous Self
 
 Each floor should have a clear story purpose:
 

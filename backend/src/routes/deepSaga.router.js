@@ -1,5 +1,5 @@
 const express = require('express')
-const { getFlow } = require('../modules/deepSaga/deepSaga.service')
+const { getFlow, getWorldBible } = require('../modules/deepSaga/deepSaga.service')
 
 const router = express.Router()
 
@@ -13,6 +13,10 @@ router.get('/', (req, res) => {
 
 router.get('/flow', (req, res) => {
   res.json(getFlow())
+})
+
+router.get('/world', (req, res) => {
+  res.json(getWorldBible())
 })
 
 module.exports = router

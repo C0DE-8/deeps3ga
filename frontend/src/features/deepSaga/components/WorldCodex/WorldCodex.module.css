@@ -1,0 +1,82 @@
+.codex {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.94);
+  padding: 14px;
+}
+
+.header span,
+.place summary span,
+.boss span,
+.place li span {
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin-top: 2px;
+  font-size: 1rem;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.place {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.place summary {
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.place summary strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.place ol {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.place li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.boss {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.boss strong {
+  font-size: 0.92rem;
+}
