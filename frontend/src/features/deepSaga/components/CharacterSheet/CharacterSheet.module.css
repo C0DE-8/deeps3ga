@@ -1,0 +1,60 @@
+.sheet {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.94);
+  padding: 12px;
+}
+
+.sheet summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.identity {
+  margin-top: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.identity h2 {
+  font-size: 1.2rem;
+}
+
+.identity p,
+.section li,
+.stats dt {
+  color: var(--muted);
+}
+
+.section {
+  margin-top: 14px;
+}
+
+.section h3 {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+.section ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.stats {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.stats div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stats dd {
+  margin: 0;
+  font-weight: 900;
+}

@@ -1,0 +1,60 @@
+.composer {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.98);
+  padding: 12px;
+  box-shadow: 0 -12px 30px rgba(23, 20, 17, 0.08);
+}
+
+.choiceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.choiceGrid button,
+.actionForm button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffaf0;
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.choiceGrid button {
+  text-align: left;
+  padding: 10px 12px;
+}
+
+.actionForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 8px;
+}
+
+.actionForm input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 12px;
+}
+
+.actionForm button {
+  background: var(--ink);
+  color: var(--panel);
+}
+
+@media (max-width: 760px) {
+  .choiceGrid,
+  .actionForm {
+    grid-template-columns: 1fr;
+  }
+}
