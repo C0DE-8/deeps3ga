@@ -84,11 +84,11 @@ async function createGame(accountId) {
     )
     const lifeId = lifeResult.insertId
     await connection.execute(
-      `INSERT INTO character_sheets (character_life_id, character_name, race_name, class_name, appearance_json, personality_json, titles_json, stats_json, blessings_json, curses_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [lifeId, characterName, race, className, JSON.stringify({ cloak: 'torn', eyes: 'unfamiliar', condition: 'newly awakened' }), JSON.stringify({ primary: personality }), '[]', JSON.stringify({ strength: 6, agility: 6, intelligence: 6, will: 7, perception: 5 }), '[]', '[]'],
+      `INSERT INTO character_sheets (character_life_id, character_name, species_name, race_name, class_name, appearance_json, personality_json, titles_json, strength, agility, defense, thaumaturgy, resolve_stat, intelligence, luck, charisma, stats_json, traits_json, blessings_json, curses_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 6, 6, 5, 4, 7, 6, 5, 5, ?, ?, ?, ?)`,
+      [lifeId, characterName, race, race, className, JSON.stringify({ cloak: 'torn', eyes: 'unfamiliar', condition: 'newly awakened' }), JSON.stringify({ primary: personality }), '[]', JSON.stringify({ perception: 5 }), JSON.stringify([{ name: personality, source: 'reincarnation' }]), '[]', '[]'],
     )
-    await connection.execute('INSERT INTO story_progress (story_cycle_id, current_dungeon_id, current_floor_id, story_state_json) VALUES (?, 1, 101, ?)', [storyCycleId, JSON.stringify({ chapter: 1, scene: 'last-breath', legacyHeroId: legacy[0]?.id || null })])
+    await connection.execute("INSERT INTO story_progress (story_cycle_id, current_dungeon_id, current_floor_id, current_chapter, current_scene, story_state_json) VALUES (?, 1, 101, 1, 'last-breath', ?)", [storyCycleId, JSON.stringify({ chapter: 1, scene: 'last-breath', legacyHeroId: legacy[0]?.id || null })])
     await connection.execute('INSERT INTO player_behavior_profiles (character_life_id) VALUES (?)', [lifeId])
     await connection.execute("INSERT INTO character_inventory (character_life_id, item_id, quantity, equipped_slot, item_state_json) SELECT ?, id, 1, CASE item_key WHEN 'rust-dagger' THEN 'weapon' WHEN 'torn-cloak' THEN 'armor' END, '{}' FROM items WHERE item_key IN ('rust-dagger', 'torn-cloak')", [lifeId])
     await connection.execute("INSERT INTO character_skills (character_life_id, skill_id) SELECT ?, id FROM skills WHERE skill_key IN ('brace', 'soul-echo')", [lifeId])
@@ -102,9 +102,9 @@ async function createGame(accountId) {
 
 async function getGameState(storyCycleId) {
   const cycles = await query(
-    `SELECT sc.*, sp.current_dungeon_id, sp.current_floor_id, sp.story_state_json,
+    `SELECT sc.*, sp.current_dungeon_id, sp.current_floor_id, sp.current_chapter, sp.current_scene, sp.story_state_json,
             cl.id AS character_life_id, cl.life_number, cl.status AS character_status,
-            s.id AS soul_profile_id, s.account_id, s.soul_name, s.total_deaths, s.total_completed_runs,
+            s.id AS soul_profile_id, s.account_id, s.soul_name, s.soul_level, s.soul_energy, s.total_deaths, s.total_completed_runs,
             s.remembered_knowledge_json
        FROM story_cycles sc
        JOIN soul_profiles s ON s.id = sc.soul_profile_id
@@ -121,7 +121,7 @@ async function getGameState(storyCycleId) {
   ])
   if (!run) return null
 
-  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, companionMemories, skills, inventory, adaptations, legacyHeroes] = await Promise.all([
+  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, companionMemories, skills, inventory, statuses, traits, injuries, lifeHistory, adaptations, legacyHeroes] = await Promise.all([
     query('SELECT * FROM character_sheets WHERE character_life_id = ?', [run.character_life_id]),
     query('SELECT * FROM dungeons WHERE id = ?', [run.current_dungeon_id]),
     query('SELECT * FROM dungeon_floors WHERE id = ?', [run.current_floor_id]),
@@ -173,7 +173,8 @@ async function getGameState(storyCycleId) {
       [storyCycleId],
     ),
     query(
-      `SELECT s.skill_key, s.name, s.skill_type, s.description, s.effects_json, cs.skill_level, cs.times_used, cs.equipped
+      `SELECT s.skill_key, s.name, s.skill_type, s.description, s.effects_json,
+              cs.skill_level, cs.skill_xp, cs.xp_needed, cs.unlocked, cs.times_used, cs.last_used_at, cs.equipped
          FROM character_skills cs JOIN skills s ON s.id = cs.skill_id
         WHERE cs.character_life_id = ?`,
       [run.character_life_id],
@@ -185,6 +186,16 @@ async function getGameState(storyCycleId) {
         WHERE ci.character_life_id = ?`,
       [run.character_life_id],
     ),
+    query(
+      `SELECT se.status_key, se.name, se.category, se.description, cse.intensity, cse.remaining_turns,
+              cse.source_type, cse.state_json, cse.applied_at
+         FROM character_status_effects cse JOIN status_effects se ON se.id = cse.status_effect_id
+        WHERE cse.character_life_id = ? AND cse.removed_at IS NULL`,
+      [run.character_life_id],
+    ),
+    query('SELECT trait_key, name, description, source_type, effects_json, gained_at FROM character_traits WHERE character_life_id = ? ORDER BY gained_at', [run.character_life_id]),
+    query('SELECT injury_key, name, description, body_location, severity, effects_json, created_at FROM character_injuries WHERE character_life_id = ? AND healed_at IS NULL ORDER BY created_at', [run.character_life_id]),
+    query('SELECT soul_id, life_number, character_id, character_name, species_name, race_name, class_name, level, status, death_scene, completion_summary, life_started_at, life_ended_at FROM soul_life_history WHERE soul_id = ? ORDER BY life_number', [run.soul_profile_id]),
     query('SELECT * FROM dungeon_adaptations WHERE soul_profile_id = ? AND active = 1', [run.soul_profile_id]),
     query(
       `SELECT id, legacy_number, hero_name, final_title, identity_snapshot_json, character_snapshot_json,
@@ -196,7 +207,7 @@ async function getGameState(storyCycleId) {
 
   return {
     run,
-    characterSheet: hydrate(sheets[0], [['appearance_json', {}], ['personality_json', {}], ['titles_json', []], ['stats_json', {}], ['blessings_json', []], ['curses_json', []]]),
+    characterSheet: hydrate(sheets[0], [['appearance_json', {}], ['personality_json', {}], ['titles_json', []], ['stats_json', {}], ['traits_json', []], ['blessings_json', []], ['curses_json', []]]),
     currentDungeon: hydrate(dungeons[0], [['unlock_requirements_json', {}], ['story_arc_json', {}]]),
     currentFloor: hydrate(floors[0], [['enemies_available_json', []], ['npcs_available_json', []], ['hidden_events_json', []], ['floor_memory_json', {}], ['boss_rules_json', {}]]),
     activeNpcs: npcs.map((row) => hydrate(row, [['personality_json', {}], ['dialogue_json', []], ['run_relationship_json', {}], ['dialogue_state_json', {}]])),
@@ -218,6 +229,10 @@ async function getGameState(storyCycleId) {
     })),
     skills: skills.map((row) => hydrate(row, [['effects_json', {}]])),
     inventory: inventory.map((row) => hydrate(row, [['effects_json', {}], ['item_state_json', {}]])),
+    statusEffects: statuses.map((row) => hydrate(row, [['state_json', {}]])),
+    traits: traits.map((row) => hydrate(row, [['effects_json', {}]])),
+    injuries: injuries.map((row) => hydrate(row, [['effects_json', {}]])),
+    lifeHistory,
     dungeonAdaptations: adaptations.map((row) => hydrate(row, [['affected_enemy_rules_json', {}]])),
     previousLegacyHero: hydrate(legacyHeroes[0], [['identity_snapshot_json', {}], ['character_snapshot_json', {}], ['skills_snapshot_json', []], ['equipment_snapshot_json', []], ['combat_style_snapshot_json', {}], ['boss_snapshot_json', {}]]),
   }
@@ -284,12 +299,40 @@ async function createLegacyHero(storyCycleId, bossData = {}) {
     if (Number(progress[0].cleared) !== 10) throw new Error('Legacy Heroes require all 10 realms and bosses to be completed.')
     const [existing] = await connection.execute('SELECT id FROM legacy_heroes WHERE source_story_cycle_id = ?', [storyCycleId])
     if (existing[0]) return { id: existing[0].id, alreadyCreated: true }
-    const [skillRows] = await connection.execute(`SELECT s.*, cs.skill_level, cs.times_used, cs.equipped FROM character_skills cs JOIN skills s ON s.id = cs.skill_id WHERE cs.character_life_id = ?`, [source.character_life_id])
+    const [skillRows] = await connection.execute(`SELECT s.*, cs.skill_level, cs.skill_xp, cs.xp_needed, cs.unlocked, cs.times_used, cs.last_used_at, cs.equipped FROM character_skills cs JOIN skills s ON s.id = cs.skill_id WHERE cs.character_life_id = ?`, [source.character_life_id])
     const [itemRows] = await connection.execute(`SELECT i.*, ci.quantity, ci.equipped_slot, ci.item_state_json FROM character_inventory ci JOIN items i ON i.id = ci.item_id WHERE ci.character_life_id = ?`, [source.character_life_id])
     const [behaviors] = await connection.execute('SELECT * FROM player_behavior_profiles WHERE character_life_id = ?', [source.character_life_id])
+    const [statusRows] = await connection.execute(`SELECT se.status_key, se.name, se.category, cse.intensity, cse.remaining_turns, cse.state_json FROM character_status_effects cse JOIN status_effects se ON se.id = cse.status_effect_id WHERE cse.character_life_id = ? AND cse.removed_at IS NULL`, [source.character_life_id])
+    const [traitRows] = await connection.execute('SELECT trait_key, name, description, source_type, effects_json FROM character_traits WHERE character_life_id = ?', [source.character_life_id])
+    const [injuryRows] = await connection.execute('SELECT injury_key, name, description, body_location, severity, effects_json FROM character_injuries WHERE character_life_id = ? AND healed_at IS NULL', [source.character_life_id])
     const [legacyCount] = await connection.execute('SELECT COUNT(*) AS count FROM legacy_heroes WHERE soul_profile_id = ?', [source.soul_profile_id])
-    const identity = { name: source.character_name, race: source.race_name, class: source.class_name, gender: source.gender_name, appearance: parseJson(source.appearance_json, {}), personality: parseJson(source.personality_json, {}), titles: parseJson(source.titles_json, []) }
-    const character = { level: source.level, xp: source.xp, hp: source.max_hp, mana: source.max_mana, stamina: source.max_stamina, stats: parseJson(source.stats_json, {}), blessings: parseJson(source.blessings_json, []), curses: parseJson(source.curses_json, []) }
+    const identity = { name: source.character_name, species: source.species_name, race: source.race_name, class: source.class_name, gender: source.gender_name, appearance: parseJson(source.appearance_json, {}), personality: parseJson(source.personality_json, {}), titles: parseJson(source.titles_json, []) }
+    const character = {
+      level: source.level,
+      xp: source.xp,
+      xpNeeded: source.xp_needed,
+      hp: source.max_hp,
+      mana: source.max_mana,
+      stamina: source.max_stamina,
+      health: source.health_condition,
+      gold: source.gold,
+      stats: {
+        strength: source.strength,
+        agility: source.agility,
+        defense: source.defense,
+        thaumaturgy: source.thaumaturgy,
+        resolve: source.resolve_stat,
+        intelligence: source.intelligence,
+        luck: source.luck,
+        charisma: source.charisma,
+        ...parseJson(source.stats_json, {}),
+      },
+      traits: [...parseJson(source.traits_json, []), ...traitRows],
+      statuses: statusRows,
+      injuries: injuryRows,
+      blessings: parseJson(source.blessings_json, []),
+      curses: parseJson(source.curses_json, []),
+    }
     const equipment = itemRows.filter((item) => item.equipped_slot)
     const finalTitle = bossData.finalTitle || identity.titles.at(-1) || 'Eternal Guardian'
     const bossSnapshot = { arena: bossData.arena || 'Throne of the Previous Self', music: bossData.music || 'Echoes of the Conqueror', introDialogue: bossData.introDialogue || `I remember being ${source.character_name}.`, defeatDialogue: bossData.defeatDialogue || 'Become more than I was.', phases: bossData.phases || ['signature opening', 'adaptive rhythm', 'legacy desperation'], finalHp: source.max_hp, finalMana: source.max_mana, activePassives: skillRows.filter((skill) => skill.skill_type === 'passive').map((skill) => skill.name) }

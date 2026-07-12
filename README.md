@@ -151,6 +151,43 @@ The client sends only the story cycle, the player's action, and whether the acti
 
 The engine loads the character sheet, location, floor, present NPCs and monsters, boss state, active quests, companions, skills, inventory, previous choices, Dungeon adaptations, soul memories, and previous Legacy Hero before calling the narrator.
 
+### Set 1: Player And Character System
+
+Player identity is separated into four levels:
+
+```txt
+Account
+  -> Immortal Soul
+    -> Story Cycle / Reincarnation
+      -> Character Life / Body
+        -> Character Sheet, skills, inventory, traits, statuses, and injuries
+```
+
+- `accounts` stores login identity, email, role, and secure password/session information.
+- `soul_profiles` stores the immortal Soul ID, Soul Level, Soul Energy, remembered knowledge, total deaths, and completed runs.
+- `story_cycles` stores each reincarnation cycle and whether it is active, dead, or completed.
+- `character_lives` gives every body a unique Character ID and life number.
+- `character_sheets` stores name, species, race, class, level, XP, XP needed, vitals, health, eight core stats, gold, appearance, personality, traits, titles, blessings, and curses.
+
+The eight core stats are Strength, Agility, Defense, Thaumaturgy, Resolve, Intelligence, Luck, and Charisma.
+
+Character skills are stored separately with skill level, skill XP, XP needed, unlocked state, equipped state, use count, and last-used time. Character status effects support Poisoned, Bleeding, Frozen, Sleeping, Blessed, Burning, Invisible, and Confused. Statuses have source, intensity, remaining duration, and effect state.
+
+Permanent or long-term body changes are not treated as temporary statuses. Injuries such as losing an eye have body location, severity, mechanical effects, and healing state. Traits have their own source and effects. Story memories store facts such as saving Lyra, killing a chief, refusing a reward, unlocking magic, completing a realm, trusting an NPC, or meeting a dragon.
+
+Current position stores Realm, Floor, Chapter, and Scene. Before every scene, the narrator receives the full character sheet, skills, traits, titles, statuses, injuries, companions, position, relevant story memories, and previous life history.
+
+Reincarnation history is available through `soul_life_history`:
+
+```txt
+Soul ID 1
+  -> Life 1 / Character 25 / Died
+  -> Life 2 / Character 41 / Died
+  -> Life 3 / Character 63 / Completed
+```
+
+Deaths preserve the Soul ID but close the current Character ID permanently. Completing all 10 Realms freezes that body, its expanded character sheet, mastered skills, equipment, active conditions, traits, injuries, and combat behavior into a separate Legacy Hero snapshot.
+
 ### Story Flow
 
 Deep Saga begins with the player's death in the real world. The player does not choose how it happens. They simply experience the opening scene.
