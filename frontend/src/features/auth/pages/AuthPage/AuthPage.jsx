@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BookOpen, Eye, KeyRound, Mail, UserRound } from 'lucide-react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../useAuth'
+import { PortalLines } from '../../components/PortalLines/PortalLines'
 import styles from './AuthPage.module.css'
 
 export function AuthPage({ mode }) {
@@ -38,6 +39,7 @@ export function AuthPage({ mode }) {
   return (
     <main className={styles.page}>
       <div className={styles.backdrop} aria-hidden="true" />
+      <PortalLines />
       <section className={styles.intro}>
         <span className={styles.mark}><Eye size={18} /> Deep Saga</span>
         <h1>{isRegister ? 'A new soul approaches.' : 'The Dungeon remembers you.'}</h1>

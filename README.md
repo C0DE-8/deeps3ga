@@ -206,6 +206,191 @@ Each floor should have a clear story purpose:
 
 Not every floor should be `walk -> monster -> fight`. Quiet chapters, discoveries, puzzles, and social choices make the dangerous moments stronger.
 
+### World Content Arrangement
+
+Deep Saga content is arranged from the largest story area down to the abilities a character can learn:
+
+```txt
+10 Realms / Dungeons
+  -> 5 Floors per Realm
+  -> 50 Floors total
+  -> 1 Floor Story per Floor
+  -> NPCs present on that Floor
+  -> Monsters available on that Floor
+  -> Items found, carried, sold, or dropped there
+  -> Skills that can be used, trained, discovered, or unlocked there
+  -> Quests and hidden events tied to that Floor
+
+Every Realm Floor 5
+  -> 1 Main Boss
+  -> Boss phases, skills, dialogue, weaknesses, and rewards
+
+Realm 10 Floor 5
+  -> The previous completed Legacy Hero
+```
+
+The IDs in the content workbook connect these records:
+
+```txt
+REALM-03
+  FLOOR-03-04
+    STORY-03-04
+    NPC-03-04-002
+    MON-03-04-006
+    QUEST-03-005
+    EVENT-03-04-002
+
+BOSS-03
+ITEM-03-041
+SKILL-087
+```
+
+The editable content format is in [`backend/data/DEEP_SAGA_CONTENT_WORKBOOK.txt`](backend/data/DEEP_SAGA_CONTENT_WORKBOOK.txt). It contains blank templates and examples for realms, floors, floor stories, NPCs, monsters, bosses, items, skills, quests, and hidden events.
+
+### Current Content Inventory
+
+The project separates the world structure that already exists from the larger authored-content target:
+
+| Content | Currently Seeded | Target | Current State |
+| --- | ---: | ---: | --- |
+| Realms / Dungeons | 10 | 10 | Complete structure |
+| Floors | 50 | 50 | Complete structure, five per realm |
+| Floor descriptions and purposes | 50 | 50 | Seeded inside the floor records |
+| Separate story chapter records | 0 | 50+ | Awaiting full authored scenes |
+| NPCs | 9 | 100+ | One principal NPC for Realms 1-9 |
+| Monsters | 9 | 300+ | One introductory monster for Realms 1-9 |
+| Main Boss profiles | 10 | 10 | Complete initial boss set |
+| Items | 3 | 500 | Starter weapon, armor, and first boss relic |
+| Skills | 4 | 200 | Two starter skills and two catalog skills |
+| Quests | 0 | To be authored | Schema and run-state support exist |
+| Active companions | 0 | Story-dependent | Created during player runs |
+| Legacy Heroes | 0 | Player-created | Created only after a completed run |
+
+The 50 seeded floors already contain names, descriptions, atmosphere, purpose, available NPC and monster names, hidden-event ideas, story purpose, and boss-floor rules. A full `world_story_chapters` entry is still needed when each floor receives its complete authored scene flow, decisions, consequences, and ending.
+
+### Realm And Floor Records
+
+Each Realm record stores:
+
+- Realm number and name
+- Place type, such as kingdom, forest, academy, market, or island chain
+- Description and theme
+- Difficulty
+- Unlock requirements
+- Main story arc
+
+Each Floor record stores:
+
+- Realm and floor number
+- Floor name and type
+- Story purpose
+- Description and atmosphere
+- Available monsters and NPCs
+- Hidden events
+- Quiet-chapter support
+- Floor memory
+- Boss rules when the floor is Floor 5
+
+### Floor Stories
+
+Every Floor Story should define:
+
+- Opening situation
+- Important story beats
+- Main discovery
+- Conversations and quiet moments
+- Meaningful choices with different consequences
+- Creative typed actions that can work
+- Actions that should fail and why
+- Combat and non-combat solutions
+- Memories that must be saved
+- Ending and movement to the next floor
+
+The AI reads the authored Floor Story and current run state. It narrates one scene at a time and must not replace the authored story with unrelated permanent lore.
+
+### NPC And Companion Content
+
+NPC records can contain identity, race, appearance, personality, speech style, backstory, goals, fears, secrets, location, dialogue, quests, carried items, known skills, relationship state, and life status.
+
+Some NPCs can become companions. Companion run records additionally store:
+
+- Trust, loyalty, fear, and relationship changes
+- Personal secrets
+- Advice style
+- Memories of how the player treated them
+- Whether they are active, dead, missing, or departed
+
+### Monster Content
+
+Monster records define more than combat statistics. They can include:
+
+- Name, species, description, and habitat
+- HP, attack, defense, speed, magic, and other stats
+- Skills and attack rhythm
+- Intelligence and temperament
+- Reactions to fire, magic, fear, kindness, and player creativity
+- Weaknesses and resistances
+- Retreat, taming, and friendship conditions
+- Normal and rare item drops
+- Adaptation rules for repeated player tactics
+
+Run-specific monster records track current HP, current floor, status, and encounter state without changing the original monster definition.
+
+### Boss Content
+
+There are 10 seeded Main Boss profiles, one for every Realm Floor 5. Boss data supports:
+
+- Name, species, motive, personality, and secret
+- Memorable entrance and defeat text
+- Introduction, battle, victory, and defeat dialogue
+- Arena and music direction
+- Stats, active skills, and passive skills
+- Multiple phases and transition conditions
+- Weaknesses, resistances, and rewards
+- Memory of player choices
+- Counters for repeated tactics
+- Combat and optional non-combat victory rules
+
+The tenth boss is replaced with the latest eligible Legacy Hero when one exists. The AI reads the locked Legacy Hero snapshot instead of inventing that boss.
+
+### Item Content
+
+Item records support weapons, armor, accessories, consumables, quest items, relics, and materials. Each item can define rarity, story origin, effects, equipment slot, uses, discovery requirements, monster drops, NPC sellers, quest rewards, taught skills, and whether a Legacy Boss can use it.
+
+Character inventory is separate from the item catalog. It records which character owns an item, quantity, equipment slot, and the current condition or state of that specific item.
+
+### Skill Content And Action Unlocks
+
+Skill definitions support active, passive, reaction, and ultimate abilities. Each skill can define its category, effects, costs, requirements, maximum level, mastery conditions, compatible monsters and bosses, and Legacy Boss compatibility.
+
+The intended skill flow is action-based:
+
+```txt
+Player attempts an action
+  -> Engine checks the scene, body, stats, items, and existing skills
+  -> Action succeeds, partially succeeds, or fails
+  -> Result is stored in choice history and story memory
+  -> Engine compares successful behavior with database skill requirements
+  -> Matching skill is added to character_skills
+  -> AI narrates the discovery using the saved skill definition
+```
+
+Skills can unlock from:
+
+- A creative action that succeeds in the current situation
+- Repeating a meaningful action enough times
+- Protecting, negotiating, studying, crafting, climbing, healing, or surviving
+- Training with an NPC who knows the skill
+- Using or studying a particular item
+- Completing a quest
+- Defeating a boss under a special condition
+- Race or class development
+- Reincarnation and soul memory
+
+Failed, impossible, or meaningless repeated actions must not unlock skills. The AI cannot create or award a permanent skill by itself.
+
+Currently, new characters automatically receive `Brace` and `Soul Echo`. The database also contains `Ember Thread` and `Predator Step`. Choice history, parsed intent, skill requirements, skill levels, and use counts are stored, but the automatic action-to-skill evaluator is not implemented yet. Until that module is added, the narrator's `newItemsOrSkills` response is recorded but does not automatically grant a skill.
+
 ### Player Decisions
 
 At important moments, the story pauses and presents 3-5 choices. The player can either pick one of those choices or type a completely original action.

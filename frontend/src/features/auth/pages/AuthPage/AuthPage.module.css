@@ -1,7 +1,7 @@
-.page { min-height: 100svh; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); align-items: center; gap: clamp(40px, 8vw, 120px); padding: clamp(24px, 6vw, 88px); overflow: hidden; color: #eef2f0; background: #070b0c; }
+.page { min-height: 100svh; position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); align-items: center; gap: clamp(40px, 8vw, 120px); padding: clamp(24px, 6vw, 88px); overflow: hidden; color: #eef2f0; background: #070b0c; }
 .backdrop { position: absolute; inset: 0; background: url('../../../../assets/hero.png') center/cover no-repeat; opacity: .2; filter: grayscale(.55) contrast(1.15); }
-.page::after { content: ''; position: absolute; inset: 0; background: rgba(3, 7, 8, .58); pointer-events: none; }
-.intro, .form { position: relative; z-index: 1; }
+.page::after { content: ''; position: absolute; z-index: 1; inset: 0; background: rgba(3, 7, 8, .58); pointer-events: none; }
+.intro, .form { position: relative; z-index: 2; }
 .intro { max-width: 700px; align-self: end; padding-bottom: 7vh; }
 .mark { display: inline-flex; align-items: center; gap: 9px; color: #bb9a61; font-size: .76rem; font-weight: 800; text-transform: uppercase; }
 .intro h1 { margin: 18px 0; max-width: 650px; font-family: Georgia, serif; font-size: clamp(3rem, 7vw, 6.8rem); line-height: .96; font-weight: 500; }

@@ -1,0 +1,608 @@
+DEEP SAGA CONTENT WORKBOOK
+==========================
+
+Purpose
+-------
+Use this file to describe your game content without writing SQL or code.
+Fill in the blank templates and send the completed file back for import.
+
+The database is the source of truth. The AI may narrate this content, but it
+must not invent permanent monsters, NPCs, bosses, items, skills, or locations.
+
+
+WORLD CONTENT TARGET
+--------------------
+
+10 Dungeons / Realms
+  -> 5 Floors in each realm
+  -> 50 Floors total
+  -> 1 authored Floor Story per floor
+  -> 50 Floor Stories total
+  -> About 2 or more NPCs per floor
+  -> 100 or more NPCs total
+  -> About 6 or more monster types per floor
+  -> 300 or more Monsters total
+  -> Floor 5 contains the realm's Main Boss
+  -> 10 Main Bosses total
+  -> About 10 Items per floor
+  -> 500 Items total
+  -> 200 Skills total
+
+A "Dungeon" does not need to be an underground dungeon. It can be a kingdom,
+forest, academy, ocean, city, spirit world, battlefield, library, or any other
+place. In this workbook, "Realm" means the same thing as "Dungeon".
+
+
+HOW EVERYTHING CONNECTS
+-----------------------
+
+REALM-01
+  FLOOR-01-01
+    STORY-01-01
+    NPC-01-01-001
+    MON-01-01-001
+    ITEM-01-001
+    SKILL-001
+  FLOOR-01-02
+  FLOOR-01-03
+  FLOOR-01-04
+  FLOOR-01-05
+    BOSS-01
+
+Use these ID patterns:
+
+Realm:       REALM-01 through REALM-10
+Floor:       FLOOR-[realm]-[floor], for example FLOOR-03-04
+Floor Story: STORY-[realm]-[floor], for example STORY-03-04
+NPC:         NPC-[realm]-[floor]-[number], for example NPC-03-04-002
+Monster:     MON-[realm]-[floor]-[number], for example MON-03-04-006
+Boss:        BOSS-[realm], for example BOSS-03
+Item:        ITEM-[realm]-[number], for example ITEM-03-041
+Skill:       SKILL-[number], for example SKILL-087
+Quest:       QUEST-[realm]-[number], for example QUEST-03-005
+Event:       EVENT-[realm]-[floor]-[number], for example EVENT-03-04-002
+
+Do not reuse an ID for two different things.
+
+
+FLOOR PURPOSE RULES
+-------------------
+
+Each realm normally follows this rhythm:
+
+Floor 1: Arrival and introduction
+Floor 2: Puzzle, mystery, lore, or exploration
+Floor 3: NPC conflict, quest, or moral decision
+Floor 4: Dangerous challenge, chase, war, or mini-boss
+Floor 5: Main Boss and realm conclusion
+
+You can change the purpose when needed, but Floor 5 must remain the Main Boss
+floor. Include quiet scenes such as campfires, libraries, meals, travel, and
+personal conversations so every floor is not only combat.
+
+
+============================================================
+1. REALM TEMPLATE (COPY THIS 10 TIMES)
+============================================================
+
+[REALM]
+ID: REALM-__
+Realm Number: __
+Name:
+Place Type: (Kingdom / Forest / Academy / Ocean / Dungeon / Other)
+Short Description:
+Theme:
+Atmosphere:
+Difficulty: (1 to 10)
+Main Story Conflict:
+What the Player Learns Here:
+Unlock Requirement:
+Previous Choices That Can Change This Realm:
+Realm Completion Reward:
+[/REALM]
+
+
+REALM EXAMPLE
+-------------
+
+[REALM]
+ID: REALM-01
+Realm Number: 1
+Name: Cradlewood Threshold
+Place Type: Living Forest Gate
+Short Description: A red-sky forest where reincarnated souls first awaken.
+Theme: Survival, rebirth, fear, and the intelligence of the Dungeon.
+Atmosphere: Wet earth, black trees, crimson clouds, and distant growls.
+Difficulty: 1
+Main Story Conflict: Survive long enough to reach the Heartroot Den.
+What the Player Learns Here: Deep Saga watches and remembers the soul.
+Unlock Requirement: New game or reincarnation.
+Previous Choices That Can Change This Realm: Memories from previous deaths.
+Realm Completion Reward: Access to REALM-02 and the Heartroot Splinter.
+[/REALM]
+
+
+============================================================
+2. FLOOR TEMPLATE (COPY THIS 5 TIMES PER REALM)
+============================================================
+
+[FLOOR]
+ID: FLOOR-__-__
+Realm ID: REALM-__
+Floor Number: (1 to 5)
+Name:
+Purpose: (Introduction / Puzzle / Mystery / NPC Decision / Moral Decision /
+          Quiet / Mini-Boss / Intense Challenge / Main Boss)
+Description:
+Atmosphere:
+Starting Situation:
+Main Danger:
+Main Discovery:
+Required Previous Event IDs: (or NONE)
+NPC IDs Present:
+Monster IDs Available:
+Item IDs Discoverable:
+Skill IDs Learnable:
+Quest IDs Available:
+Hidden Event IDs:
+How Earlier Choices Change This Floor:
+How This Floor Ends:
+Next Floor ID:
+[/FLOOR]
+
+
+============================================================
+3. FLOOR STORY TEMPLATE (ONE FOR EVERY FLOOR)
+============================================================
+
+[FLOOR_STORY]
+ID: STORY-__-__
+Floor ID: FLOOR-__-__
+Chapter Title:
+Opening Scene:
+Important Story Beats:
+  1.
+  2.
+  3.
+Quiet Moment: (or NONE)
+Main Conversation:
+Main Decision:
+Choice A:
+Choice A Consequence:
+Choice B:
+Choice B Consequence:
+Choice C:
+Choice C Consequence:
+Creative Typed Actions That Should Work:
+Actions That Should Fail And Why:
+Possible Combat Encounter:
+Possible Non-Combat Solution:
+Important Memory To Save:
+Ending Scene:
+[/FLOOR_STORY]
+
+The choices above must lead to genuinely different scenes or consequences.
+They should not be three differently worded paths to the same result.
+
+
+============================================================
+4. NPC TEMPLATE (100 OR MORE)
+============================================================
+
+[NPC]
+ID: NPC-__-__-___
+Name:
+Race / Species:
+Age or Apparent Age:
+Role:
+Starting Realm ID:
+Starting Floor ID:
+Appearance:
+Personality Traits:
+Speech Style:
+Backstory:
+Goal:
+Fear:
+Secret:
+Opinion Of The Dungeon:
+Starting Relationship With Player: (Hostile / Afraid / Neutral / Friendly)
+Can Become Companion: (YES / NO)
+Companion Role: (or NONE)
+Quest IDs:
+Skills Used:
+Items Carried:
+Introduction Dialogue:
+Friendly Dialogue:
+Angry Dialogue:
+Secret-Reveal Dialogue:
+Death Dialogue:
+What This NPC Remembers About The Player:
+Choices That Can Kill Or Remove This NPC:
+Locations This NPC Can Move To:
+[/NPC]
+
+
+============================================================
+5. MONSTER TEMPLATE (300 OR MORE)
+============================================================
+
+[MONSTER]
+ID: MON-__-__-___
+Name:
+Species / Family:
+Realm ID:
+Floor IDs Where It Can Appear:
+Description:
+Habitat:
+Intelligence: (Animal / Cunning / Humanlike / Genius)
+Temperament:
+Combat Behavior:
+Opening Move:
+Attack Pattern:
+Reaction To Fire:
+Reaction To Magic:
+Reaction To Fear:
+Reaction To Kindness:
+Retreat Condition:
+Can Speak: (YES / NO)
+Dialogue: (or NONE)
+HP:
+Mana:
+Stamina:
+Attack:
+Defense:
+Speed:
+Magic:
+Skill IDs Used:
+Weaknesses:
+Resistances:
+Item IDs Dropped:
+Rare Drop Condition:
+Can Be Tamed / Befriended: (YES / NO)
+Taming Requirement:
+How It Adapts To Repeated Player Tactics:
+[/MONSTER]
+
+
+MONSTER EXAMPLE
+---------------
+
+[MONSTER]
+ID: MON-01-01-001
+Name: Ashhide Wolf
+Species / Family: Cradlewood Predator
+Realm ID: REALM-01
+Floor IDs Where It Can Appear: FLOOR-01-01, FLOOR-01-04
+Description: A wolf twice normal size with ash-black skin and ember eyes.
+Habitat: Rain-Birth Clearing and Thorn Trial Rise.
+Intelligence: Cunning
+Temperament: Patient until it smells panic.
+Combat Behavior: Circles, tests distance, then attacks from a blind side.
+Opening Move: Scent Fear
+Attack Pattern: Circle -> false lunge -> pounce -> retreat -> repeat
+Reaction To Fire: Keeps distance unless protecting its pack.
+Reaction To Magic: Attacks the caster first after seeing two spells.
+Reaction To Fear: Becomes aggressive.
+Reaction To Kindness: Confused; may hesitate if fed.
+Retreat Condition: Below 20 percent HP unless its pack leader is alive.
+Can Speak: NO
+Dialogue: NONE
+HP: 28
+Mana: 0
+Stamina: 35
+Attack: 7
+Defense: 3
+Speed: 9
+Magic: 0
+Skill IDs Used: SKILL-031, SKILL-032
+Weaknesses: Fire, loud metal sounds
+Resistances: Darkness, fear magic
+Item IDs Dropped: ITEM-01-011, ITEM-01-012
+Rare Drop Condition: Defeat without being bitten.
+Can Be Tamed / Befriended: YES
+Taming Requirement: Feed it twice and never attack first.
+How It Adapts To Repeated Player Tactics: Avoids the player's usual opening side.
+[/MONSTER]
+
+
+============================================================
+6. MAIN BOSS TEMPLATE (10 TOTAL)
+============================================================
+
+[BOSS]
+ID: BOSS-__
+Name:
+Title:
+Species:
+Realm ID:
+Floor ID: FLOOR-__-05
+Reason This Boss Exists:
+Connection To The Realm Story:
+Appearance:
+Personality:
+Goal:
+Secret:
+Arena:
+Music Name / Music Mood:
+Memorable Entrance:
+Introduction Dialogue:
+Mid-Fight Dialogue:
+Victory Dialogue:
+Defeat Dialogue:
+HP:
+Mana:
+Stamina:
+Stats:
+Skill IDs Used:
+Passive Skill IDs:
+Phase 1:
+Phase 1 Transition Condition:
+Phase 2:
+Phase 2 Transition Condition:
+Phase 3:
+Weaknesses:
+Resistances:
+Player Choices The Boss Remembers:
+Repeated Tactics The Boss Counters:
+Non-Combat Victory Possible: (YES / NO)
+Non-Combat Victory Requirement:
+Item IDs Rewarded:
+Skill IDs That Can Unlock:
+Realm Changes After Defeat:
+[/BOSS]
+
+Realm 10, Floor 5 uses the latest completed Legacy Hero. Its identity, stats,
+skills, equipment, dialogue, phases, and combat style come from the locked
+Legacy Hero record, not from newly invented AI content.
+
+
+============================================================
+7. ITEM TEMPLATE (500 TOTAL)
+============================================================
+
+[ITEM]
+ID: ITEM-__-___
+Name:
+Type: (Weapon / Armor / Accessory / Consumable / Quest / Relic / Material)
+Rarity: (Common / Uncommon / Rare / Epic / Legendary / Cursed)
+Realm ID:
+Floor IDs:
+Description:
+Story / Origin:
+Effects:
+Stat Changes:
+Uses: (number or UNLIMITED)
+Can Be Equipped: (YES / NO)
+Equipment Slot: (or NONE)
+Monster IDs That Drop It:
+NPC IDs That Give Or Sell It:
+Quest IDs That Reward It:
+Special Drop / Discovery Condition:
+Skill IDs Required To Use It:
+Skill IDs It Can Teach:
+Can Be Used By A Legacy Boss: (YES / NO)
+[/ITEM]
+
+
+============================================================
+8. SKILL TEMPLATE (200 TOTAL)
+============================================================
+
+[SKILL]
+ID: SKILL-___
+Name:
+Type: (Active / Passive / Reaction / Ultimate)
+Category: (Melee / Magic / Defense / Movement / Healing / Social / Craft /
+           Survival / Monster / Soul / Other)
+Description:
+What It Looks And Feels Like In The Story:
+Effect:
+Mana Cost:
+Stamina Cost:
+Cooldown / Use Limit:
+Starting Power:
+Maximum Level:
+How It Improves Per Level:
+
+Unlock Method: (ACTION / REPEATED_ACTION / NPC_TRAINING / ITEM / QUEST /
+                BOSS_REWARD / RACE / CLASS / REINCARNATION / SOUL_MEMORY)
+Required Action:
+Required Action Target:
+Required Action Count:
+Required Creative Condition:
+Required Stat Values:
+Required Race:
+Required Class:
+Required NPC ID:
+Required Item ID:
+Required Quest ID:
+Required Boss ID:
+Required Previous Skill IDs:
+Forbidden Conditions:
+
+Upgrade Method: (USE / TRAINING / ACTION_MASTERY / ITEM / QUEST / BOSS)
+Uses Needed Per Level:
+Actions That Count Toward Mastery:
+Actions That Do Not Count:
+
+Monster IDs That Can Use It:
+Boss IDs That Can Use It:
+Can A Legacy Boss Use It: (YES / NO)
+AI Narration Guidance:
+[/SKILL]
+
+
+SKILL EXAMPLE: ACTION-BASED UNLOCK
+----------------------------------
+
+[SKILL]
+ID: SKILL-001
+Name: Improvised Flame Ward
+Type: Active
+Category: Survival / Magic
+Description: Use a nearby flame to create a temporary barrier against beasts.
+What It Looks And Feels Like In The Story: Fire bends toward the player's open
+hand and forms a trembling line that predators hesitate to cross.
+Effect: Frightens beasts and reduces physical damage while the flame survives.
+Mana Cost: 4
+Stamina Cost: 2
+Cooldown / Use Limit: Requires a real source of fire.
+Starting Power: Fear strength 5; damage reduction 10 percent.
+Maximum Level: 5
+How It Improves Per Level: Stronger fear, wider barrier, longer duration.
+
+Unlock Method: REPEATED_ACTION
+Required Action: Creatively use real fire to defend instead of directly attack.
+Required Action Target: Beast-type enemy.
+Required Action Count: 3 successful uses across one or more lives.
+Required Creative Condition: The player must describe how the available fire is
+used. Merely typing "use fire skill" does not count before the skill is learned.
+Required Stat Values: Intuition 6 or higher.
+Required Race: ANY
+Required Class: ANY
+Required NPC ID: NONE
+Required Item ID: NONE
+Required Quest ID: NONE
+Required Boss ID: NONE
+Required Previous Skill IDs: NONE
+Forbidden Conditions: No nearby flame; action failed; player copied a suggested
+choice without adapting it to the scene.
+
+Upgrade Method: ACTION_MASTERY
+Uses Needed Per Level: 8 successful defensive uses.
+Actions That Count Toward Mastery: Protecting companions, controlling space,
+scaring beasts, blocking a route, or surviving an ambush with real fire.
+Actions That Do Not Count: Fire attacks that only deal damage.
+
+Monster IDs That Can Use It: NONE
+Boss IDs That Can Use It: BOSS-10 only when inherited by a Legacy Hero.
+Can A Legacy Boss Use It: YES
+AI Narration Guidance: Describe discovery before showing the skill name. The
+player should feel the flame answer their intent, then receive the unlock.
+[/SKILL]
+
+
+SKILL UNLOCK RULES
+------------------
+
+Yes: most skills should be earned from player actions, behavior, training,
+discoveries, quests, race/class traits, bosses, items, or soul memories.
+
+The AI must not award a skill because it sounds interesting. The intended flow:
+
+1. Player attempts an action.
+2. The engine checks the current scene and character abilities.
+3. The action succeeds, partially succeeds, or fails.
+4. The engine records the action and result.
+5. The engine compares that history with skill requirements in the database.
+6. If every requirement is met, the engine adds the skill to character_skills.
+7. The AI narrates the discovery using the saved skill description.
+
+Examples:
+
+- Climb during danger several times -> unlock movement or climbing skill.
+- Repeatedly protect companions -> unlock Guardian Instinct passive.
+- Negotiate with monsters -> unlock Monster Tongue or Empathic Pressure.
+- Win fights without attacking first -> unlock Counter Stance.
+- Study an enemy before every fight -> unlock Hunter's Analysis.
+- Use poison carelessly -> possibly gain poison resistance and a curse.
+- Train with a named NPC -> unlock only the skills that NPC knows.
+- Defeat a boss under a special condition -> unlock that boss reward skill.
+- Remember danger across reincarnations -> unlock soul-memory skills.
+
+Creative typed actions should count when they are possible in the current state.
+Repeated meaningless text, impossible actions, or failed actions should not count.
+
+IMPORTANT CURRENT IMPLEMENTATION NOTE
+-------------------------------------
+
+The database already stores:
+
+- Skill definitions and requirements
+- Character-owned skills
+- Skill level and number of uses
+- Player choices and parsed intent
+- Story memories and consequences
+
+New characters currently receive the starter skills Brace and Soul Echo.
+The AI can currently suggest newItemsOrSkills in its response, but the backend
+does not yet automatically validate those suggestions against requirements and
+insert the skill. The action-based skill evaluator is the next engine module
+needed. Until it is built, action-based skill unlocking is the intended design,
+not a fully enforced feature.
+
+
+============================================================
+9. QUEST TEMPLATE
+============================================================
+
+[QUEST]
+ID: QUEST-__-___
+Name:
+Realm ID:
+Floor ID:
+Quest Giver NPC ID:
+Description:
+Objectives:
+Choices:
+Failure Conditions:
+Completion Conditions:
+Item IDs Rewarded:
+Skill IDs Rewarded:
+NPC Relationship Changes:
+World Changes:
+Memory To Save:
+Can Continue After Reincarnation: (YES / NO)
+[/QUEST]
+
+
+============================================================
+10. HIDDEN EVENT TEMPLATE
+============================================================
+
+[EVENT]
+ID: EVENT-__-__-___
+Name:
+Realm ID:
+Floor ID:
+Trigger Actions:
+Required Items:
+Required Skills:
+Required Memories:
+Blocked By Previous Choices:
+Scene:
+NPC IDs Involved:
+Monster IDs Involved:
+Possible Outcomes:
+Items Awarded:
+Skills Progressed Or Unlocked:
+Memory To Save:
+[/EVENT]
+
+
+CONTENT DELIVERY CHECKLIST
+--------------------------
+
+[ ] 10 completed REALM blocks
+[ ] 50 completed FLOOR blocks
+[ ] 50 completed FLOOR_STORY blocks
+[ ] 100 or more completed NPC blocks
+[ ] 300 or more completed MONSTER blocks
+[ ] 10 completed BOSS blocks
+[ ] 500 completed ITEM blocks
+[ ] 200 completed SKILL blocks
+[ ] Quest blocks
+[ ] Hidden event blocks
+[ ] Every referenced ID exists
+[ ] Every realm has Floors 1 through 5
+[ ] Every Floor 5 references one Main Boss
+[ ] Every monster references valid skills and item drops
+[ ] Every NPC has dialogue, memory rules, and possible consequences
+[ ] Every skill has a precise unlock method
+[ ] No skill depends only on the AI deciding to give it
+[ ] Typed creative actions have success and failure rules
+[ ] Legacy Boss compatibility is marked on applicable items and skills
+
+
+END OF WORKBOOK
+===============
