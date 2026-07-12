@@ -46,6 +46,17 @@ async function listGameSaves(accountId) {
   )
 }
 
+async function listVisibleSkillCatalog() {
+  const rows = await query(
+    `SELECT s.skill_key, s.name, s.skill_type, s.category, s.rarity, s.visibility, s.family_tier,
+            s.description, s.identity_text, s.unlock_hint, sf.family_key, sf.name AS family_name
+       FROM skills s LEFT JOIN skill_families sf ON sf.id = s.family_id
+      WHERE s.visibility <> 'hidden'
+      ORDER BY COALESCE(sf.id, 999), s.family_tier, s.name`,
+  )
+  return rows
+}
+
 async function createGame(accountId) {
   return withTransaction(async (connection) => {
     const [existingActive] = await connection.execute(
@@ -348,4 +359,4 @@ async function createLegacyHero(storyCycleId, bossData = {}) {
   })
 }
 
-module.exports = { createGame, createLegacyHero, getGameState, listGameSaves, markCharacterDead, saveNarrativeTurn }
+module.exports = { createGame, createLegacyHero, getGameState, listGameSaves, listVisibleSkillCatalog, markCharacterDead, saveNarrativeTurn }

@@ -4,6 +4,7 @@ const {
   createGame,
   getGameState,
   listGameSaves,
+  listVisibleSkillCatalog,
   markCharacterDead,
   saveNarrativeTurn,
 } = require('../../db/repositories/gameState.repository')
@@ -81,6 +82,7 @@ module.exports = {
   completeRun: createLegacyHero,
   continueGame,
   listSaves: listGameSaves,
+  listSkills: listVisibleSkillCatalog,
   killCharacter: markCharacterDead,
   loadState,
   startGame: createGame,

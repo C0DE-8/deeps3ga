@@ -4,6 +4,86 @@ Deep Saga is a story-first dark fantasy RPG simulation. The player experiences t
 
 The chat format is only the presentation layer. The goal is not to feel like a messaging app. The goal is to feel like reading and shaping a living fantasy novel.
 
+## About Deep Saga
+
+Deep Saga is a dark fantasy reincarnation RPG where the player does not build one permanent hero. The player controls an immortal soul that awakens in different bodies, lives through a changing world, dies, remembers, and begins again.
+
+Every journey starts with death in the real world. The soul awakens beneath an unfamiliar sky with a randomly generated body, race, class, personality, strengths, and weaknesses. The player discovers the world through story scenes instead of tutorials. At meaningful moments, they can choose a presented action or write a completely original response.
+
+The world contains 10 major Realms with five Floors each. Every Floor has its own purpose, story situation, NPCs, monsters, discoveries, and consequences. Floor 5 is the Realm's Main Boss. The world grows darker and more reactive as the soul advances through all 50 Floors.
+
+Death ends the current body, not the player. The world sees the next reincarnation as a stranger, while the immortal soul keeps important memories and knowledge. A completed body becomes a locked Legacy Hero. During a later completed journey, that past hero can return as the final enemy with the same identity, equipment, mastered skills, weaknesses, and recorded combat behavior.
+
+The database is the brain of Deep Saga. It stores the authored world and the truth about every player, body, floor, NPC, monster, item, skill, relationship, choice, injury, death, and completed life. The AI is the narrator. It receives the current database state and turns it into the next page of the story without inventing a different game every turn.
+
+Deep Saga is designed around discovery rather than generic level rewards. Signature skills belong to families such as Predator, Dragon, Shadow, Arcane, Monarch, and Soul. Skills can be discovered through meaningful actions, training, survival, relationships, bosses, reincarnation memories, and exceptional achievements. Hidden and Ultimate skills are intended to feel like personal legends rather than entries in a normal ability menu.
+
+## Is The Game Playable Now?
+
+Yes, Deep Saga is currently playable as a single-player narrative prototype.
+
+A player can currently:
+
+- Register and securely sign in
+- Start a new randomly generated reincarnation
+- Resume an active saved life
+- Read the opening and continuing story in a scrolling novel interface
+- Select suggested choices
+- Type completely original actions
+- Receive AI narration based on the current database state
+- Save player actions, narrator messages, consequences, and story memories
+- View HP, Mana, Stamina, level, stats, skills, inventory, traits, titles, statuses, injuries, companions, position, Soul ID, Character ID, and life history
+- Die without creating a Legacy Hero
+- Keep separate soul and body records across reincarnations
+- Use an administrator account to inspect the world through God's Eye
+
+The system is not limited to one registered account. Multiple users can create separate accounts, souls, characters, story cycles, memories, inventories, and Legacy Heroes. Each account can have one active story that is resumed when the player returns. The game is still a single-player experience: players do not share parties, battles, or live scenes with each other.
+
+### Current Playability Level
+
+```txt
+Authentication and account saves             Working
+Random character and reincarnation records   Working
+Database-backed narrator state               Working
+Suggested and typed actions                  Working
+Scrolling story reader                       Working
+Narrative message and memory persistence     Working
+Character sheet and life history             Working
+World, Floor, NPC, monster, boss data         Working
+Skill families and hidden-skill visibility   Working
+Admin God's Eye                              Working
+
+Automatic combat resolution                  Not complete
+Validated stat and inventory updates         Not complete
+Action-based skill awarding                  Not complete
+Automatic XP and level progression           Not complete
+Quest objective resolution                   Not complete
+Automatic Floor and Realm advancement        Not complete
+Companion recruitment workflow               Not complete
+Death triggered naturally by combat          Not complete
+Full 50-Floor authored story catalog         Not complete
+Complete 100+ NPC catalog                     Not complete
+Complete 300+ monster catalog                 Not complete
+Complete 500-item catalog                     Not complete
+Complete 200-skill catalog                    Not complete
+End-to-end Legacy Boss encounter              Not complete
+```
+
+This means a user can play the opening and continue shaping an AI-narrated story, with their account and narrative history saved correctly. It does not yet mean the player can complete all 10 Realms through fully automated RPG rules. At the current stage, Deep Saga should be described as a playable vertical slice or narrative prototype, not a finished game.
+
+### What Makes It Fully Playable
+
+The next engine work should be completed in this order:
+
+1. Validate and apply AI-requested character, status, inventory, and memory changes.
+2. Resolve combat turns using saved character, monster, and skill data.
+3. Award XP, levels, loot, skill progress, and action-discovered skills.
+4. Resolve quests, NPC relationships, companion recruitment, and permanent world consequences.
+5. Advance scenes, chapters, Floors, Boss states, and Realms from database rules.
+6. Trigger death and reincarnation naturally when HP and story conditions require it.
+7. Complete all authored Floor Stories and content targets.
+8. Test a full run through Realm 10 and create the first real Legacy Boss.
+
 ## What We Have
 
 ### Backend
@@ -28,6 +108,7 @@ POST /api/story/continue
 
 GET  /api/game
 GET  /api/game/state/:storyCycleId
+GET  /api/game/skills
 POST /api/game/continue
 POST /api/game/cycles/:storyCycleId/death
 POST /api/game/cycles/:storyCycleId/complete
@@ -44,7 +125,7 @@ Current backend pieces:
 
 - Express server in `backend/src/server.js`
 - Router index in `backend/src/routes/index.js`
-- Auth router for register/login placeholders
+- Auth router for registration, login, session validation, and logout
 - Soul router for reincarnation/soul records
 - Story router for continuing the narrative
 - Deep Saga router for the game flow
@@ -294,11 +375,11 @@ The project separates the world structure that already exists from the larger au
 | Floors | 50 | 50 | Complete structure, five per realm |
 | Floor descriptions and purposes | 50 | 50 | Seeded inside the floor records |
 | Separate story chapter records | 0 | 50+ | Awaiting full authored scenes |
-| NPCs | 9 | 100+ | One principal NPC for Realms 1-9 |
-| Monsters | 9 | 300+ | One introductory monster for Realms 1-9 |
+| NPCs | 19 | 100+ | Principal cast plus one new reincarnation-fantasy NPC per realm |
+| Monsters | 19 | 300+ | Introductory set plus one new adaptive monster per realm |
 | Main Boss profiles | 10 | 10 | Complete initial boss set |
 | Items | 3 | 500 | Starter weapon, armor, and first boss relic |
-| Skills | 4 | 200 | Two starter skills and two catalog skills |
+| Skills | 54 | 200 | Six families with normal, secret, hidden, and ultimate skills |
 | Quests | 0 | To be authored | Schema and run-state support exist |
 | Active companions | 0 | Story-dependent | Created during player runs |
 | Legacy Heroes | 0 | Player-created | Created only after a completed run |
@@ -373,6 +454,8 @@ Monster records define more than combat statistics. They can include:
 
 Run-specific monster records track current HP, current floor, status, and encounter state without changing the original monster definition.
 
+The second seeded creature set adds 10 original reincarnation-fantasy NPCs and 10 original monsters, one pair for each realm. They use genre ideas such as evolving monster bodies, intelligent slimes, arachne courts, reincarnated knights, living magic schools, stolen identities, awakened machines, law-bound angels, young dragons, rewritten histories, and possible future selves. Names, dialogue, histories, and mechanics are original rather than copied from existing anime characters or settings.
+
 ### Boss Content
 
 There are 10 seeded Main Boss profiles, one for every Realm Floor 5. Boss data supports:
@@ -427,6 +510,31 @@ Skills can unlock from:
 Failed, impossible, or meaningless repeated actions must not unlock skills. The AI cannot create or award a permanent skill by itself.
 
 Currently, new characters automatically receive `Brace` and `Soul Echo`. The database also contains `Ember Thread` and `Predator Step`. Choice history, parsed intent, skill requirements, skill levels, and use counts are stored, but the automatic action-to-skill evaluator is not implemented yet. Until that module is added, the narrator's `newItemsOrSkills` response is recorded but does not automatically grant a skill.
+
+### Signature Skill Families
+
+The seeded skill catalog contains 54 skills organized around six progression identities:
+
+- Predator Family: Devour, Analyze, adaptation, consumption, and Evolution
+- Dragon Family: Dragon Breath, Dragon Scales, Dragon Fear, and sovereignty
+- Shadow Family: Shadow Step, Shadow Thread, Shadow Clone, Void movement, and domains
+- Arcane Family: Mana Core, Arcane Creation, Analyze, Parallel Mind, and Origin Magic
+- Monarch Family: Royal Decree, Absolute Presence, authority, and throne domains
+- Soul Family: Soul Devour, Soul Chain, Soul Archive, Endless Will, and reincarnation
+
+Skill visibility is enforced by the database:
+
+- `normal`: may appear in the ordinary skill catalog with its unlock hint
+- `secret`: may be hinted at through lore, trainers, discoveries, or family progression
+- `hidden`: never appears in the ordinary player catalog and has no normal unlock hint
+
+The current catalog contains 17 normal skills, 25 secret skills, and 12 hidden skills. Sixteen skills use ultimate mechanics, including mythical family conclusions and world-level authorities. The authenticated `GET /api/game/skills` endpoint excludes every hidden skill. God's Eye can inspect the complete catalog, and a player can see a hidden skill only after it belongs to their character.
+
+Examples of seeded hidden abilities include `Monarch's Authority`, `Time Fracture`, `World Rewrite`, `Absolute Predator`, `Void Dominion`, `Divine Evolution`, `Eternal Reincarnation`, `Soul Archive`, `Origin Magic`, and `Dimensional Rift`.
+
+Seeded mythical ultimates include `Azrael, Lord of Souls`, `Leviathan, Ocean Sovereign`, `Beelzar, King of Consumption`, `Ragnarok Drive`, `Genesis Authority`, `Celestial Throne`, `Eclipse Monarch`, `Infinite Arsenal`, `Dragon Emperor`, and `Void Genesis`.
+
+The `skill_progress_events` table is ready to record the successful action, action signature, success level, progress amount, and scene evidence used toward discovery. Skill definitions contain requirements, discovery rules, evolution rules, family tier, rarity, identity text, and unlock hints. Actual awarding must still pass the action-based evaluator; AI narration alone cannot grant one of these skills.
 
 ### Player Decisions
 

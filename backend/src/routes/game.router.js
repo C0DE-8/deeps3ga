@@ -1,5 +1,5 @@
 const express = require('express')
-const { completeRun, continueGame, killCharacter, listSaves, loadState, startGame } = require('../modules/gameEngine/gameEngine.service')
+const { completeRun, continueGame, killCharacter, listSaves, listSkills, loadState, startGame } = require('../modules/gameEngine/gameEngine.service')
 const { requireAuth } = require('../middleware/auth')
 
 const router = express.Router()
@@ -13,6 +13,14 @@ router.use(requireAuth)
 router.get('/saves', async (req, res, next) => {
   try {
     res.json({ success: true, data: await listSaves(req.auth.account.id) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/skills', async (req, res, next) => {
+  try {
+    res.json({ success: true, data: await listSkills() })
   } catch (error) {
     next(error)
   }
