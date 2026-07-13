@@ -9,6 +9,7 @@
     "migrate": "node scripts/migrate.js",
     "make-admin": "node scripts/makeAdmin.js",
     "test:actions": "node scripts/testActionInterpreter.js",
+    "test:game-master": "node scripts/testActionInterpreter.js",
     "test:idempotency": "node scripts/testTurnIdempotency.js",
     "simulate-journey": "node scripts/simulateJourney.js"
   },

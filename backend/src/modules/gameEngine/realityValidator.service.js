@@ -22,7 +22,7 @@ function validateReality(action, interpretation, state) {
   const requestsFloorChange = (declaredFloor && Number(declaredFloor) !== Number(state.currentFloor?.floor_number))
     || (declaredRealm && Number(declaredRealm) !== Number(state.currentDungeon?.dungeon_number))
     || declaresCompletion
-  if (requestsFloorChange && !state.floorRuntime?.floorExitUnlocked) {
+  if (requestsFloorChange && (!state.floorRuntime?.floorComplete || !state.floorRuntime?.exitUnlocked)) {
     return reject('INVALID', interpretation.intent, 'The requested destination is still behind unresolved progression gates.', interpretation, 'progression_gate', {
       currentRealm: state.currentDungeon?.name,
       currentFloor: state.currentFloor?.floor_name,

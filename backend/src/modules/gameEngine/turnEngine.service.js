@@ -412,7 +412,7 @@ async function getOrStartEncounter(connection, state, actionType) {
 
   const isBossFloor = state.currentFloor.floor_type === 'boss'
   if (isBossFloor) {
-    const legacyId = Number(state.currentDungeon.dungeon_number) === 10 ? state.previousLegacyHero?.id || null : null
+    const legacyId = Number(state.currentDungeon.dungeon_number) === 5 ? state.previousLegacyHero?.id || null : null
     const boss = state.activeBoss
     if (!boss && !legacyId) return null
     const maxHp = legacyId
@@ -899,10 +899,10 @@ async function initializeFloor(connection, state, dungeonId, floorId) {
   const encounterRequired = floor.floor_type === 'boss' || Number(threatRows[0].count) > 0
   const decisionRequired = ['puzzle', 'mystery', 'npc_decision', 'moral_decision', 'quiet'].includes(floor.purpose_type)
   await connection.execute(
-    `INSERT INTO floor_runtime_states (story_cycle_id, floor_id, status, objective_required, combat_required, entered_at, state_json)
-     VALUES (?, ?, 'active', ?, ?, CURRENT_TIMESTAMP, ?)
-     ON DUPLICATE KEY UPDATE status = IF(status = 'cleared', status, 'active'), combat_required = VALUES(combat_required), state_json = VALUES(state_json), entered_at = COALESCE(entered_at, CURRENT_TIMESTAMP)`,
-    [state.run.id, floorId, floor.floor_type === 'boss' ? 1 : 3, encounterRequired ? 1 : 0, JSON.stringify({ decisionRequired, purposeType: floor.purpose_type })],
+    `INSERT INTO floor_runtime_states (story_cycle_id, floor_id, status, objective_required, combat_required, floor_complete, exit_unlocked, entered_at, state_json)
+     VALUES (?, ?, 'active', 1, ?, 0, 0, CURRENT_TIMESTAMP, ?)
+     ON DUPLICATE KEY UPDATE status = IF(status = 'cleared', status, 'active'), combat_required = VALUES(combat_required), entered_at = COALESCE(entered_at, CURRENT_TIMESTAMP)`,
+    [state.run.id, floorId, encounterRequired ? 1 : 0, JSON.stringify({ decisionRequired, purposeType: floor.purpose_type, activeBeatNumber: 1 })],
   )
   await connection.execute(
     `INSERT IGNORE INTO cycle_npc_states (story_cycle_id, npc_id, current_floor_id, relationship_json, dialogue_state_json)
@@ -976,7 +976,7 @@ async function advanceFloorIfReady(connection, state, result) {
   const dungeonNumber = Number(state.currentDungeon.dungeon_number)
   const floorNumber = Number(state.currentFloor.floor_number)
 
-  if (floorNumber < 5) {
+  if (floorNumber < 3) {
     const nextFloorId = dungeonNumber * 100 + floorNumber + 1
     await connection.execute('UPDATE story_progress SET current_floor_id = ?, current_chapter = current_chapter + 1, current_scene = ? WHERE story_cycle_id = ?', [nextFloorId, `floor-${floorNumber + 1}-arrival`, state.run.id])
     await connection.execute('UPDATE cycle_dungeon_progress SET highest_floor = GREATEST(highest_floor, ?) WHERE story_cycle_id = ? AND dungeon_id = ?', [floorNumber + 1, state.run.id, state.currentDungeon.id])
@@ -987,12 +987,12 @@ async function advanceFloorIfReady(connection, state, result) {
 
   await connection.execute(
     `INSERT INTO cycle_dungeon_progress (story_cycle_id, dungeon_id, highest_floor, boss_defeated, completed_at)
-     VALUES (?, ?, 5, 1, CURRENT_TIMESTAMP)
-     ON DUPLICATE KEY UPDATE highest_floor = 5, boss_defeated = 1, completed_at = CURRENT_TIMESTAMP`,
+      VALUES (?, ?, 3, 1, CURRENT_TIMESTAMP)
+     ON DUPLICATE KEY UPDATE highest_floor = 3, boss_defeated = 1, completed_at = CURRENT_TIMESTAMP`,
     [state.run.id, state.currentDungeon.id],
   )
   await recordProgression(connection, state, 'realm_clear', 'dungeon', state.currentDungeon.id, 1, `Completed Realm ${dungeonNumber}: ${state.currentDungeon.name}.`)
-  if (dungeonNumber === 10) {
+  if (dungeonNumber === 5) {
     result.runCompleted = true
     return
   }
@@ -1116,4 +1116,4 @@ async function resolveTurn(state, action, interpretation = null, requestKey = nu
   return resolved
 }
 
-module.exports = { calculateEscapeChance, damageMultiplier, deriveActionSignatures, evaluateActionCheck, evaluateFloorGate, resolveTurn }
+module.exports = { calculateEscapeChance, damageMultiplier, deriveActionSignatures, evaluateActionCheck, evaluateFloorGate, initializeFloor, resolveTurn }

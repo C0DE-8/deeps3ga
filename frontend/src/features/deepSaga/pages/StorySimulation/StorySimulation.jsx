@@ -71,19 +71,18 @@ function characterFromState(state) {
 }
 
 function sceneFromNarrator(result, index, state, action) {
-  const scene = result.scene || result
-  const story = scene.story || 'The Dungeon waits, listening for what you will do next.'
+  const scene = result
+  const story = scene.story
   return {
     id: `narrative-${result.saved?.narrativeMessageId || index}`,
     chapter: result.location?.dungeon || state.currentDungeon?.name || 'Deep Saga',
     title: result.location?.floorName || state.currentFloor?.floor_name || 'The next page',
     playerAction: action,
     paragraphs: story.split(/\n\s*\n/).filter(Boolean),
-    narrativeSections: scene.narrativeSections || {},
-    statusSummary: scene.statusSummary || null,
-    storyOpportunities: scene.storyOpportunities || [],
     choices: scene.choices || [],
-    engineResolution: result.engineResolution || null,
+    recordChanges: scene.recordChanges || [],
+    actionResolution: scene.actionResolution || null,
+    stateChanges: scene.stateChanges || null,
     status: {
       hp: state.characterSheet.hp,
       mp: state.characterSheet.mana,
@@ -110,11 +109,10 @@ function scenesFromHistory(state) {
       title: state.currentFloor.floor_name,
       playerAction,
       paragraphs: String(message.message_text || '').split(/\n\s*\n/).filter(Boolean),
-      narrativeSections: message.narrative_sections_json || {},
-      statusSummary: message.status_summary_json || null,
-      storyOpportunities: message.story_opportunities_json || [],
       choices: message.choices_json || [],
-      engineResolution: consequence.find((entry) => entry?.engineResolution)?.engineResolution || null,
+      recordChanges: consequence.find((entry) => entry?.acceptedTurn)?.acceptedTurn?.recordChanges || [],
+      actionResolution: consequence.find((entry) => entry?.acceptedTurn)?.acceptedTurn?.actionResolution || null,
+      stateChanges: consequence.find((entry) => entry?.acceptedTurn)?.acceptedTurn?.stateChanges || null,
     })
     playerAction = ''
   }
@@ -141,17 +139,24 @@ export function StorySimulation() {
   }, [cycleId])
   useEffect(() => { if (scenes.length > 1) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [scenes.length])
 
-  async function submitAction(action, actionKind = 'typed') {
+  async function submitAction(action, actionKind = 'typed', targetReference = null) {
     if (busy) return
     setBusy(true); setError('')
-    const samePendingAction = pendingRequestRef.current?.action === action && pendingRequestRef.current?.actionKind === actionKind
+    const targetCatalog = [
+      ...(state?.reachableTargets || []),
+      ...(state?.activeNpcs || []).map((npc) => ({ type: 'npc', id: npc.id, name: npc.name })),
+      ...(state?.companions || []).map((companion) => ({ type: 'companion', id: companion.id, name: companion.name })),
+    ]
+    const selectedTarget = targetReference ? targetCatalog.find((target) => target.type === targetReference.type && Number(target.id) === Number(targetReference.id)) || targetReference : null
+    const targetKey = selectedTarget ? `${selectedTarget.type}:${selectedTarget.id}:${selectedTarget.name || ''}` : ''
+    const samePendingAction = pendingRequestRef.current?.action === action && pendingRequestRef.current?.actionKind === actionKind && pendingRequestRef.current?.targetKey === targetKey
     const requestKey = samePendingAction ? pendingRequestRef.current.requestKey : crypto.randomUUID()
-    pendingRequestRef.current = { action, actionKind, requestKey }
+    pendingRequestRef.current = { action, actionKind, targetKey, requestKey }
     try {
-      const result = await continueNarrative({ storyCycleId: Number(cycleId), playerAction: action, actionKind, requestKey })
+      const result = await continueNarrative({ storyCycleId: Number(cycleId), playerAction: action, actionKind, selectedTarget, requestKey })
       setScenes((current) => [...current, sceneFromNarrator(result, current.length, state, action)])
       setCustomAction('')
-      if (!result.engineResolution?.died && !result.engineResolution?.runCompleted) {
+      if (!result.stateChanges?.characterDied && !result.stateChanges?.runCompleted) {
         setState(await fetchGameState(cycleId))
       }
       pendingRequestRef.current = null
@@ -161,7 +166,7 @@ export function StorySimulation() {
   }
 
   const latest = scenes.at(-1)
-  const storyEnded = latest.engineResolution?.died || latest.engineResolution?.runCompleted
+  const storyEnded = latest.stateChanges?.characterDied || latest.stateChanges?.runCompleted
   const status = state ? { hp: state.characterSheet.hp, maxHp: state.characterSheet.max_hp, mp: state.characterSheet.mana, maxMp: state.characterSheet.max_mana, level: state.characterSheet.level, dungeon: state.currentDungeon.name, floor: `Floor ${state.currentFloor.floor_number}` } : latest.status
   return (
     <main className={styles.reader}>
@@ -173,11 +178,11 @@ export function StorySimulation() {
       </button>
       <aside className={`${styles.sheetDrawer} ${sheetOpen ? styles.open : ''}`}>{state && <CharacterSheet character={characterFromState(state)} />}</aside>
       <div className={styles.storyStream}>
-        {scenes.map((scene, index) => <div className={styles.sceneWrap} key={scene.id} ref={index === scenes.length - 1 ? endRef : null}><StoryPanel scene={scene} /><EngineResults resolution={scene.engineResolution} />{index < scenes.length - 1 && <ChevronDown className={styles.pageBreak} size={20} />}</div>)}
+        {scenes.map((scene, index) => <div className={styles.sceneWrap} key={scene.id} ref={index === scenes.length - 1 ? endRef : null}><StoryPanel scene={scene} /><EngineResults recordChanges={scene.recordChanges} />{index < scenes.length - 1 && <ChevronDown className={styles.pageBreak} size={20} />}</div>)}
         {error && <p className={styles.error} role="alert">{error}</p>}
         <div className={styles.currentChoice}>
           {busy && scenes.length === 1 && <p className={styles.loading}>The record is opening...</p>}
-          {!storyEnded && <CombatTargets participants={state?.combatParticipants} disabled={busy} onTarget={(action) => submitAction(action, 'suggested')} />}
+          {!storyEnded && <CombatTargets targets={state?.reachableTargets} disabled={busy} onTarget={({ playerAction, selectedTarget }) => submitAction(playerAction, 'suggested', selectedTarget)} />}
           {storyEnded ? <Link className={styles.archiveLink} to="/library">Return to the soul archive</Link> : <ChoiceComposer choices={latest.choices || []} customAction={customAction} onCustomActionChange={setCustomAction} onSubmitAction={submitAction} disabled={busy} />}
         </div>
       </div>

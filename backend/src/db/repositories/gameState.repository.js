@@ -1,4 +1,5 @@
 const { query, withTransaction } = require('../connection')
+const { initializeFloor } = require('../../modules/gameEngine/turnEngine.service')
 
 function parseJson(value, fallback) {
   if (value === null || value === undefined) return fallback
@@ -22,7 +23,8 @@ function hydrate(row, jsonFields) {
 
 function selectActiveStoryBeat(beats, runtime = {}) {
   if (!beats.length) return { activeStoryBeat: null, lockedStoryBeats: [] }
-  const activeBeatIndex = Math.min(beats.length - 1, Math.max(0, Number(runtime.scene_count || 0)))
+  const requestedBeat = Math.max(1, Number(runtime.state_json?.activeBeatNumber || 1))
+  const activeBeatIndex = Math.min(beats.length - 1, requestedBeat - 1)
   return {
     activeStoryBeat: beats[activeBeatIndex],
     lockedStoryBeats: beats.slice(activeBeatIndex + 1).map((beat) => ({ beat_number: beat.beat_number, beat_type: beat.beat_type, title: beat.title })),
@@ -115,8 +117,16 @@ async function createGame(accountId) {
     await connection.execute("INSERT INTO character_skills (character_life_id, skill_id) SELECT ?, id FROM skills WHERE skill_key IN ('brace', 'soul-echo')", [lifeId])
     await connection.execute('INSERT INTO cycle_dungeon_progress (story_cycle_id, dungeon_id, highest_floor) VALUES (?, 1, 1)', [storyCycleId])
     await connection.execute("INSERT INTO cycle_npc_states (story_cycle_id, npc_id, current_floor_id, relationship_json, dialogue_state_json) SELECT ?, id, current_floor_id, '{}', '{}' FROM world_npcs WHERE current_floor_id = 101", [storyCycleId])
-    await connection.execute("INSERT INTO cycle_monster_states (story_cycle_id, monster_id, current_floor_id, current_hp, state_json) SELECT ?, id, habitat_floor_id, COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(stats_json, '$.hp')) AS UNSIGNED), 20), '{}' FROM world_monsters WHERE habitat_floor_id = 101", [storyCycleId])
+    await connection.execute(`INSERT INTO cycle_monster_states (story_cycle_id, monster_id, current_floor_id, current_hp, max_hp, xp_reward, gold_reward, state_json)
+      SELECT ?, id, habitat_floor_id,
+             COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(stats_json, '$.hp')) AS UNSIGNED), 20),
+             COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(stats_json, '$.hp')) AS UNSIGNED), 20),
+             10 + COALESCE(habitat_dungeon_id, 1) * 8,
+             5 + COALESCE(habitat_dungeon_id, 1) * 4,
+             '{}'
+        FROM world_monsters WHERE habitat_floor_id = 101`, [storyCycleId])
     await connection.execute("INSERT INTO cycle_boss_states (story_cycle_id, boss_profile_id, status, memory_of_player_json, encounter_state_json) SELECT ?, id, 'locked', '{}', '{}' FROM boss_profiles", [storyCycleId])
+    await initializeFloor(connection, { run: { id: storyCycleId } }, 1, 101)
     return { storyCycleId, characterLifeId: lifeId, resumed: false }
   })
 }
@@ -147,7 +157,7 @@ async function getGameState(storyCycleId) {
     query('SELECT * FROM dungeons WHERE id = ?', [run.current_dungeon_id]),
     query('SELECT * FROM dungeon_floors WHERE id = ?', [run.current_floor_id]),
     query('SELECT * FROM floor_story_beats WHERE floor_id = ? ORDER BY beat_number', [run.current_floor_id]),
-    query('SELECT status, scene_count, objective_progress, objective_required, combat_required, combat_completed, state_json FROM floor_runtime_states WHERE story_cycle_id = ? AND floor_id = ?', [storyCycleId, run.current_floor_id]),
+    query('SELECT status, scene_count, objective_progress, objective_required, combat_required, combat_completed, story_decision_completed, floor_complete, exit_unlocked, state_json FROM floor_runtime_states WHERE story_cycle_id = ? AND floor_id = ?', [storyCycleId, run.current_floor_id]),
     query(
       `SELECT n.*, ns.life_status AS run_life_status, ns.relationship_json AS run_relationship_json,
               ns.dialogue_state_json, ns.present, ns.recruitment_status
@@ -156,13 +166,13 @@ async function getGameState(storyCycleId) {
       [storyCycleId, run.current_floor_id],
     ),
     query(
-      `SELECT m.*, ms.id AS instance_id, ms.current_hp, ms.status, ms.state_json
+      `SELECT m.*, ms.id AS instance_id, ms.current_hp, ms.max_hp, ms.status, ms.state_json
          FROM cycle_monster_states ms JOIN world_monsters m ON m.id = ms.monster_id
         WHERE ms.story_cycle_id = ? AND ms.current_floor_id = ? AND ms.status IN ('alive', 'friendly')`,
       [storyCycleId, run.current_floor_id],
     ),
     query(
-      `SELECT bp.*, bs.status, bs.current_phase, bs.current_hp, bs.memory_of_player_json, bs.encounter_state_json
+      `SELECT bp.*, bs.status, bs.current_phase, bs.current_hp, bs.max_hp, bs.memory_of_player_json, bs.encounter_state_json
          FROM boss_profiles bp
          JOIN cycle_boss_states bs ON bs.boss_profile_id = bp.id
         WHERE bs.story_cycle_id = ? AND bp.dungeon_floor_id = ?`,
@@ -220,7 +230,7 @@ async function getGameState(storyCycleId) {
     query('SELECT world_npc_id, memory_type, summary, emotional_weight, facts_json, created_at FROM companion_reincarnation_memories WHERE soul_profile_id = ? ORDER BY created_at DESC LIMIT 30', [run.soul_profile_id]),
     query(`SELECT ci.companion_id, ci.name, ci.severity, ci.effects_json, ci.created_at FROM companion_injuries ci JOIN companions c ON c.id = ci.companion_id WHERE c.story_cycle_id = ? AND ci.healed_at IS NULL`, [storyCycleId]),
     query(
-      `SELECT s.skill_key, s.family_id, s.name, s.skill_type, s.category, s.rarity, s.visibility, s.family_tier, s.description, s.identity_text, s.effects_json, s.evolution_rules_json,
+      `SELECT s.id, s.skill_key, s.family_id, s.name, s.skill_type, s.category, s.rarity, s.visibility, s.family_tier, s.description, s.identity_text, s.effects_json, s.evolution_rules_json,
               cs.skill_level, cs.skill_xp, cs.xp_needed, cs.unlocked, cs.times_used, cs.last_used_at, cs.equipped
          FROM character_skills cs JOIN skills s ON s.id = cs.skill_id
         WHERE cs.character_life_id = ?`,
@@ -228,7 +238,7 @@ async function getGameState(storyCycleId) {
     ),
     query(`SELECT ci.id AS inventory_id, ci.equipped_slot, es.durability, es.max_durability, es.upgrade_level, es.bound_to_soul, es.bonuses_json FROM character_inventory ci JOIN equipment_states es ON es.character_inventory_id = ci.id WHERE ci.character_life_id = ?`, [run.character_life_id]),
     query(
-      `SELECT ci.id AS inventory_id, i.item_key, i.name, i.item_type, i.description, i.rarity, i.effects_json,
+      `SELECT ci.id AS inventory_id, i.id AS item_id, i.item_key, i.name, i.item_type, i.description, i.rarity, i.effects_json,
               ci.quantity, ci.equipped_slot, ci.item_state_json
          FROM character_inventory ci JOIN items i ON i.id = ci.item_id
         WHERE ci.character_life_id = ?`,
@@ -266,14 +276,30 @@ async function getGameState(storyCycleId) {
   const runtime = hydrate(floorRuntime[0], [['state_json', {}]]) || { scene_count: 0, objective_progress: 0, objective_required: 3 }
   const beatSelection = selectActiveStoryBeat(hydratedBeats, runtime)
   const activeBoss = hydrate(bosses[0], [['personality_json', {}], ['dialogue_json', []], ['mechanics_json', {}], ['memory_of_player_json', {}], ['encounter_state_json', {}]])
+  const currentDungeonNumber = Number(dungeons[0]?.dungeon_number || 1)
+  const currentFloorNumber = Number(floors[0]?.floor_number || 1)
+  const nextFloorId = currentFloorNumber < 3 ? currentDungeonNumber * 100 + currentFloorNumber + 1 : currentDungeonNumber < 5 ? (currentDungeonNumber + 1) * 100 + 1 : null
+  const [statusCatalog, itemCatalog, skillCatalog, availableFloorExits] = await Promise.all([
+    query('SELECT id, status_key, name, category, description, default_duration_turns, effects_json FROM status_effects ORDER BY id'),
+    query('SELECT id, item_key, name, item_type, rarity FROM items ORDER BY id'),
+    query('SELECT id, skill_key, name, skill_type, category, rarity, visibility FROM skills ORDER BY id'),
+    nextFloorId
+      ? query(`SELECT df.id, df.dungeon_id, df.floor_number, df.floor_name, df.floor_type, d.name AS dungeon_name FROM dungeon_floors df JOIN dungeons d ON d.id = df.dungeon_id WHERE df.id = ?`, [nextFloorId])
+      : Promise.resolve([]),
+  ])
   const bossVictorySaved = (activeBoss?.current_hp !== null && activeBoss?.current_hp !== undefined && Number(activeBoss.current_hp) <= 0)
     || activeBoss?.status === 'defeated'
     || activeBoss?.status === 'spared'
     || Boolean(activeBoss?.encounter_state_json?.nonCombatVictory)
-  const encounterSatisfied = !runtime.combat_required || Boolean(runtime.combat_completed) || (floors[0]?.floor_type === 'boss' && bossVictorySaved)
-  const decisionSatisfied = !runtime.state_json?.decisionRequired || Boolean(runtime.story_decision_completed)
-  const floorExitUnlocked = runtime.status === 'cleared'
-    || (Number(runtime.objective_progress) >= Number(runtime.objective_required) && encounterSatisfied && decisionSatisfied)
+  const floorComplete = Boolean(runtime.floor_complete) || runtime.status === 'cleared'
+  const exitUnlocked = Boolean(runtime.exit_unlocked) || runtime.status === 'cleared'
+  const activeMonsters = monsters.map((row) => hydrate(row, [['stats_json', {}], ['skills_json', []], ['loot_json', []], ['behavior_json', {}], ['state_json', {}]]))
+  const reachableTargets = activeMonsters.map((monster) => ({
+    type: 'monster', id: Number(monster.instance_id), name: monster.name, hp: Number(monster.current_hp), maxHp: Number(monster.max_hp), status: monster.status, reachable: true,
+  }))
+  if (activeBoss && !['defeated', 'spared'].includes(activeBoss.status)) reachableTargets.push({
+    type: 'boss', id: Number(activeBoss.id), name: activeBoss.boss_name, hp: Number(activeBoss.current_hp), maxHp: Number(activeBoss.max_hp), status: activeBoss.status, reachable: true,
+  })
 
   return {
     run,
@@ -286,15 +312,18 @@ async function getGameState(storyCycleId) {
       encounterCompleted: Boolean(runtime.combat_completed),
       decisionRequired: Boolean(runtime.state_json?.decisionRequired),
       decisionCompleted: Boolean(runtime.story_decision_completed),
-      floorExitUnlocked,
+      floorComplete,
+      exitUnlocked,
       bossVictorySaved,
     },
     floorStoryBeats: hydratedBeats,
     activeStoryBeat: beatSelection.activeStoryBeat,
     lockedStoryBeats: beatSelection.lockedStoryBeats,
     activeNpcs: npcs.map((row) => hydrate(row, [['personality_json', {}], ['dialogue_json', []], ['run_relationship_json', {}], ['dialogue_state_json', {}]])),
-    activeMonsters: monsters.map((row) => hydrate(row, [['stats_json', {}], ['skills_json', []], ['loot_json', []], ['behavior_json', {}], ['state_json', {}]])),
+    activeMonsters,
     activeBoss,
+    reachableTargets,
+    availableFloorExits,
     activeQuests: quests.map((row) => hydrate(row, [['objectives_json', []], ['rewards_json', []], ['consequence_rules_json', {}], ['overlap_json', {}], ['progress_json', {}], ['choices_json', []]])),
     activeStoryThreads: storyThreads.map((row) => hydrate(row, [['requirements_json', {}], ['related_npc_ids_json', []], ['related_location_ids_json', []], ['related_quest_ids_json', []], ['connection_keys_json', {}], ['progress_json', {}]])),
     factionReputation: factionReputation.map((row) => hydrate(row, [['reasons_json', {}]])),
@@ -318,6 +347,9 @@ async function getGameState(storyCycleId) {
     inventory: inventory.map((row) => hydrate(row, [['effects_json', {}], ['item_state_json', {}]])),
     equipment: equipment.map((row) => hydrate(row, [['bonuses_json', {}]])),
     statusEffects: statuses.map((row) => hydrate(row, [['state_json', {}]])),
+    statusCatalog: statusCatalog.map((row) => hydrate(row, [['effects_json', {}]])),
+    itemCatalog,
+    skillCatalog,
     traits: traits.map((row) => hydrate(row, [['effects_json', {}]])),
     injuries: injuries.map((row) => hydrate(row, [['effects_json', {}]])),
     lifeHistory,
@@ -423,7 +455,7 @@ async function createLegacyHero(storyCycleId, bossData = {}) {
     if (!cycles[0]) throw new Error('A living completed character is required.')
     const source = cycles[0]
     const [progress] = await connection.execute('SELECT COUNT(*) AS cleared FROM cycle_dungeon_progress WHERE story_cycle_id = ? AND boss_defeated = 1 AND completed_at IS NOT NULL', [storyCycleId])
-    if (Number(progress[0].cleared) !== 10) throw new Error('Legacy Heroes require all 10 realms and bosses to be completed.')
+    if (Number(progress[0].cleared) !== 5) throw new Error('Legacy Heroes require all 5 Dungeons and bosses to be completed.')
     const [existing] = await connection.execute('SELECT id FROM legacy_heroes WHERE source_story_cycle_id = ?', [storyCycleId])
     if (existing[0]) return { id: existing[0].id, alreadyCreated: true }
     const [skillRows] = await connection.execute(`SELECT s.*, cs.skill_level, cs.skill_xp, cs.xp_needed, cs.unlocked, cs.times_used, cs.last_used_at, cs.equipped FROM character_skills cs JOIN skills s ON s.id = cs.skill_id WHERE cs.character_life_id = ?`, [source.character_life_id])

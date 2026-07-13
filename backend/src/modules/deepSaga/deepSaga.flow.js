@@ -22,7 +22,7 @@ const deepSagaFlow = [
   {
     phase: 5,
     title: 'Exploration',
-    summary: 'The player travels through 10 Dungeons with 5 floors each. Every 5th floor is a Boss Floor that gates the next Dungeon.',
+    summary: 'The player travels through 5 Dungeons with 3 Floors each. Every third Floor is a Boss Floor that gates the next Dungeon.',
   },
   {
     phase: 6,
@@ -37,7 +37,7 @@ const deepSagaFlow = [
   {
     phase: 8,
     title: 'The End of the Cycle',
-    summary: 'After all 10 Dungeons are completed, the finished character becomes part of Deep Saga history.',
+    summary: 'After all 5 Dungeons are completed, the finished character becomes part of Deep Saga history.',
   },
   {
     phase: 9,

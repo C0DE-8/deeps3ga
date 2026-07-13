@@ -6,50 +6,18 @@ const {
   listGameSaves,
   listVisibleSkillCatalog,
   markCharacterDead,
-  saveNarrativeTurn,
 } = require('../../db/repositories/gameState.repository')
-const { resolveTurn } = require('./turnEngine.service')
-const { interpretAction } = require('./actionInterpreter.service')
-const { validateReality } = require('./realityValidator.service')
-const { enforceNarrativeScene } = require('../deepSaga/narrativeEnforcer.service')
+const { findAcceptedTurn, saveAcceptedTurn } = require('../../db/repositories/aiTurn.repository')
+const { AiTurnValidationError, buildTurnContext, validateGameMasterTurn } = require('../deepSaga/narrativeEnforcer.service')
 
-function asArray(value) {
-  if (value === null || value === undefined || value === '') return []
-  if (Array.isArray(value)) return value
-  if (typeof value === 'object') return [value]
-  return [value]
-}
-
-function normalizeScene(scene = {}) {
-  const protectedKeys = ['account', 'accountId', 'user', 'userId', 'owner', 'ownerId', 'ownership', 'admin', 'role', 'authentication', 'auth']
-  const protectedChangeTypes = new Set(['account', 'authentication', 'auth', 'ownership', 'owner', 'admin', 'role', 'user'])
-  if (protectedKeys.some((key) => Object.prototype.hasOwnProperty.call(scene, key))) throw new Error('Narrative AI attempted to return protected account state.')
-  if (scene.stateChanges !== undefined && !Array.isArray(scene.stateChanges)) throw new Error('Narrative AI stateChanges must be an array.')
-  if ((scene.stateChanges || []).some((change) => !change || typeof change !== 'object' || Array.isArray(change) || !change.type)) throw new Error('Narrative AI returned a malformed state change.')
-  if ((scene.stateChanges || []).some((change) => protectedChangeTypes.has(String(change.type).toLowerCase()))) throw new Error('Narrative AI attempted to change protected account state.')
-  const storyValue = scene.story ?? scene.narrative ?? scene.text ?? ''
-  const story = typeof storyValue === 'string'
-    ? storyValue
-    : storyValue?.text || storyValue?.content || JSON.stringify(storyValue)
-
-  return {
-    sceneType: typeof scene.sceneType === 'string' ? scene.sceneType : 'exploration',
-    story,
-    narrativeSections: scene.narrativeSections && typeof scene.narrativeSections === 'object' ? scene.narrativeSections : {},
-    characterChanges: asArray(scene.characterChanges),
-    newItemsOrSkills: asArray(scene.newItemsOrSkills),
-    choices: scene.choices,
-    consequences: asArray(scene.consequences),
-    memorySignals: asArray(scene.memorySignals),
-    dungeonReaction: asArray(scene.dungeonReaction),
-    companionMoments: asArray(scene.companionMoments),
-    npcIntroductions: asArray(scene.npcIntroductions),
-    storyOpportunities: asArray(scene.storyOpportunities),
-    bossPresentation: scene.bossPresentation || null,
-    legendSummary: scene.legendSummary || null,
-    parsedIntent: scene.parsedIntent && typeof scene.parsedIntent === 'object' ? scene.parsedIntent : {},
-    safetyNotes: asArray(scene.safetyNotes),
-  }
+function normalizeSelectedTarget(value) {
+  if (value === null || value === undefined) return null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('selectedTarget must be an object.')
+  const type = String(value.type || '').trim().toLowerCase()
+  const id = Number(value.id)
+  const name = String(value.name || '').trim()
+  if (!type || !Number.isInteger(id) || id <= 0 || !name) throw new Error('selectedTarget requires type, positive integer id, and name.')
+  return { type, id, name: name.slice(0, 160) }
 }
 
 async function loadState(storyCycleId, accountId) {
@@ -59,92 +27,47 @@ async function loadState(storyCycleId, accountId) {
   return state
 }
 
-async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', requestKey }, accountId) {
+async function requestAcceptedTurn({ state, playerAction, actionKind, selectedTarget }) {
+  const turnContext = buildTurnContext(state)
+  let validationErrors = []
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const raw = await continueScene({ playerAction, actionKind, selectedTarget, turnContext, validationErrors })
+      return validateGameMasterTurn(raw, state, { playerAction, selectedTarget })
+    } catch (error) {
+      const repairable = error instanceof AiTurnValidationError || error instanceof SyntaxError
+      if (!repairable || attempt === 1) throw error
+      validationErrors = error instanceof AiTurnValidationError ? error.validationErrors : [`The previous response was not valid JSON: ${error.message}`]
+    }
+  }
+  throw new Error('AI Game Master did not return a valid turn.')
+}
+
+async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', selectedTarget: selectedTargetValue = null, requestKey }, accountId) {
   if (!playerAction?.trim()) throw new Error('playerAction is required.')
   if (playerAction.trim().length > 1000) throw new Error('playerAction must be 1000 characters or fewer.')
   if (!['typed', 'suggested'].includes(actionKind)) throw new Error('actionKind must be typed or suggested.')
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey || '')) throw new Error('A valid requestKey is required.')
 
   const state = await loadState(storyCycleId, accountId)
-  const interpreted = await interpretAction(playerAction.trim(), state)
-  const interpretation = validateReality(playerAction.trim(), interpreted, state)
-  let engineResolution
-  if (interpretation.status === 'VALID') {
-    engineResolution = await resolveTurn(state, playerAction.trim(), interpretation, requestKey)
-  } else {
-    engineResolution = {
-      actionType: interpretation.intent,
-      interpretation,
-      successLevel: 'rejected',
-      rejection: { status: interpretation.status, reason: interpretation.reason, code: interpretation.rejectionCode, sceneAnchors: interpretation.sceneAnchors || {} },
-      rewards: { xp: 0, gold: 0, soulEnergy: 0 },
-      skillProgress: [], skillsUnlocked: [], itemsAwarded: [], companions: [], events: [], achievements: [],
-      familyMastery: [], ultimateTrials: [], evolutionChoices: [], quests: [], floorProgressGain: 0,
-      combat: null, advanced: null, runCompleted: false, died: false,
-    }
+  const selectedTarget = normalizeSelectedTarget(selectedTargetValue)
+  const existing = await findAcceptedTurn(state.run.id, requestKey, playerAction.trim(), selectedTarget)
+  if (existing) {
+    const current = await loadState(storyCycleId, accountId)
+    return { ...existing, saved: { replayed: true }, location: { dungeon: current.currentDungeon.name, floor: current.currentFloor.floor_number, floorName: current.currentFloor.floor_name }, reachableTargets: current.reachableTargets }
   }
-  const narrativeState = interpretation.status === 'VALID' && !engineResolution.died && !engineResolution.runCompleted
-    ? await loadState(storyCycleId, accountId)
-    : state
-  let scene = normalizeScene(await continueScene({
-      playerAction: playerAction.trim(),
-      actionKind,
-      runState: narrativeState.run,
-      worldState: { engineResolution },
-      playerState: {
-        characterSheet: narrativeState.characterSheet,
-        skills: narrativeState.skills,
-        inventory: narrativeState.inventory,
-        equipment: narrativeState.equipment,
-        statuses: narrativeState.statusEffects,
-        injuries: narrativeState.injuries,
-        achievements: narrativeState.achievements,
-        familyMastery: narrativeState.familyMastery,
-        evolutionChoices: narrativeState.evolutionChoices,
-        ultimateTrials: narrativeState.ultimateTrials,
-      },
-      previousLocation: { dungeon: state.currentDungeon, floor: state.currentFloor },
-      currentDungeon: narrativeState.currentDungeon,
-      currentFloor: narrativeState.currentFloor,
-      floorStoryBeats: (narrativeState.floorStoryBeats || []).map((beat) => Number(beat.beat_number) === Number(narrativeState.activeStoryBeat?.beat_number)
-        ? { ...beat, status: 'active' }
-        : { beat_number: beat.beat_number, beat_type: beat.beat_type, title: beat.title, status: Number(beat.beat_number) < Number(narrativeState.activeStoryBeat?.beat_number) ? 'completed' : 'locked' }),
-      activeStoryBeat: narrativeState.activeStoryBeat,
-      lockedStoryBeats: narrativeState.lockedStoryBeats,
-      floorRuntime: narrativeState.floorRuntime,
-      activeNpcs: narrativeState.activeNpcs,
-      activeMonsters: narrativeState.activeMonsters,
-      activeBoss: narrativeState.activeBoss,
-      activeQuest: narrativeState.activeQuests,
-      activeStoryThreads: narrativeState.activeStoryThreads,
-      factionReputation: narrativeState.factionReputation,
-      dungeonMemory: {
-        memories: narrativeState.storyMemory,
-        previousChoices: narrativeState.previousChoices,
-        adaptations: narrativeState.dungeonAdaptations,
-        companions: narrativeState.companions,
-        companionSoulMemories: narrativeState.companionSoulMemories,
-        companionInjuries: narrativeState.companionInjuries,
-        progression: narrativeState.progressionEvents,
-        engineEvents: narrativeState.engineEvents,
-        activeEncounter: narrativeState.activeEncounter,
-        combatParticipants: narrativeState.combatParticipants,
-        events: narrativeState.events,
-      },
-      guardianProfile: narrativeState.previousLegacyHero,
-    }))
 
-  scene = enforceNarrativeScene(scene, engineResolution, { before: state, after: narrativeState })
-
-  const saved = await saveNarrativeTurn({ state, playerAction: playerAction.trim(), actionKind, scene, requestKey })
+  const acceptedTurn = await requestAcceptedTurn({ state, playerAction: playerAction.trim(), actionKind, selectedTarget })
+  const result = await saveAcceptedTurn({ state, playerAction: playerAction.trim(), actionKind, selectedTarget, requestKey, turn: acceptedTurn })
+  const current = await loadState(storyCycleId, accountId)
   let legacyHero = null
-  if (engineResolution.runCompleted) legacyHero = await createLegacyHero(Number(storyCycleId), scene.bossPresentation || {})
+  if (acceptedTurn.stateChanges.runCompleted) legacyHero = await createLegacyHero(Number(storyCycleId), {})
   return {
-    scene,
-    engineResolution,
-    saved,
+    ...result.turn,
+    saved: result.saved,
     legacyHero,
-    location: { dungeon: narrativeState.currentDungeon?.name, floor: narrativeState.currentFloor?.floor_number, floorName: narrativeState.currentFloor?.floor_name },
+    location: { dungeon: current.currentDungeon.name, floor: current.currentFloor.floor_number, floorName: current.currentFloor.floor_name },
+    reachableTargets: current.reachableTargets,
   }
 }
 
@@ -155,6 +78,7 @@ module.exports = {
   listSkills: listVisibleSkillCatalog,
   killCharacter: markCharacterDead,
   loadState,
+  normalizeSelectedTarget,
+  requestAcceptedTurn,
   startGame: createGame,
-  normalizeScene,
 }

@@ -8,10 +8,11 @@ export function ChoiceComposer({ choices, customAction, onCustomActionChange, on
   }
 
   function normalizeChoice(choice, index) {
-    if (typeof choice === 'string') return { key: `${index}-${choice}`, text: choice, action: choice, direction: '', consequence: '' }
+    if (typeof choice === 'string') return { key: `${index}-${choice}`, title: choice, text: '', action: choice, direction: '', consequence: '' }
     const text = choice?.text || choice?.label || choice?.action || `Choice ${index + 1}`
+    const title = choice?.title || choice?.label || text
     const action = choice?.action || choice?.value || text
-    return { key: choice?.id || `${index}-${text}-${action}`, text, action, direction: choice?.direction || '', consequence: choice?.consequence || '' }
+    return { key: choice?.id || `${index}-${text}-${action}`, title, text, action, direction: choice?.direction || '', consequence: choice?.consequence || '', targetType: choice?.targetType || null, targetId: choice?.targetId ?? null }
   }
 
   return (
@@ -20,9 +21,10 @@ export function ChoiceComposer({ choices, customAction, onCustomActionChange, on
         {choices.map((choice, index) => {
           const normalized = normalizeChoice(choice, index)
           return (
-            <button key={normalized.key} type="button" disabled={disabled} onClick={() => onSubmitAction(normalized.action, 'suggested')}>
+            <button key={normalized.key} type="button" disabled={disabled} onClick={() => onSubmitAction(normalized.action, 'suggested', normalized.targetType && normalized.targetId !== null ? { type: normalized.targetType, id: normalized.targetId } : null)}>
               {normalized.direction && <small>{normalized.direction}</small>}
-              <strong>{normalized.text}</strong>
+              <strong>{normalized.title}</strong>
+              {normalized.text && normalized.text !== normalized.title && <span>{normalized.text}</span>}
               {normalized.consequence && <span>{normalized.consequence}</span>}
             </button>
           )

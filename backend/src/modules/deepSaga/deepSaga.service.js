@@ -1,6 +1,7 @@
 const { getAiConfig } = require('../../config/ai')
 const { deepSagaFlow } = require('./deepSaga.flow')
-const { buildNarrativeSystemPrompt, buildScenePrompt } = require('./deepSaga.prompts')
+const { buildScenePrompt } = require('./deepSaga.prompts')
+const { loadGameMasterPrompt } = require('./promptLoader.service')
 const { worldBible } = require('./deepSaga.world')
 
 function getFlow() {
@@ -12,7 +13,7 @@ function getFlow() {
       'database config from .env',
       'soul router for reincarnation memory',
       'story router for narrator messages',
-      '10 dungeons with 5 floors each',
+      '5 dungeons with 3 floors each',
       'boss floor progression',
       'legacy guardian from the previous completed story',
     ],
@@ -31,7 +32,7 @@ function getFlow() {
 
 function getWorldBible() {
   return {
-    rule: 'The database is the brain. The AI reads world state, narrates one scene, and returns updates for the game to persist.',
+    rule: 'The database is canon and memory. The AI Game Master decides one coherent turn, and the backend validates and persists that exact result.',
     places: worldBible,
   }
 }
@@ -54,7 +55,7 @@ async function continueScene(payload) {
       temperature: ai.temperature,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: buildNarrativeSystemPrompt() },
+        { role: 'system', content: loadGameMasterPrompt() },
         buildScenePrompt(payload),
       ],
     }),
