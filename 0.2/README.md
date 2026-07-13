@@ -19,6 +19,7 @@ It is a dark fantasy reincarnation text RPG where the player reads and shapes th
   - 3 floors per dungeon
   - Floor 3 is the boss floor
   - Dungeon 5 Floor 3 is the final boss
+- Stores dungeon/floor progression numerically. AI-created names are story labels, not progression IDs.
 
 ## Current Game Flow
 
@@ -251,6 +252,9 @@ Normalized SQL tables:
 | --- | --- |
 | `deep_saga_players` | Account, auth-facing player ID, selected persona, current run, memory JSON |
 | `narrator_persona` | Persona catalog for `ADMIN`, `TRICKSTER`, and `SENSEI` |
+| `dungeons` | Canonical numeric dungeon records, `Dungeon 1` through `Dungeon 5` |
+| `dungeon_floors` | Canonical numeric floor records, 3 floors per dungeon, with boss/final flags |
+| `ai_location_names` | Names the AI gives to dungeons, floors, areas, or bosses during narration |
 | `player_characters` | Active/current character stats such as HP, Mana, Stamina, level, RPG attributes, location, Gold, and Soul Energy |
 | `skills` | Skill catalog |
 | `player_character_skills` | Skills unlocked by each character |

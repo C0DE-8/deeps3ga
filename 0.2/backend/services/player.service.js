@@ -129,6 +129,9 @@ const skillCatalog = [
   { key: "soul_echo", name: "Soul Echo", family: "Soul", type: "Memory", description: "Hear fragments of old fear, death, or promise clinging to a place.", rarity: "rare" }
 ];
 
+const dungeonCount = 5;
+const floorsPerDungeon = 3;
+
 function parseJson(value, fallback) {
   if (!value) return fallback;
   if (typeof value === "object") return value;
@@ -181,6 +184,17 @@ function serializePlayer(row) {
     floor: Number(row.character_floor || 1),
     status: row.character_status || "alive"
   } : null;
+  const floorRuntime = {
+    dungeonNumber: Number(row.runtime_dungeon_number || activeCharacter?.dungeon || currentBody?.dungeon || 1),
+    floorNumber: Number(row.runtime_floor_number || activeCharacter?.floor || currentBody?.floor || 1),
+    dungeonLabel: row.dungeon_label || `Dungeon ${Number(row.runtime_dungeon_number || activeCharacter?.dungeon || currentBody?.dungeon || 1)}`,
+    floorLabel: row.floor_label || `Dungeon ${Number(row.runtime_dungeon_number || activeCharacter?.dungeon || currentBody?.dungeon || 1)} Floor ${Number(row.runtime_floor_number || activeCharacter?.floor || currentBody?.floor || 1)}`,
+    dungeonAiName: row.dungeon_ai_name || null,
+    floorAiName: row.floor_ai_name || null,
+    floorRole: row.floor_role || (Number(row.runtime_floor_number || activeCharacter?.floor || currentBody?.floor || 1) === floorsPerDungeon ? "boss" : "exploration"),
+    isBossFloor: Boolean(Number(row.is_boss_floor || 0)),
+    isFinalBossFloor: Boolean(Number(row.is_final_boss_floor || 0))
+  };
 
   return {
     playerId: row.player_id,
@@ -191,6 +205,7 @@ function serializePlayer(row) {
     cycleClears: Number(row.cycle_clears || 0),
     currentBody,
     activeCharacter,
+    floorRuntime,
     memoryLog: parseJson(row.memory_log, []),
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at
@@ -253,8 +268,10 @@ async function ensurePlayerSchema() {
     await ensureUsernameColumn();
     await ensurePersonaColumn();
     await ensureNarratorPersonaSchema();
+    await ensureWorldProgressionSchema();
     await ensureCharacterSchema();
     await ensureSkillSchema();
+    await seedWorldProgression();
     await seedNarratorPersonas();
     await seedSkills();
     await backfillActiveCharacters();
@@ -309,6 +326,60 @@ async function ensureNarratorPersonaSchema() {
       active TINYINT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+async function ensureWorldProgressionSchema() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS dungeons (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      dungeon_number INT NOT NULL UNIQUE,
+      canonical_label VARCHAR(40) NOT NULL,
+      ai_name VARCHAR(160) NULL,
+      ai_name_note TEXT NULL,
+      is_final_dungeon TINYINT NOT NULL DEFAULT 0,
+      active TINYINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_dungeons_number (dungeon_number)
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS dungeon_floors (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      dungeon_number INT NOT NULL,
+      floor_number INT NOT NULL,
+      canonical_label VARCHAR(40) NOT NULL,
+      ai_name VARCHAR(160) NULL,
+      ai_name_note TEXT NULL,
+      floor_role VARCHAR(80) NOT NULL,
+      is_boss_floor TINYINT NOT NULL DEFAULT 0,
+      is_final_boss_floor TINYINT NOT NULL DEFAULT 0,
+      active TINYINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_dungeon_floor (dungeon_number, floor_number),
+      INDEX idx_dungeon_floors_dungeon (dungeon_number),
+      INDEX idx_dungeon_floors_boss (is_boss_floor)
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS ai_location_names (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      player_id VARCHAR(32) NULL,
+      run_number INT NULL,
+      dungeon_number INT NOT NULL,
+      floor_number INT NULL,
+      name_type VARCHAR(40) NOT NULL,
+      ai_name VARCHAR(160) NOT NULL,
+      source_text TEXT NULL,
+      accepted TINYINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_ai_location_names_position (dungeon_number, floor_number),
+      INDEX idx_ai_location_names_player (player_id, run_number)
     )
   `);
 }
@@ -400,6 +471,36 @@ async function seedNarratorPersonas() {
        ON DUPLICATE KEY UPDATE role_name = VALUES(role_name), tone = VALUES(tone), style_text = VALUES(style_text), lore_format = VALUES(lore_format), choice_bias = VALUES(choice_bias), hint_style = VALUES(hint_style), failure_style = VALUES(failure_style), description = VALUES(description), active = 1`,
       [persona.key, persona.role, persona.tone, persona.style, persona.loreFormat, persona.choiceBias, persona.hintStyle, persona.failureStyle, persona.description]
     );
+  }
+}
+
+async function seedWorldProgression() {
+  for (let dungeon = 1; dungeon <= dungeonCount; dungeon += 1) {
+    await db.execute(
+      `INSERT INTO dungeons (dungeon_number, canonical_label, is_final_dungeon, active)
+       VALUES (?, ?, ?, 1)
+       ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), is_final_dungeon = VALUES(is_final_dungeon), active = 1`,
+      [dungeon, `Dungeon ${dungeon}`, dungeon === dungeonCount ? 1 : 0]
+    );
+
+    for (let floor = 1; floor <= floorsPerDungeon; floor += 1) {
+      const isBossFloor = floor === floorsPerDungeon;
+      const isFinalBossFloor = dungeon === dungeonCount && floor === floorsPerDungeon;
+      const floorRole = isFinalBossFloor
+        ? "final_boss"
+        : isBossFloor
+          ? "boss"
+          : floor === 1
+            ? "introduction"
+            : "main_danger";
+
+      await db.execute(
+        `INSERT INTO dungeon_floors (dungeon_number, floor_number, canonical_label, floor_role, is_boss_floor, is_final_boss_floor, active)
+         VALUES (?, ?, ?, ?, ?, ?, 1)
+         ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), floor_role = VALUES(floor_role), is_boss_floor = VALUES(is_boss_floor), is_final_boss_floor = VALUES(is_final_boss_floor), active = 1`,
+        [dungeon, floor, `Dungeon ${dungeon} Floor ${floor}`, floorRole, isBossFloor ? 1 : 0, isFinalBossFloor ? 1 : 0]
+      );
+    }
   }
 }
 
@@ -545,6 +646,47 @@ async function listNarratorPersonas() {
   }));
 }
 
+async function getFloorRuntime(dungeonNumber, floorNumber) {
+  await ensurePlayerSchema();
+  const dungeon = Number(dungeonNumber || 1);
+  const floor = Number(floorNumber || 1);
+  const rows = await db.query(
+    `SELECT d.dungeon_number, d.canonical_label AS dungeon_label, d.ai_name AS dungeon_ai_name, d.is_final_dungeon,
+            f.floor_number, f.canonical_label AS floor_label, f.ai_name AS floor_ai_name, f.floor_role, f.is_boss_floor, f.is_final_boss_floor
+       FROM dungeons d
+       JOIN dungeon_floors f ON f.dungeon_number = d.dungeon_number
+      WHERE d.dungeon_number = ? AND f.floor_number = ?
+      LIMIT 1`,
+    [dungeon, floor]
+  );
+
+  if (!rows[0]) {
+    return {
+      dungeonNumber: dungeon,
+      floorNumber: floor,
+      dungeonLabel: `Dungeon ${dungeon}`,
+      floorLabel: `Dungeon ${dungeon} Floor ${floor}`,
+      dungeonAiName: null,
+      floorAiName: null,
+      floorRole: floor === floorsPerDungeon ? (dungeon === dungeonCount ? "final_boss" : "boss") : floor === 1 ? "introduction" : "main_danger",
+      isBossFloor: floor === floorsPerDungeon,
+      isFinalBossFloor: dungeon === dungeonCount && floor === floorsPerDungeon
+    };
+  }
+
+  return {
+    dungeonNumber: Number(rows[0].dungeon_number),
+    floorNumber: Number(rows[0].floor_number),
+    dungeonLabel: rows[0].dungeon_label,
+    floorLabel: rows[0].floor_label,
+    dungeonAiName: rows[0].dungeon_ai_name || null,
+    floorAiName: rows[0].floor_ai_name || null,
+    floorRole: rows[0].floor_role,
+    isBossFloor: Boolean(Number(rows[0].is_boss_floor)),
+    isFinalBossFloor: Boolean(Number(rows[0].is_final_boss_floor))
+  };
+}
+
 async function findPlayerByIdentifier(identifier) {
   const normalized = String(identifier || "").trim().toLowerCase();
 
@@ -556,9 +698,13 @@ async function findPlayerByIdentifier(identifier) {
     `SELECT p.player_id, p.username, p.email, p.password_hash, p.narrator_persona, p.current_run, p.cycle_clears, p.current_body, p.memory_log, p.created_at, p.last_login_at,
             c.id AS character_id, c.character_name, c.race, c.class_name, c.level AS character_level, c.hp, c.max_hp, c.mana, c.max_mana, c.stamina, c.max_stamina,
             c.strength, c.agility, c.defense, c.thaumaturgy, c.resolve_stat, c.intelligence, c.luck, c.charisma, c.gold, c.soul_energy,
-            c.dungeon AS character_dungeon, c.floor AS character_floor, c.status AS character_status
+            c.dungeon AS character_dungeon, c.floor AS character_floor, c.status AS character_status,
+            d.dungeon_number AS runtime_dungeon_number, d.canonical_label AS dungeon_label, d.ai_name AS dungeon_ai_name,
+            f.floor_number AS runtime_floor_number, f.canonical_label AS floor_label, f.ai_name AS floor_ai_name, f.floor_role, f.is_boss_floor, f.is_final_boss_floor
        FROM deep_saga_players p
        LEFT JOIN player_characters c ON c.player_id = p.player_id AND c.active_character = 1
+       LEFT JOIN dungeons d ON d.dungeon_number = COALESCE(c.dungeon, JSON_UNQUOTE(JSON_EXTRACT(p.current_body, '$.dungeon')), 1)
+       LEFT JOIN dungeon_floors f ON f.dungeon_number = d.dungeon_number AND f.floor_number = COALESCE(c.floor, JSON_UNQUOTE(JSON_EXTRACT(p.current_body, '$.floor')), 1)
       WHERE LOWER(p.email) = ? OR LOWER(p.username) = ? OR LOWER(p.player_id) = ?
       LIMIT 1`,
     [normalized, normalized, normalized]

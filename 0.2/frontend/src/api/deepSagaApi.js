@@ -2,14 +2,6 @@ import { fetchAuthStatus } from './authApi'
 import { expireStoredSession, SESSION_EXPIRED_MESSAGE } from './httpClient'
 import { request } from './httpClient'
 
-const DUNGEON_NAMES = [
-  'Crimson Wakewood',
-  'Glassweb Dominion',
-  'Drowned Crown',
-  'Ashbell Academy',
-  'Throne of Echoes',
-]
-
 function storyKey(player) {
   return `deepSagaStory:${player.playerId}:${player.currentRun}`
 }
@@ -63,8 +55,9 @@ async function currentPlayer() {
 function saveFromPlayer(player) {
   const body = player.currentBody || {}
   const character = player.activeCharacter || {}
-  const dungeon = Number(character.dungeon || body.dungeon || 1)
-  const floor = Number(character.floor || body.floor || 1)
+  const runtime = player.floorRuntime || {}
+  const dungeon = Number(runtime.dungeonNumber || character.dungeon || body.dungeon || 1)
+  const floor = Number(runtime.floorNumber || character.floor || body.floor || 1)
   return {
     story_cycle_id: Number(player.currentRun || 1),
     cycle_number: Number(player.currentRun || 1),
@@ -73,16 +66,18 @@ function saveFromPlayer(player) {
     race_name: character.race || body.race || 'Unknown',
     class_name: character.className || body.class || 'Reincarnated Monster',
     level: Number(character.level || body.level || 1),
-    dungeon_name: DUNGEON_NAMES[dungeon - 1] || `Dungeon ${dungeon}`,
-    floor_name: floor === 3 ? 'Boss Floor' : floor === 2 ? 'The Deepening Path' : 'The First Threshold',
+    dungeon_name: runtime.dungeonLabel || `Dungeon ${dungeon}`,
+    floor_name: runtime.floorLabel || `Dungeon ${dungeon} Floor ${floor}`,
+    ai_floor_name: runtime.floorAiName || '',
   }
 }
 
 function stateFromPlayer(player) {
   const body = player.currentBody || {}
   const character = player.activeCharacter || {}
-  const dungeonNumber = Number(character.dungeon || body.dungeon || 1)
-  const floorNumber = Number(character.floor || body.floor || 1)
+  const runtime = player.floorRuntime || {}
+  const dungeonNumber = Number(runtime.dungeonNumber || character.dungeon || body.dungeon || 1)
+  const floorNumber = Number(runtime.floorNumber || character.floor || body.floor || 1)
   const maxHp = Number(character.maxHp || body.maxHp || 100)
   const maxMana = Number(character.maxMana || body.maxMana || 30)
   const maxStamina = Number(character.maxStamina || body.maxStamina || 50)
@@ -120,14 +115,18 @@ function stateFromPlayer(player) {
     currentDungeon: {
       id: dungeonNumber,
       dungeon_number: dungeonNumber,
-      name: DUNGEON_NAMES[dungeonNumber - 1] || `Dungeon ${dungeonNumber}`,
+      name: runtime.dungeonLabel || `Dungeon ${dungeonNumber}`,
+      ai_name: runtime.dungeonAiName || '',
     },
     currentFloor: {
       id: dungeonNumber * 100 + floorNumber,
       floor_number: floorNumber,
-      floor_name: floorNumber === 3 ? 'Boss Floor' : floorNumber === 2 ? 'The Deepening Path' : 'The First Threshold',
+      floor_name: runtime.floorLabel || `Dungeon ${dungeonNumber} Floor ${floorNumber}`,
+      ai_name: runtime.floorAiName || '',
       description: `You inhabit a ${body.race || 'new'} body in a Dungeon that remembers every decision.`,
-      story_purpose: floorNumber === 3 ? 'Confront the Dungeon boss.' : floorNumber === 2 ? 'Discover the danger and prepare for the boss.' : 'Explore, survive, and understand this reincarnation.',
+      story_purpose: runtime.isFinalBossFloor ? 'Final boss floor.' : runtime.isBossFloor ? 'Boss floor.' : runtime.floorRole === 'main_danger' ? 'Main danger, discoveries, and preparation.' : 'Introduction, exploration, and first conflict.',
+      is_boss_floor: Boolean(runtime.isBossFloor || floorNumber === 3),
+      is_final_boss_floor: Boolean(runtime.isFinalBossFloor || (dungeonNumber === 5 && floorNumber === 3)),
     },
     skills: (body.skills || []).map((name, index) => ({ id: index + 1, name, skill_level: 1 })),
     inventory: body.inventory || [],

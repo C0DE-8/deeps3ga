@@ -1,4 +1,5 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
+const db = require("../db");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -75,6 +76,7 @@ function parseScene(text) {
     recordChanges: Array.isArray(parsed.recordChanges) ? parsed.recordChanges : [],
     stateChanges: parsed.stateChanges && typeof parsed.stateChanges === "object" ? parsed.stateChanges : {},
     memoryUpdates: Array.isArray(parsed.memoryUpdates) ? parsed.memoryUpdates : [],
+    locationNames: Array.isArray(parsed.locationNames) ? parsed.locationNames : [],
     aiNarrated: true,
     source: "openai"
   };
@@ -96,8 +98,12 @@ function normalizeRecentMessages(recentMessages) {
 
 function buildContext(player, playerAction, recentMessages = []) {
   const body = player.currentBody || {};
+  const character = player.activeCharacter || {};
+  const runtime = player.floorRuntime || {};
   const action = String(playerAction || "").trim();
   const normalizedRecentMessages = normalizeRecentMessages(recentMessages);
+  const dungeonNumber = Number(runtime.dungeonNumber || character.dungeon || body.dungeon || 1);
+  const floorNumber = Number(runtime.floorNumber || character.floor || body.floor || 1);
 
   return {
     player: {
@@ -107,10 +113,20 @@ function buildContext(player, playerAction, recentMessages = []) {
       cycleClears: player.cycleClears
     },
     currentBody: body,
+    activeCharacter: character,
     currentPosition: {
-      dungeon: Number(body.dungeon || 1),
-      floor: Number(body.floor || 1),
-      status: body.status || "newly reincarnated"
+      dungeon: dungeonNumber,
+      floor: floorNumber,
+      canonicalDungeonLabel: runtime.dungeonLabel || `Dungeon ${dungeonNumber}`,
+      canonicalFloorLabel: runtime.floorLabel || `Dungeon ${dungeonNumber} Floor ${floorNumber}`,
+      aiDungeonName: runtime.dungeonAiName || null,
+      aiFloorName: runtime.floorAiName || null,
+      floorRole: runtime.floorRole || (floorNumber === 3 ? "boss" : floorNumber === 1 ? "introduction" : "main_danger"),
+      isBossFloor: Boolean(runtime.isBossFloor || floorNumber === 3),
+      isFinalBossFloor: Boolean(runtime.isFinalBossFloor || (dungeonNumber === 5 && floorNumber === 3)),
+      totalDungeons: 5,
+      floorsPerDungeon: 3,
+      status: character.status || body.status || "newly reincarnated"
     },
     sceneState: {
       isOpeningScene: !action && normalizedRecentMessages.length === 0,
@@ -132,6 +148,43 @@ function buildContext(player, playerAction, recentMessages = []) {
       "Return JSON only."
     ]
   };
+}
+
+async function saveAiLocationNames(context, scene) {
+  const names = Array.isArray(scene.locationNames) ? scene.locationNames : [];
+  if (!names.length) return;
+
+  const dungeonNumber = Number(context.currentPosition?.dungeon || 1);
+  const floorNumber = Number(context.currentPosition?.floor || 1);
+
+  for (const entry of names.slice(0, 5)) {
+    const type = String(entry.type || "").trim().toLowerCase();
+    const name = String(entry.name || "").trim().slice(0, 160);
+    const sourceText = String(entry.sourceText || entry.source || "").trim().slice(0, 1000);
+
+    if (!["dungeon", "floor", "boss", "area"].includes(type) || !name) {
+      continue;
+    }
+
+    await db.execute(
+      "INSERT INTO ai_location_names (player_id, run_number, dungeon_number, floor_number, name_type, ai_name, source_text, accepted) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+      [context.player?.playerId || null, Number(context.player?.run || 1), dungeonNumber, type === "dungeon" ? null : floorNumber, type, name, sourceText || null]
+    );
+
+    if (type === "dungeon") {
+      await db.execute(
+        "UPDATE dungeons SET ai_name = ?, ai_name_note = ? WHERE dungeon_number = ?",
+        [name, sourceText || null, dungeonNumber]
+      );
+    }
+
+    if (type === "floor") {
+      await db.execute(
+        "UPDATE dungeon_floors SET ai_name = ?, ai_name_note = ? WHERE dungeon_number = ? AND floor_number = ?",
+        [name, sourceText || null, dungeonNumber, floorNumber]
+      );
+    }
+  }
 }
 
 async function callOpenAi(context) {
@@ -174,7 +227,9 @@ async function createStoryScene(player, playerAction, recentMessages) {
     throw new Error("OPENAI_API_KEY is required because Deep Saga uses AI as the narrator.");
   }
 
-  return callOpenAi(context);
+  const scene = await callOpenAi(context);
+  await saveAiLocationNames(context, scene);
+  return scene;
 }
 
 module.exports = {
