@@ -1,4 +1,7 @@
+const { loadEnv } = require("./config/loadEnv");
 const { connectProject } = require("./diamond-sql");
+
+loadEnv();
 
 const db = connectProject(process.env.SITE_ID, {
   apiKey: process.env.API_KEY,

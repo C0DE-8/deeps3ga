@@ -67,6 +67,10 @@ function connectProject(siteId, options = {}) {
         throw new Error(`DBMS Gateway request timed out after ${timeoutMs}ms`);
       }
 
+      if (error.cause?.code) {
+        throw new Error(`DBMS Gateway request failed: ${error.cause.code}`);
+      }
+
       throw error;
     } finally {
       clearTimeout(timeout);

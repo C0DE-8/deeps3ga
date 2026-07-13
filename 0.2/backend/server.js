@@ -1,8 +1,30 @@
 const express = require("express");
+const { loadEnv } = require("./config/loadEnv");
+
+loadEnv();
+
 const db = require("./db");
 const authRouter = require("./router/auth.router");
+const storyRouter = require("./router/story.router");
 
 const app = express();
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  return next();
+});
 app.use(express.json());
 
 function getDbClient() {
@@ -10,10 +32,17 @@ function getDbClient() {
 }
 
 app.get("/", (req, res) => {
-  res.json({ ok: true, message: "Deep S3GA API is running" });
+  res.json({
+    ok: true,
+    name: "Deep S3GA API",
+    message: "Deep Saga is a choice-based reincarnation story RPG.",
+    auth: "/api/auth",
+    health: "/health"
+  });
 });
 
 app.use("/api/auth", authRouter);
+app.use("/api/story", storyRouter);
 
 app.get("/health", async (req, res) => {
   try {
