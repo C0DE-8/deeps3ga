@@ -1,7 +1,7 @@
 const express = require("express");
 const { optionalAuth, requireAuth } = require("../middleware/auth");
 const { createToken } = require("../utils/token");
-const { loginPlayer, normalizePersona, registerPlayer, updatePlayerPersona } = require("../services/player.service");
+const { listNarratorPersonas, loginPlayer, normalizePersona, registerPlayer, updatePlayerPersona, validateUsername } = require("../services/player.service");
 
 const router = express.Router();
 
@@ -10,8 +10,13 @@ router.get("/", (req, res) => {
 });
 
 router.post("/register", async (req, res) => {
+  const username = validateUsername(req.body.username);
   const email = String(req.body.email || "").trim().toLowerCase();
   const password = String(req.body.password || "");
+
+  if (!username) {
+    return res.status(400).json({ success: false, message: "Username must be 3 to 24 characters using letters, numbers, or underscores." });
+  }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return res.status(400).json({ success: false, message: "Enter a valid email address." });
@@ -22,7 +27,7 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    const player = await registerPlayer({ email, password });
+    const player = await registerPlayer({ username, email, password });
     const token = createToken(player);
 
     return res.status(201).json({
@@ -31,11 +36,13 @@ router.post("/register", async (req, res) => {
       data: { player, token }
     });
   } catch (error) {
-    const duplicate = String(error.message || "").toLowerCase().includes("duplicate");
+    const message = String(error.message || "").toLowerCase();
+    const duplicate = message.includes("duplicate");
+    const usernameDuplicate = duplicate && message.includes("username");
 
     return res.status(duplicate ? 409 : 500).json({
       success: false,
-      message: duplicate ? "That email is already registered." : "Registration failed.",
+      message: duplicate ? (usernameDuplicate ? "That username is already registered." : "That email is already registered.") : "Registration failed.",
       error: duplicate ? undefined : error.message
     });
   }
@@ -46,14 +53,14 @@ router.post("/login", async (req, res) => {
   const password = String(req.body.password || "");
 
   if (!identifier || !password) {
-    return res.status(400).json({ success: false, message: "Email or Player ID and password are required." });
+    return res.status(400).json({ success: false, message: "Username or email and password are required." });
   }
 
   try {
     const player = await loginPlayer({ identifier, password });
 
     if (!player) {
-      return res.status(401).json({ success: false, message: "Email, Player ID, or password is incorrect." });
+      return res.status(401).json({ success: false, message: "Username, email, or password is incorrect." });
     }
 
     const token = createToken(player);
@@ -89,29 +96,17 @@ router.get("/status", optionalAuth, (req, res) => {
   });
 });
 
-router.get("/personas", (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      personas: [
-        {
-          key: "ADMIN",
-          name: "The Divine Administrator",
-          description: "Cold, analytical, survival-focused narration."
-        },
-        {
-          key: "TRICKSTER",
-          name: "The Chaotic Observer",
-          description: "Playful, mocking, dangerous narration with crooked hints."
-        },
-        {
-          key: "SENSEI",
-          name: "The Iron Mentor",
-          description: "Stern, tactical narration with battlefield lessons."
-        }
-      ]
-    }
-  });
+router.get("/personas", async (req, res) => {
+  try {
+    const personas = await listNarratorPersonas();
+
+    return res.json({
+      success: true,
+      data: { personas }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Personas could not be loaded.", error: error.message });
+  }
 });
 
 router.patch("/persona", requireAuth, async (req, res) => {

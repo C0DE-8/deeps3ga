@@ -12,7 +12,14 @@ async function loadAuth(req) {
   }
 
   const rows = await db.query(
-    "SELECT player_id, email, narrator_persona, current_run, cycle_clears, current_body, memory_log, created_at, last_login_at FROM deep_saga_players WHERE player_id = ? LIMIT 1",
+    `SELECT p.player_id, p.username, p.email, p.narrator_persona, p.current_run, p.cycle_clears, p.current_body, p.memory_log, p.created_at, p.last_login_at,
+            c.id AS character_id, c.character_name, c.race, c.class_name, c.level AS character_level, c.hp, c.max_hp, c.mana, c.max_mana, c.stamina, c.max_stamina,
+            c.strength, c.agility, c.defense, c.thaumaturgy, c.resolve_stat, c.intelligence, c.luck, c.charisma, c.gold, c.soul_energy,
+            c.dungeon AS character_dungeon, c.floor AS character_floor, c.status AS character_status
+       FROM deep_saga_players p
+       LEFT JOIN player_characters c ON c.player_id = p.player_id AND c.active_character = 1
+      WHERE p.player_id = ?
+      LIMIT 1`,
     [payload.sub]
   );
 

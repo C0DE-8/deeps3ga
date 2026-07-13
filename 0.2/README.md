@@ -6,7 +6,8 @@ It is a dark fantasy reincarnation text RPG where the player reads and shapes th
 
 ## What This Version Does
 
-- Registers and logs in players with email/password.
+- Registers players with username, email, and password.
+- Logs in players with username or email plus password.
 - Creates a random first monster body for each new player.
 - Lets players choose one of three narrator personas.
 - Starts the story with real-world death, reincarnation, and awakening in Deep Saga.
@@ -120,8 +121,8 @@ Backend routes:
 | --- | --- | --- |
 | `GET` | `/` | API info |
 | `GET` | `/health` | DB gateway health |
-| `POST` | `/api/auth/register` | Create player |
-| `POST` | `/api/auth/login` | Login |
+| `POST` | `/api/auth/register` | Create player with username, email, and password |
+| `POST` | `/api/auth/login` | Login with username or email plus password |
 | `GET` | `/api/auth/status` | Safe session check |
 | `GET` | `/api/auth/me` | Protected current player |
 | `GET` | `/api/auth/personas` | List narrator personas |
@@ -234,14 +235,25 @@ Note: current local Node is `20.17.0`; Vite recommends `20.19+` or `22.12+`. The
 Saved in SQL:
 
 - player ID
+- username
 - email
 - password hash
-- narrator persona
+- selected narrator persona key
 - current run
 - cycle clears
 - current monster body
 - memory log
 - timestamps
+
+Normalized SQL tables:
+
+| Table | Purpose |
+| --- | --- |
+| `deep_saga_players` | Account, auth-facing player ID, selected persona, current run, memory JSON |
+| `narrator_persona` | Persona catalog for `ADMIN`, `TRICKSTER`, and `SENSEI` |
+| `player_characters` | Active/current character stats such as HP, Mana, Stamina, level, RPG attributes, location, Gold, and Soul Energy |
+| `skills` | Skill catalog |
+| `player_character_skills` | Skills unlocked by each character |
 
 Currently stored in browser `localStorage`:
 
@@ -275,7 +287,7 @@ Not fully implemented yet:
 - dungeon progression persistence
 - boss HP and phases
 - inventory changes from AI state changes
-- skill awards from AI state changes
+- applying skill awards from AI state changes
 - reincarnation after death
 - legacy boss record creation
 - admin dashboard

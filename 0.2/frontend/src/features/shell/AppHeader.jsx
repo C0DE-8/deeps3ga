@@ -15,7 +15,7 @@ export function AppHeader() {
         <NavLink className={({ isActive }) => isActive ? `${styles.navLink} ${styles.active}` : styles.navLink} to="/library">Library</NavLink>
       </nav>
       <div className={styles.account}>
-        <span>{player?.playerId}</span>
+        <span>{player?.username || player?.playerId}</span>
         <button type="button" onClick={logout}>Log out</button>
       </div>
     </header>

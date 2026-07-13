@@ -9,7 +9,7 @@ export function AuthPage({ mode }) {
   const { player, login, register, sessionNotice } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [form, setForm] = useState({ email: '', identifier: '', password: '' })
+  const [form, setForm] = useState({ username: '', email: '', identifier: '', password: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -26,7 +26,7 @@ export function AuthPage({ mode }) {
 
     try {
       await (isRegister
-        ? register({ email: form.email, password: form.password })
+        ? register({ username: form.username, email: form.email, password: form.password })
         : login({ identifier: form.identifier, password: form.password }))
       navigate(location.state?.from || '/library', { replace: true })
     } catch (requestError) {
@@ -43,8 +43,8 @@ export function AuthPage({ mode }) {
         <span>Deep Saga access</span>
         <h1>{isRegister ? 'A new soul enters the archive.' : 'The dungeon remembers you.'}</h1>
         <p>
-          Register with email and password to receive a Player ID. Return later with either
-          your email or Player ID and the same password.
+          Register with username, email, and password to receive a Player ID. Return later
+          with either your username or email and the same password.
         </p>
       </section>
 
@@ -62,14 +62,20 @@ export function AuthPage({ mode }) {
         {sessionNotice && <p className={styles.sessionNotice} role="status">{sessionNotice}</p>}
 
         {isRegister ? (
-          <label>
-            <span>Email</span>
-            <input name="email" type="email" value={form.email} onChange={update} required autoComplete="email" placeholder="you@example.com" />
-          </label>
+          <>
+            <label>
+              <span>Username</span>
+              <input name="username" value={form.username} onChange={update} required autoComplete="username" minLength="3" maxLength="24" pattern="[A-Za-z0-9_]{3,24}" placeholder="ashen_spider" />
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="email" type="email" value={form.email} onChange={update} required autoComplete="email" placeholder="you@example.com" />
+            </label>
+          </>
         ) : (
           <label>
-            <span>Email or Player ID</span>
-            <input name="identifier" value={form.identifier} onChange={update} required autoComplete="username" placeholder="you@example.com or DS-XXXXXXXXXX" />
+            <span>Username or Email</span>
+            <input name="identifier" value={form.identifier} onChange={update} required autoComplete="username" placeholder="ashen_spider or you@example.com" />
           </label>
         )}
 

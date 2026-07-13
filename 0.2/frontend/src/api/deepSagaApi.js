@@ -62,16 +62,17 @@ async function currentPlayer() {
 
 function saveFromPlayer(player) {
   const body = player.currentBody || {}
-  const dungeon = Number(body.dungeon || 1)
-  const floor = Number(body.floor || 1)
+  const character = player.activeCharacter || {}
+  const dungeon = Number(character.dungeon || body.dungeon || 1)
+  const floor = Number(character.floor || body.floor || 1)
   return {
     story_cycle_id: Number(player.currentRun || 1),
     cycle_number: Number(player.currentRun || 1),
-    status: body.status === 'dead' ? 'dead' : 'in_progress',
-    character_name: body.name || `${body.race || 'Unknown'} Soul`,
-    race_name: body.race || 'Unknown',
-    class_name: body.class || 'Reincarnated Monster',
-    level: Number(body.level || 1),
+    status: character.status === 'dead' || body.status === 'dead' ? 'dead' : 'in_progress',
+    character_name: character.characterName || body.name || `${character.race || body.race || 'Unknown'} Soul`,
+    race_name: character.race || body.race || 'Unknown',
+    class_name: character.className || body.class || 'Reincarnated Monster',
+    level: Number(character.level || body.level || 1),
     dungeon_name: DUNGEON_NAMES[dungeon - 1] || `Dungeon ${dungeon}`,
     floor_name: floor === 3 ? 'Boss Floor' : floor === 2 ? 'The Deepening Path' : 'The First Threshold',
   }
@@ -79,32 +80,42 @@ function saveFromPlayer(player) {
 
 function stateFromPlayer(player) {
   const body = player.currentBody || {}
-  const dungeonNumber = Number(body.dungeon || 1)
-  const floorNumber = Number(body.floor || 1)
-  const maxHp = Number(body.maxHp || 100)
-  const maxMana = Number(body.maxMana || 30)
-  const maxStamina = Number(body.maxStamina || 50)
+  const character = player.activeCharacter || {}
+  const dungeonNumber = Number(character.dungeon || body.dungeon || 1)
+  const floorNumber = Number(character.floor || body.floor || 1)
+  const maxHp = Number(character.maxHp || body.maxHp || 100)
+  const maxMana = Number(character.maxMana || body.maxMana || 30)
+  const maxStamina = Number(character.maxStamina || body.maxStamina || 50)
 
   return {
     run: {
       id: Number(player.currentRun || 1),
-      status: body.status === 'dead' ? 'dead' : 'in_progress',
-      character_status: body.status === 'dead' ? 'dead' : 'alive',
+      status: character.status === 'dead' || body.status === 'dead' ? 'dead' : 'in_progress',
+      character_status: character.status === 'dead' || body.status === 'dead' ? 'dead' : 'alive',
     },
     characterSheet: {
-      character_name: body.name || `${body.race || 'Unknown'} Soul`,
-      race_name: body.race || 'Unknown',
-      class_name: body.class || 'Reincarnated Monster',
-      level: Number(body.level || 1),
-      hp: Number(body.hp ?? maxHp),
+      character_name: character.characterName || body.name || `${character.race || body.race || 'Unknown'} Soul`,
+      race_name: character.race || body.race || 'Unknown',
+      class_name: character.className || body.class || 'Reincarnated Monster',
+      level: Number(character.level || body.level || 1),
+      hp: Number(character.hp ?? body.hp ?? maxHp),
       max_hp: maxHp,
-      mana: Number(body.mana ?? maxMana),
+      mana: Number(character.mana ?? body.mana ?? maxMana),
       max_mana: maxMana,
-      stamina: Number(body.stamina ?? maxStamina),
+      stamina: Number(character.stamina ?? body.stamina ?? maxStamina),
       max_stamina: maxStamina,
-      gold: Number(body.gold || 0),
+      gold: Number(character.gold || body.gold || 0),
       xp: Number(body.xp || 0),
       xp_needed: Number(body.xpNeeded || 100),
+      strength: Number(character.strength || body.strength || 5),
+      agility: Number(character.agility || body.agility || 5),
+      defense: Number(character.defense || body.defense || 5),
+      thaumaturgy: Number(character.thaumaturgy || body.thaumaturgy || 5),
+      resolve: Number(character.resolve || body.resolve || 5),
+      intelligence: Number(character.intelligence || body.intelligence || 5),
+      luck: Number(character.luck || body.luck || 5),
+      charisma: Number(character.charisma || body.charisma || 5),
+      soul_energy: Number(character.soulEnergy || body.soulEnergy || 0),
     },
     currentDungeon: {
       id: dungeonNumber,

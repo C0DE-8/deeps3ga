@@ -1,9 +1,9 @@
 import { request } from './httpClient'
 
-export async function registerPlayer({ email, password }) {
+export async function registerPlayer({ username, email, password }) {
   return request('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username, email, password }),
   })
 }
 
