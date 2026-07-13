@@ -20,6 +20,15 @@ function hydrate(row, jsonFields) {
   return result
 }
 
+function selectActiveStoryBeat(beats, runtime = {}) {
+  if (!beats.length) return { activeStoryBeat: null, lockedStoryBeats: [] }
+  const activeBeatIndex = Math.min(beats.length - 1, Math.max(0, Number(runtime.scene_count || 0)))
+  return {
+    activeStoryBeat: beats[activeBeatIndex],
+    lockedStoryBeats: beats.slice(activeBeatIndex + 1).map((beat) => ({ beat_number: beat.beat_number, beat_type: beat.beat_type, title: beat.title })),
+  }
+}
+
 const avatarOptions = {
   races: ['Human', 'Ash Elf', 'Marsh Goblin', 'Moonkin', 'Ironborn'],
   classes: ['Wayfarer', 'Spellblade', 'Warden', 'Hex Weaver', 'Soul Scout'],
@@ -133,11 +142,12 @@ async function getGameState(storyCycleId) {
   ])
   if (!run) return null
 
-  const [sheets, dungeons, floors, floorBeats, npcs, monsters, bosses, quests, memories, choices, narrativeHistory, companions, companionMemories, companionSoulMemories, companionInjuries, skills, equipment, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, combatParticipants, cycleEvents, achievements, familyMastery, evolutionChoices, ultimateTrials, adaptations, legacyHeroes] = await Promise.all([
+  const [sheets, dungeons, floors, floorBeats, floorRuntime, npcs, monsters, bosses, quests, memories, choices, narrativeHistory, companions, companionMemories, companionSoulMemories, companionInjuries, skills, equipment, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, combatParticipants, cycleEvents, achievements, familyMastery, evolutionChoices, ultimateTrials, adaptations, legacyHeroes] = await Promise.all([
     query('SELECT * FROM character_sheets WHERE character_life_id = ?', [run.character_life_id]),
     query('SELECT * FROM dungeons WHERE id = ?', [run.current_dungeon_id]),
     query('SELECT * FROM dungeon_floors WHERE id = ?', [run.current_floor_id]),
     query('SELECT * FROM floor_story_beats WHERE floor_id = ? ORDER BY beat_number', [run.current_floor_id]),
+    query('SELECT status, scene_count, objective_progress, objective_required, combat_required, combat_completed, state_json FROM floor_runtime_states WHERE story_cycle_id = ? AND floor_id = ?', [storyCycleId, run.current_floor_id]),
     query(
       `SELECT n.*, ns.life_status AS run_life_status, ns.relationship_json AS run_relationship_json,
               ns.dialogue_state_json, ns.present, ns.recruitment_status
@@ -235,12 +245,19 @@ async function getGameState(storyCycleId) {
     ),
   ])
 
+  const hydratedBeats = floorBeats.map((row) => hydrate(row, [['required_signatures_json', []], ['available_choices_json', []], ['consequence_keys_json', []]]))
+  const runtime = hydrate(floorRuntime[0], [['state_json', {}]]) || { scene_count: 0, objective_progress: 0, objective_required: 3 }
+  const beatSelection = selectActiveStoryBeat(hydratedBeats, runtime)
+
   return {
     run,
     characterSheet: hydrate(sheets[0], [['appearance_json', {}], ['personality_json', {}], ['titles_json', []], ['stats_json', {}], ['traits_json', []], ['blessings_json', []], ['curses_json', []]]),
     currentDungeon: hydrate(dungeons[0], [['unlock_requirements_json', {}], ['story_arc_json', {}]]),
     currentFloor: hydrate(floors[0], [['enemies_available_json', []], ['npcs_available_json', []], ['hidden_events_json', []], ['floor_memory_json', {}], ['boss_rules_json', {}]]),
-    floorStoryBeats: floorBeats.map((row) => hydrate(row, [['required_signatures_json', []], ['available_choices_json', []], ['consequence_keys_json', []]])),
+    floorRuntime: runtime,
+    floorStoryBeats: hydratedBeats,
+    activeStoryBeat: beatSelection.activeStoryBeat,
+    lockedStoryBeats: beatSelection.lockedStoryBeats,
     activeNpcs: npcs.map((row) => hydrate(row, [['personality_json', {}], ['dialogue_json', []], ['run_relationship_json', {}], ['dialogue_state_json', {}]])),
     activeMonsters: monsters.map((row) => hydrate(row, [['stats_json', {}], ['skills_json', []], ['loot_json', []], ['behavior_json', {}], ['state_json', {}]])),
     activeBoss: hydrate(bosses[0], [['personality_json', {}], ['dialogue_json', []], ['mechanics_json', {}], ['memory_of_player_json', {}], ['encounter_state_json', {}]]),
@@ -330,6 +347,19 @@ async function saveNarrativeTurn({ state, playerAction, actionKind, scene, reque
         [state.run.id, requestKey, JSON.stringify(scene.validationViolations), JSON.stringify({ safetyNotes: scene.safetyNotes })],
       )
     }
+    const engineResolution = (scene.consequences || []).find((entry) => entry?.engineResolution)?.engineResolution || null
+    await connection.execute(
+      `INSERT INTO story_memories (soul_profile_id, story_cycle_id, character_life_id, scope, memory_key, summary, facts_json, importance, remembered_across_lives)
+       VALUES (?, ?, ?, 'run', ?, ?, ?, 1, 0)`,
+      [
+        state.run.soul_profile_id,
+        state.run.id,
+        state.run.character_life_id,
+        requestKey ? `action-${requestKey}` : `message-${narratorMessage.insertId}`,
+        `The player chose: ${playerAction.slice(0, 500)}`,
+        JSON.stringify({ action: playerAction, actionKind, engineResolution }),
+      ],
+    )
     return { playerMessageId: playerMessage.insertId, narrativeMessageId: narratorMessage.insertId }
   })
 }
@@ -409,4 +439,4 @@ async function createLegacyHero(storyCycleId, bossData = {}) {
   })
 }
 
-module.exports = { createGame, createLegacyHero, getGameState, listGameSaves, listVisibleSkillCatalog, markCharacterDead, saveNarrativeTurn }
+module.exports = { createGame, createLegacyHero, getGameState, listGameSaves, listVisibleSkillCatalog, markCharacterDead, saveNarrativeTurn, selectActiveStoryBeat }

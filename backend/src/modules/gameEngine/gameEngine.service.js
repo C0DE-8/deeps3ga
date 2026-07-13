@@ -102,7 +102,12 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', 
       },
       currentDungeon: state.currentDungeon,
       currentFloor: state.currentFloor,
-      floorStoryBeats: state.floorStoryBeats,
+      floorStoryBeats: (state.floorStoryBeats || []).map((beat) => Number(beat.beat_number) === Number(state.activeStoryBeat?.beat_number)
+        ? { ...beat, status: 'active' }
+        : { beat_number: beat.beat_number, beat_type: beat.beat_type, title: beat.title, status: Number(beat.beat_number) < Number(state.activeStoryBeat?.beat_number) ? 'completed' : 'locked' }),
+      activeStoryBeat: state.activeStoryBeat,
+      lockedStoryBeats: state.lockedStoryBeats,
+      floorRuntime: state.floorRuntime,
       activeNpcs: state.activeNpcs,
       activeMonsters: state.activeMonsters,
       activeBoss: state.activeBoss,
@@ -160,6 +165,8 @@ function buildFallbackStory(resolution, state = {}) {
     lines.push('You reach for the shape of that power, but nothing answers. The instinct has no place in this body yet, and the moment passes without the world yielding to it.')
   } else if (rejection?.code === 'item_not_available') {
     lines.push('Your hand searches for the item and closes on empty cloth. Whatever plan depended on it must change before the danger does.')
+  } else if (rejection?.code === 'environment_not_available') {
+    lines.push('You look for the feature your plan depends on, but the surroundings offer no such advantage. The idea must bend around what is actually here.')
   } else if (rejection) {
     lines.push(rejection.status === 'AMBIGUOUS' || rejection.status === 'UNKNOWN'
       ? 'You hesitate between intentions, and the moment refuses to choose for you. A clearer action is needed before anything changes.'

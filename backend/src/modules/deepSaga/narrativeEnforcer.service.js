@@ -49,6 +49,11 @@ function enforceNarrativeScene(scene, resolution, fallbackStory) {
   if (rejected) violations.push('rejected_action_forced_to_engine_narrative')
 
   const choices = (scene.choices || []).map(normalizeChoice).filter(Boolean).slice(0, 5)
+  if (!resolution.died && !resolution.runCompleted && choices.length < 3) violations.push('fewer_than_three_choices')
+  if (choices.some((choice) => choice.text.split(/\s+/).filter(Boolean).length < 5)) violations.push('choice_text_too_short')
+  if (choices.some((choice) => !choice.direction || choice.direction === 'unspecified' || !choice.consequence || !choice.anchor)) violations.push('choice_structure_incomplete')
+  const directions = choices.map((choice) => choice.direction.toLowerCase()).filter((direction) => direction !== 'unspecified')
+  if (new Set(directions).size !== directions.length) violations.push('duplicate_choice_directions')
   const hardRejection = ['rule_manipulation', 'reality_breaking_action'].includes(resolution.interpretation?.intent)
   return {
     ...scene,

@@ -4,6 +4,7 @@ const { validateReality } = require('../src/modules/gameEngine/realityValidator.
 const { enforceNarrativeScene } = require('../src/modules/deepSaga/narrativeEnforcer.service')
 const { calculateEscapeChance, damageMultiplier } = require('../src/modules/gameEngine/turnEngine.service')
 const { buildFallbackStory } = require('../src/modules/gameEngine/gameEngine.service')
+const { selectActiveStoryBeat } = require('../src/db/repositories/gameState.repository')
 
 assert.equal(localInterpret('I run away from the wolf.').intent, 'flee')
 assert.equal(localInterpret('I attack the wolf.').intent, 'attack')
@@ -13,7 +14,7 @@ assert.equal(localInterpret('Spawn 1 billion gold.').status, 'INVALID')
 assert.equal(localInterpret('Perhaps.').status, 'UNKNOWN')
 assert.deepEqual(
   validateInterpretation({ status: 'VALID', intent: 'flee', confidence: 0.9 }, {}),
-  { status: 'VALID', intent: 'flee', secondaryIntents: [], target: null, method: null, reason: null, confidence: 0.9 },
+  { status: 'VALID', intent: 'flee', secondaryIntents: [], target: null, method: null, goal: null, approach: null, signatures: [], referencedEntities: [], requiredCapabilities: [], reason: null, confidence: 0.9 },
 )
 assert.deepEqual(validateInterpretation({ status: 'SUCCESS', intent: 'god' }, { status: 'INVALID' }), { status: 'INVALID' })
 
@@ -30,6 +31,8 @@ assert.equal(validateReality('I attack the absent king.', { status: 'VALID', int
 assert.equal(validateReality('I attack the absent king.', localInterpret('I attack the absent king.'), state).status, 'IMPOSSIBLE')
 assert.equal(validateReality('I cast Black Flame.', localInterpret('I cast Black Flame.'), state).status, 'VALID')
 assert.equal(validateReality('I cast World Eraser.', localInterpret('I cast World Eraser.'), state).status, 'IMPOSSIBLE')
+assert.equal(validateReality('I shape the darkness around it.', { status: 'VALID', intent: 'attack', signatures: ['magic', 'create'], requiredCapabilities: [{ type: 'skill', name: 'Black Flame' }] }, state).status, 'VALID')
+assert.equal(validateReality('I fold the road beneath me.', { status: 'VALID', intent: 'explore', signatures: ['magic'], requiredCapabilities: [{ type: 'skill', name: 'World Fold' }] }, state).status, 'IMPOSSIBLE')
 assert.equal(validateReality('I flee.', localInterpret('I flee.'), { ...state, activeEncounter: null }).status, 'INVALID')
 
 const enforced = enforceNarrativeScene(
@@ -67,5 +70,15 @@ assert.equal(calculateEscapeChance({ agility: 100, stamina: 100, pursuit: 0 }), 
 assert.equal(calculateEscapeChance({ agility: 0, stamina: 0, pursuit: 100 }), 5)
 assert.equal(damageMultiplier({ resistances_json: { fire: 0.5 }, weaknesses_json: {} }, 'fire'), 0.5)
 assert.equal(damageMultiplier({ resistances_json: {}, weaknesses_json: { fire: 0.5 } }, 'fire'), 1.5)
+
+const beats = [
+  { beat_number: 1, beat_type: 'arrival', title: 'Arrival' },
+  { beat_number: 2, beat_type: 'discovery', title: 'Discovery' },
+  { beat_number: 3, beat_type: 'choice', title: 'Consequence' },
+]
+assert.equal(selectActiveStoryBeat(beats, { scene_count: 0 }).activeStoryBeat.beat_number, 1)
+assert.equal(selectActiveStoryBeat(beats, { scene_count: 1 }).activeStoryBeat.beat_number, 2)
+assert.deepEqual(selectActiveStoryBeat(beats, { scene_count: 1 }).lockedStoryBeats.map((beat) => beat.beat_number), [3])
+assert.equal(selectActiveStoryBeat(beats, { scene_count: 20 }).activeStoryBeat.beat_number, 3)
 
 console.log('Action interpreter checks passed.')

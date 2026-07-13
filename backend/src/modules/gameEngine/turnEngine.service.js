@@ -928,7 +928,7 @@ async function updateBehavior(connection, state, action, actionType, signatures,
 }
 
 async function resolveTurn(state, action, interpretation = null, requestKey = null) {
-  const signatures = deriveActionSignatures(action)
+  const signatures = interpretation?.signatures?.length ? interpretation.signatures : deriveActionSignatures(action)
   const actionType = actionTypeFrom(signatures, interpretation)
   const usedSkill = findUsedSkill(action, state.skills)
   const result = {

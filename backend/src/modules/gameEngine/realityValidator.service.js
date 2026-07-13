@@ -19,6 +19,22 @@ function validateReality(action, interpretation, state) {
   const knownSkill = mentionedCatalogEntry(action, state.skills || [])
   const ownedItem = mentionedCatalogEntry(action, state.inventory || [])
 
+  for (const capability of interpretation.requiredCapabilities || []) {
+    const capabilityName = normalize(capability.name)
+    if (capability.type === 'skill' && capabilityName && !(state.skills || []).some((entry) => normalize(entry.name) === capabilityName)) {
+      return reject('IMPOSSIBLE', interpretation.intent, `The character does not possess ${capability.name}.`, interpretation, 'ability_not_owned', { knownSkills: (state.skills || []).map((entry) => entry.name) })
+    }
+    if (capability.type === 'item' && capabilityName && !(state.inventory || []).some((entry) => normalize(entry.name) === capabilityName)) {
+      return reject('IMPOSSIBLE', interpretation.intent, `${capability.name} is not in the inventory.`, interpretation, 'item_not_available', { inventory: (state.inventory || []).map((entry) => entry.name) })
+    }
+    if (capability.type === 'environment') {
+      const sceneText = JSON.stringify({ floor: state.currentFloor, npcs: state.activeNpcs, monsters: state.activeMonsters }).toLowerCase()
+      if (capabilityName && !sceneText.includes(capabilityName)) {
+        return reject('IMPOSSIBLE', interpretation.intent, `${capability.name} is not present in the current scene.`, interpretation, 'environment_not_available', { floor: state.currentFloor?.floor_name })
+      }
+    }
+  }
+
   if (interpretation.intent === 'flee' && !inCombat) {
     return reject('INVALID', 'flee', 'No immediate threat is pursuing the character.', interpretation, 'nothing_to_escape', { floor: state.currentFloor?.floor_name })
   }

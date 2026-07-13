@@ -14,6 +14,13 @@ const IMPOSSIBLE_PATTERNS = [
   /\b(stop|reverse|rewrite)\s+time\b/i,
 ]
 
+const ALLOWED_SIGNATURES = new Set([
+  'attack', 'bite', 'magic', 'defend', 'dodge', 'heal', 'protect', 'spare', 'flee', 'analyze', 'solve',
+  'negotiate', 'befriend', 'hide', 'create', 'consume', 'remember', 'refuse', 'explore', 'protect_dragon',
+  'reject_prophecy', 'refuse_cruel_order', 'refuse_bargain', 'show_mercy', 'challenge_law', 'confess_truth',
+  'restore_name', 'reject_false_history', 'break_habit', 'accept_imperfect_self', 'protect_future', 'creative_action',
+])
+
 function localInterpret(action) {
   const text = action.trim()
   if (!text) return { status: 'INVALID', intent: 'none', reason: 'No action was provided.', confidence: 1 }
@@ -50,6 +57,13 @@ function validateInterpretation(value, fallback) {
     secondaryIntents: Array.isArray(value.secondaryIntents) ? value.secondaryIntents.filter((item) => intents.includes(item)) : [],
     target: typeof value.target === 'string' ? value.target.slice(0, 120) : null,
     method: typeof value.method === 'string' ? value.method.slice(0, 240) : null,
+    goal: typeof value.goal === 'string' ? value.goal.slice(0, 240) : null,
+    approach: typeof value.approach === 'string' ? value.approach.slice(0, 80) : null,
+    signatures: Array.isArray(value.signatures) ? [...new Set(value.signatures.filter((item) => ALLOWED_SIGNATURES.has(item)))].slice(0, 12) : [],
+    referencedEntities: Array.isArray(value.referencedEntities) ? value.referencedEntities.filter((item) => typeof item === 'string').map((item) => item.slice(0, 120)).slice(0, 8) : [],
+    requiredCapabilities: Array.isArray(value.requiredCapabilities)
+      ? value.requiredCapabilities.filter((item) => item && typeof item === 'object').map((item) => ({ type: String(item.type || '').slice(0, 30), name: String(item.name || '').slice(0, 120) })).slice(0, 6)
+      : [],
     reason: typeof value.reason === 'string' ? value.reason.slice(0, 240) : null,
     confidence: Math.max(0, Math.min(1, Number(value.confidence) || 0)),
   }
@@ -70,8 +84,18 @@ async function interpretAction(action, state) {
         temperature: 0,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: 'You interpret player intent only. Never narrate, decide success, grant abilities, or change state. Return JSON with status, intent, secondaryIntents, target, method, reason, confidence. Status must be VALID, UNKNOWN, AMBIGUOUS, INVALID, or IMPOSSIBLE. Intent must be attack, defend, dodge, heal, flee, social, analyze, explore, unknown, rule_manipulation, or reality_breaking_action.' },
-          { role: 'user', content: JSON.stringify({ action, knownSkills: state.skills.map((skill) => skill.name), inventory: state.inventory.map((item) => item.name), activeEnemies: state.activeMonsters.map((monster) => monster.name), inCombat: Boolean(state.activeEncounter) }) },
+          { role: 'system', content: `You are Deep Saga's intention interpreter, never its narrator or outcome engine. Understand unrestricted natural language without requiring command words. Return JSON with status, intent, secondaryIntents, target, method, goal, approach, signatures, referencedEntities, requiredCapabilities, reason, and confidence. Do not decide whether an attempt succeeds. status is normally VALID unless language is unknown, ambiguous, explicitly manipulates system rules, or describes no coherent intention. intent must be attack, defend, dodge, heal, flee, social, analyze, explore, unknown, rule_manipulation, or reality_breaking_action. approach describes how the player acts. requiredCapabilities lists every skill, item, physical trait, or environmental object the attempt depends on. signatures may only use: ${[...ALLOWED_SIGNATURES].join(', ')}. Infer semantic signatures from meaning, not keyword matching.` },
+          { role: 'user', content: JSON.stringify({
+            action,
+            currentFloor: state.currentFloor,
+            activeStoryBeat: state.activeStoryBeat,
+            knownSkills: state.skills.map((skill) => skill.name),
+            inventory: state.inventory.map((item) => item.name),
+            presentNpcs: state.activeNpcs.map((npc) => npc.name),
+            presentCreatures: state.activeMonsters.map((monster) => ({ name: monster.name, status: monster.status })),
+            combatParticipants: state.combatParticipants.map((entry) => ({ name: entry.display_name, team: entry.team, status: entry.status })),
+            inCombat: Boolean(state.activeEncounter),
+          }) },
         ],
       }),
     })
@@ -83,4 +107,4 @@ async function interpretAction(action, state) {
   }
 }
 
-module.exports = { interpretAction, localInterpret, validateInterpretation }
+module.exports = { ALLOWED_SIGNATURES, interpretAction, localInterpret, validateInterpretation }
