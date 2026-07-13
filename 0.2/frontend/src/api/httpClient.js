@@ -13,11 +13,17 @@ export function consumeAuthNotice() {
   return notice
 }
 
+export function clearAuthNotice() {
+  sessionStorage.removeItem(AUTH_NOTICE_KEY)
+}
+
 export function getStoredToken() {
   const token = localStorage.getItem(TOKEN_KEY)
-  if (!token && localStorage.getItem(LEGACY_TOKEN_KEY)) {
+  const legacyToken = localStorage.getItem(LEGACY_TOKEN_KEY)
+  if (!token && legacyToken) {
+    localStorage.setItem(TOKEN_KEY, legacyToken)
     localStorage.removeItem(LEGACY_TOKEN_KEY)
-    rememberExpiredSession()
+    return legacyToken
   }
   return token
 }
@@ -26,6 +32,7 @@ export function setStoredToken(token) {
   if (token) {
     localStorage.setItem(TOKEN_KEY, token)
     localStorage.removeItem(LEGACY_TOKEN_KEY)
+    clearAuthNotice()
   } else {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(LEGACY_TOKEN_KEY)
