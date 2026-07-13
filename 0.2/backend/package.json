@@ -1,10 +1,11 @@
 {
-  "name": "backend",
+  "name": "deepsaga-backend",
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "dev": "node server.js",
     "test": "node --check server.js && node --check db.js && node --check diamond-sql.js && node --check router/auth.router.js && node --check router/story.router.js && node --check services/player.service.js && node --check services/narrator.service.js && node --check utils/password.js && node --check utils/token.js && node --check middleware/auth.js && node --check config/loadEnv.js"
   },
   "dependencies": {
