@@ -1,9 +1,11 @@
-import { BookOpenCheck, Coins, Crown, Footprints, Shield, Sparkles, Swords } from 'lucide-react'
+import { AlertTriangle, BookOpenCheck, Coins, Crown, Footprints, Shield, Sparkles, Swords } from 'lucide-react'
 import styles from './EngineResults.module.css'
 
 export function EngineResults({ resolution }) {
   if (!resolution) return null
   const entries = []
+  if (resolution.rejection) entries.push({ icon: AlertTriangle, label: `${resolution.rejection.status}: ${resolution.rejection.reason}` })
+  if (resolution.combat?.escape) entries.push({ icon: Footprints, label: resolution.combat.escape.escaped ? 'Escape successful' : 'Escape failed: the enemy pursued' })
   if (resolution.combat?.playerDamage) entries.push({ icon: Swords, label: `${resolution.combat.playerDamage} damage to ${resolution.combat.enemyName}` })
   if (resolution.combat?.enemyDamage) entries.push({ icon: Shield, label: `${resolution.combat.enemyDamage} HP lost` })
   if (resolution.rewards?.xp) entries.push({ icon: Sparkles, label: `+${resolution.rewards.xp} XP` })

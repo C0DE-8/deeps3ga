@@ -9,6 +9,7 @@ const {
   saveNarrativeTurn,
 } = require('../../db/repositories/gameState.repository')
 const { resolveTurn } = require('./turnEngine.service')
+const { interpretAction } = require('./actionInterpreter.service')
 
 function asArray(value) {
   if (value === null || value === undefined || value === '') return []
@@ -51,7 +52,22 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed' }
   if (!['typed', 'suggested'].includes(actionKind)) throw new Error('actionKind must be typed or suggested.')
 
   const state = await loadState(storyCycleId, accountId)
-  const engineResolution = await resolveTurn(state, playerAction.trim())
+  const interpretation = await interpretAction(playerAction.trim(), state)
+  let engineResolution
+  if (interpretation.status === 'VALID') {
+    engineResolution = await resolveTurn(state, playerAction.trim(), interpretation)
+  } else {
+    engineResolution = {
+      actionType: interpretation.intent,
+      interpretation,
+      successLevel: 'rejected',
+      rejection: { status: interpretation.status, reason: interpretation.reason },
+      rewards: { xp: 0, gold: 0, soulEnergy: 0 },
+      skillProgress: [], skillsUnlocked: [], itemsAwarded: [], companions: [], events: [], achievements: [],
+      familyMastery: [], ultimateTrials: [], evolutionChoices: [], quests: [], floorProgressGain: 0,
+      combat: null, advanced: null, runCompleted: false, died: false,
+    }
+  }
   let scene
   try {
     scene = normalizeScene(await continueScene({
@@ -114,6 +130,11 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed' }
 
 function buildFallbackStory(resolution) {
   const lines = []
+  if (resolution.rejection) lines.push(resolution.rejection.status === 'AMBIGUOUS' || resolution.rejection.status === 'UNKNOWN'
+    ? 'Your intention is unclear. The moment waits for a more precise decision.'
+    : `The world does not bend to that request. ${resolution.rejection.reason || 'That action is not possible.'}`)
+  if (resolution.combat?.escape?.escaped) lines.push('You break away before the enemy can close the distance. Its pursuit fades behind you.')
+  if (resolution.combat?.escape && !resolution.combat.escape.escaped) lines.push('You turn to run, but the enemy reads the movement and cuts off your escape.')
   if (resolution.combat?.playerDamage) lines.push(`Your action lands for ${resolution.combat.playerDamage} damage against ${resolution.combat.enemyName}.`)
   if (resolution.combat?.enemyDamage) lines.push(`${resolution.combat.enemyName} answers, and the impact costs you ${resolution.combat.enemyDamage} HP.`)
   if (resolution.combat?.status === 'victory') lines.push(`${resolution.combat.enemyName} can no longer continue. The encounter is won.`)

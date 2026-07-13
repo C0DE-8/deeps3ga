@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "migrate": "node scripts/migrate.js",
     "make-admin": "node scripts/makeAdmin.js",
+    "test:actions": "node scripts/testActionInterpreter.js",
     "simulate-journey": "node scripts/simulateJourney.js"
   },
   "keywords": [],

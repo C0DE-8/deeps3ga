@@ -536,6 +536,14 @@ Seeded mythical ultimates include `Azrael, Lord of Souls`, `Leviathan, Ocean Sov
 
 The `skill_progress_events` table records the successful action, action signature, success level, progress amount, and scene evidence used toward discovery. Skill definitions contain requirements, discovery rules, evolution rules, family tier, rarity, identity text, and unlock hints. Awarding passes through the deterministic action evaluator; AI narration alone cannot grant a skill.
 
+### Intelligent Action Interpretation
+
+Typed actions pass through an intention interpreter before reaching the game engine. The interpreter returns structured intent such as `attack`, `flee`, `social`, or `explore`, together with one of five states: `VALID`, `UNKNOWN`, `AMBIGUOUS`, `INVALID`, or `IMPOSSIBLE`.
+
+The interpreter cannot grant rewards or decide outcomes. The engine validates the intent against the current character, inventory, skills, combat encounter, and world rules. Requests for admin powers, spawned currency, edited stats, godhood, or other rule-breaking actions are rejected without advancing the turn or changing the database.
+
+Escape is an attempt rather than a guaranteed command. Agility, stamina, harmful statuses, enemy pursuit ability, and boss restrictions affect the chance. On success the encounter closes while surviving enemies remain alive. On failure enemies pursue and receive their combat turns.
+
 ### Automatic Gameplay Loop
 
 Every submitted action now follows one authoritative sequence:

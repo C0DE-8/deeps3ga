@@ -52,7 +52,8 @@ function deriveActionSignatures(action) {
   return [...signatures]
 }
 
-function actionTypeFrom(signatures) {
+function actionTypeFrom(signatures, interpretation) {
+  if (interpretation?.status === 'VALID' && interpretation.intent !== 'unknown') return interpretation.intent
   if (signatures.includes('flee')) return 'flee'
   if (signatures.includes('heal')) return 'heal'
   if (signatures.includes('defend')) return 'defend'
@@ -368,12 +369,40 @@ async function getOrStartEncounter(connection, state, actionType) {
   return rows[0]
 }
 
+async function attemptEscape(connection, state, encounter, result) {
+  const sheet = state.characterSheet
+  const [enemyRows] = await connection.execute(
+    `SELECT cp.attack_stat, cp.state_json FROM combat_participants cp WHERE cp.combat_encounter_id = ? AND cp.team = 'enemy' AND cp.status = 'active'`,
+    [encounter.id],
+  )
+  const enemies = enemyRows.map((enemy) => ({ ...enemy, state_json: parseJson(enemy.state_json, {}) }))
+  const pursuit = enemies.reduce((total, enemy) => total + Number(enemy.state_json.speed || enemy.attack_stat || 5), 0) / Math.max(1, enemies.length)
+  const statuses = new Set((state.statusEffects || []).map((effect) => effect.status_key))
+  const mobilityPenalty = statuses.has('frozen') ? 35 : statuses.has('bleeding') || statuses.has('poisoned') ? 10 : 0
+  const bossPenalty = encounter.encounter_type === 'boss' || encounter.encounter_type === 'legacy_boss' ? 25 : 0
+  const chance = Math.max(5, Math.min(90, 45 + Number(sheet.agility) * 2 + Number(sheet.stamina) * 0.2 - pursuit * 1.5 - mobilityPenalty - bossPenalty))
+  const roll = crypto.randomInt(1, 101)
+  const escaped = roll <= chance
+  result.combat.escape = { escaped, chance: Math.round(chance), roll, pursued: !escaped }
+  if (escaped) {
+    await connection.execute("UPDATE combat_encounters SET status = 'escaped', ended_at = CURRENT_TIMESTAMP WHERE id = ?", [encounter.id])
+    result.combat.status = 'escaped'
+  } else {
+    result.combat.status = 'active'
+  }
+  await connection.execute(
+    `INSERT INTO combat_action_logs (combat_encounter_id, round_number, actor_type, actor_id, action_type, action_text, result_json)
+     VALUES (?, ?, 'player', ?, 'flee', 'Attempts to escape.', ?)`,
+    [encounter.id, encounter.round_number, state.run.character_life_id, JSON.stringify(result.combat.escape)],
+  )
+  return escaped
+}
+
 async function resolveCombat(connection, state, encounter, action, actionType, signatures, usedSkill, result) {
   if (!encounter) return false
   result.combat = { encounterId: encounter.id, type: encounter.encounter_type, round: encounter.round_number }
   if (actionType === 'flee') {
-    await connection.execute("UPDATE combat_encounters SET status = 'escaped', ended_at = CURRENT_TIMESTAMP WHERE id = ?", [encounter.id])
-    result.combat.status = 'escaped'
+    await attemptEscape(connection, state, encounter, result)
     return false
   }
   if (actionType === 'social' && signatures.some((value) => ['spare', 'befriend', 'negotiate'].includes(value)) && encounter.encounter_type === 'monster') {
@@ -597,7 +626,6 @@ async function applyEnemyStatus(connection, state, enemy, target) {
 
 async function resolveMultiCombat(connection, state, encounter, action, actionType, signatures, usedSkill, result) {
   if (!encounter) return false
-  if (actionType === 'flee') return resolveCombat(connection, state, encounter, action, actionType, signatures, usedSkill, result)
   const participants = await ensureCombatParticipants(connection, state, encounter)
   const player = participants.find((entry) => entry.participant_type === 'player')
   let enemies = participants.filter((entry) => entry.team === 'enemy')
@@ -605,6 +633,7 @@ async function resolveMultiCombat(connection, state, encounter, action, actionTy
   const target = enemies.find((entry) => action.toLowerCase().includes(entry.display_name.toLowerCase())) || enemies.sort((a, b) => a.current_hp - b.current_hp)[0]
   if (!target) return false
   result.combat = { encounterId: encounter.id, type: encounter.encounter_type, round: encounter.round_number, target: target.display_name, enemies: enemies.map((entry) => ({ name: entry.display_name, hp: entry.current_hp, maxHp: entry.max_hp })) }
+  if (actionType === 'flee' && await attemptEscape(connection, state, encounter, result)) return false
 
   if (actionType === 'social' && signatures.some((value) => ['spare', 'befriend', 'negotiate'].includes(value)) && target.participant_type === 'monster') {
     await syncParticipant(connection, state, target, target.current_hp, 'spared')
@@ -857,12 +886,13 @@ async function updateBehavior(connection, state, actionType, signatures) {
   )
 }
 
-async function resolveTurn(state, action) {
+async function resolveTurn(state, action, interpretation = null) {
   const signatures = deriveActionSignatures(action)
-  const actionType = actionTypeFrom(signatures)
+  const actionType = actionTypeFrom(signatures, interpretation)
   const usedSkill = findUsedSkill(action, state.skills)
   const result = {
     actionType,
+    interpretation,
     signatures,
     successLevel: 'success',
     rewards: { xp: 0, gold: 0, soulEnergy: 0 },
