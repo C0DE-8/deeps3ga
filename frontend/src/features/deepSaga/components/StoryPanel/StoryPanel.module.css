@@ -43,6 +43,17 @@
   line-height: 1.8;
 }
 
+.narrativeSection { display:grid;gap:10px; }
+.narrativeSection h2,.opportunities h2,.statusSummary h2 { color:var(--accent);font-size:.72rem;font-weight:900;text-transform:uppercase; }
+.opportunities { border-top:1px solid var(--line);padding-top:16px; }
+.opportunities ul { display:grid;gap:6px;margin:10px 0 0;padding-left:20px;color:var(--muted); }
+.statusSummary { display:grid;gap:10px;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.45);padding:14px; }
+.statusSummary dl { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0; }
+.statusSummary dl div { min-width:0; }
+.statusSummary dt { color:var(--muted);font-size:.68rem;font-weight:800;text-transform:uppercase; }
+.statusSummary dd { margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;font-weight:900;white-space:nowrap; }
+.statusSummary p { font-family:var(--sans);font-size:.82rem;line-height:1.45; }
+
 .dialogueGroup {
   display: grid;
   gap: 10px;
@@ -92,3 +103,5 @@
     transform: translateY(0);
   }
 }
+
+@media(max-width:600px){.statusSummary dl{grid-template-columns:repeat(2,minmax(0,1fr))}}

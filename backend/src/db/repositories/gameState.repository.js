@@ -142,7 +142,7 @@ async function getGameState(storyCycleId) {
   ])
   if (!run) return null
 
-  const [sheets, dungeons, floors, floorBeats, floorRuntime, npcs, monsters, bosses, quests, memories, choices, narrativeHistory, companions, companionMemories, companionSoulMemories, companionInjuries, skills, equipment, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, combatParticipants, cycleEvents, achievements, familyMastery, evolutionChoices, ultimateTrials, adaptations, legacyHeroes] = await Promise.all([
+  const [sheets, dungeons, floors, floorBeats, floorRuntime, npcs, monsters, bosses, quests, storyThreads, factionReputation, memories, choices, narrativeHistory, companions, companionMemories, companionSoulMemories, companionInjuries, skills, equipment, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, combatParticipants, cycleEvents, achievements, familyMastery, evolutionChoices, ultimateTrials, adaptations, legacyHeroes] = await Promise.all([
     query('SELECT * FROM character_sheets WHERE character_life_id = ?', [run.character_life_id]),
     query('SELECT * FROM dungeons WHERE id = ?', [run.current_dungeon_id]),
     query('SELECT * FROM dungeon_floors WHERE id = ?', [run.current_floor_id]),
@@ -175,6 +175,21 @@ async function getGameState(storyCycleId) {
       [storyCycleId],
     ),
     query(
+      `SELECT st.thread_key, st.title, st.description, st.requirements_json, st.related_npc_ids_json,
+              st.related_location_ids_json, st.related_quest_ids_json, st.connection_keys_json, st.priority,
+              cst.status, cst.introduced_at_turn, cst.progress_json, cst.updated_at
+         FROM cycle_story_threads cst JOIN story_threads st ON st.id = cst.story_thread_id
+        WHERE cst.story_cycle_id = ? AND cst.status NOT IN ('COMPLETED', 'FAILED')
+        ORDER BY FIELD(st.priority, 'critical', 'major', 'standard', 'minor'), cst.updated_at DESC`,
+      [storyCycleId],
+    ),
+    query(
+      `SELECT f.faction_key, f.name, f.description, cfr.reputation, cfr.standing, cfr.reasons_json
+         FROM cycle_faction_reputation cfr JOIN factions f ON f.id = cfr.faction_id
+        WHERE cfr.story_cycle_id = ? ORDER BY ABS(cfr.reputation) DESC, f.name`,
+      [storyCycleId],
+    ),
+    query(
       `SELECT scope, memory_key, summary, facts_json, importance, remembered_across_lives, created_at
          FROM story_memories WHERE soul_profile_id = ? AND (story_cycle_id = ? OR remembered_across_lives = 1)
         ORDER BY importance DESC, created_at DESC LIMIT 50`,
@@ -186,8 +201,10 @@ async function getGameState(storyCycleId) {
       [storyCycleId],
     ),
     query(
-      `SELECT id, speaker, message_text, choices_json, consequence_json, request_key, created_at
-         FROM narrative_messages WHERE story_cycle_id = ? ORDER BY id ASC LIMIT 200`,
+      `SELECT nm.id, nm.speaker, nm.message_text, nm.choices_json, nm.consequence_json, nm.request_key, nm.created_at,
+              rs.scene_type, rs.narrative_sections_json, rs.status_summary_json, rs.story_opportunities_json, rs.npc_introductions_json
+         FROM narrative_messages nm LEFT JOIN response_sections rs ON rs.narrative_message_id = nm.id
+        WHERE nm.story_cycle_id = ? ORDER BY nm.id ASC LIMIT 200`,
       [storyCycleId],
     ),
     query(
@@ -248,23 +265,42 @@ async function getGameState(storyCycleId) {
   const hydratedBeats = floorBeats.map((row) => hydrate(row, [['required_signatures_json', []], ['available_choices_json', []], ['consequence_keys_json', []]]))
   const runtime = hydrate(floorRuntime[0], [['state_json', {}]]) || { scene_count: 0, objective_progress: 0, objective_required: 3 }
   const beatSelection = selectActiveStoryBeat(hydratedBeats, runtime)
+  const activeBoss = hydrate(bosses[0], [['personality_json', {}], ['dialogue_json', []], ['mechanics_json', {}], ['memory_of_player_json', {}], ['encounter_state_json', {}]])
+  const bossVictorySaved = (activeBoss?.current_hp !== null && activeBoss?.current_hp !== undefined && Number(activeBoss.current_hp) <= 0)
+    || activeBoss?.status === 'defeated'
+    || activeBoss?.status === 'spared'
+    || Boolean(activeBoss?.encounter_state_json?.nonCombatVictory)
+  const encounterSatisfied = !runtime.combat_required || Boolean(runtime.combat_completed) || (floors[0]?.floor_type === 'boss' && bossVictorySaved)
+  const decisionSatisfied = !runtime.state_json?.decisionRequired || Boolean(runtime.story_decision_completed)
+  const floorExitUnlocked = runtime.status === 'cleared'
+    || (Number(runtime.objective_progress) >= Number(runtime.objective_required) && encounterSatisfied && decisionSatisfied)
 
   return {
     run,
     characterSheet: hydrate(sheets[0], [['appearance_json', {}], ['personality_json', {}], ['titles_json', []], ['stats_json', {}], ['traits_json', []], ['blessings_json', []], ['curses_json', []]]),
     currentDungeon: hydrate(dungeons[0], [['unlock_requirements_json', {}], ['story_arc_json', {}]]),
     currentFloor: hydrate(floors[0], [['enemies_available_json', []], ['npcs_available_json', []], ['hidden_events_json', []], ['floor_memory_json', {}], ['boss_rules_json', {}]]),
-    floorRuntime: runtime,
+    floorRuntime: {
+      ...runtime,
+      encounterRequired: Boolean(runtime.combat_required),
+      encounterCompleted: Boolean(runtime.combat_completed),
+      decisionRequired: Boolean(runtime.state_json?.decisionRequired),
+      decisionCompleted: Boolean(runtime.story_decision_completed),
+      floorExitUnlocked,
+      bossVictorySaved,
+    },
     floorStoryBeats: hydratedBeats,
     activeStoryBeat: beatSelection.activeStoryBeat,
     lockedStoryBeats: beatSelection.lockedStoryBeats,
     activeNpcs: npcs.map((row) => hydrate(row, [['personality_json', {}], ['dialogue_json', []], ['run_relationship_json', {}], ['dialogue_state_json', {}]])),
     activeMonsters: monsters.map((row) => hydrate(row, [['stats_json', {}], ['skills_json', []], ['loot_json', []], ['behavior_json', {}], ['state_json', {}]])),
-    activeBoss: hydrate(bosses[0], [['personality_json', {}], ['dialogue_json', []], ['mechanics_json', {}], ['memory_of_player_json', {}], ['encounter_state_json', {}]]),
-    activeQuests: quests.map((row) => hydrate(row, [['objectives_json', []], ['rewards_json', []], ['consequence_rules_json', {}], ['progress_json', {}], ['choices_json', []]])),
+    activeBoss,
+    activeQuests: quests.map((row) => hydrate(row, [['objectives_json', []], ['rewards_json', []], ['consequence_rules_json', {}], ['overlap_json', {}], ['progress_json', {}], ['choices_json', []]])),
+    activeStoryThreads: storyThreads.map((row) => hydrate(row, [['requirements_json', {}], ['related_npc_ids_json', []], ['related_location_ids_json', []], ['related_quest_ids_json', []], ['connection_keys_json', {}], ['progress_json', {}]])),
+    factionReputation: factionReputation.map((row) => hydrate(row, [['reasons_json', {}]])),
     storyMemory: memories.map((row) => hydrate(row, [['facts_json', {}]])),
     previousChoices: choices.map((row) => hydrate(row, [['intent_json', {}], ['outcome_json', {}]])),
-    narrativeHistory: narrativeHistory.map((row) => hydrate(row, [['choices_json', []], ['consequence_json', []]])),
+    narrativeHistory: narrativeHistory.map((row) => hydrate(row, [['choices_json', []], ['consequence_json', []], ['narrative_sections_json', {}], ['status_summary_json', null], ['story_opportunities_json', []], ['npc_introductions_json', []]])),
     companions: companions.map((row) => ({
       ...hydrate(row, [['personality_json', {}], ['secrets_json', []], ['relationship_state_json', {}], ['combat_style_json', {}]]),
       memories: companionMemories
@@ -327,9 +363,9 @@ async function saveNarrativeTurn({ state, playerAction, actionKind, scene, reque
       [state.run.id, state.run.character_life_id, scene.story || '', JSON.stringify(scene.choices || []), JSON.stringify(scene.consequences || []), requestKey || null],
     )
     await connection.execute(
-      `INSERT INTO response_sections (narrative_message_id, story_text, character_changes_json, new_items_or_skills_json, choices_json)
-       VALUES (?, ?, ?, ?, ?)`,
-      [narratorMessage.insertId, scene.story || '', JSON.stringify(scene.characterChanges || []), JSON.stringify(scene.newItemsOrSkills || []), JSON.stringify(scene.choices || [])],
+      `INSERT INTO response_sections (narrative_message_id, story_text, character_changes_json, new_items_or_skills_json, choices_json, scene_type, narrative_sections_json, status_summary_json, story_opportunities_json, npc_introductions_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [narratorMessage.insertId, scene.story || '', JSON.stringify(scene.characterChanges || []), JSON.stringify(scene.newItemsOrSkills || []), JSON.stringify(scene.choices || []), scene.sceneType || null, JSON.stringify(scene.narrativeSections || {}), JSON.stringify(scene.statusSummary || null), JSON.stringify(scene.storyOpportunities || []), JSON.stringify(scene.npcIntroductions || [])],
     )
     const memorySignals = Array.isArray(scene.memorySignals) ? scene.memorySignals : []
     for (const memory of memorySignals) {

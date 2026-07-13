@@ -75,10 +75,13 @@ function sceneFromNarrator(result, index, state, action) {
   const story = scene.story || 'The Dungeon waits, listening for what you will do next.'
   return {
     id: `narrative-${result.saved?.narrativeMessageId || index}`,
-    chapter: state.currentDungeon?.name || 'Deep Saga',
-    title: state.currentFloor?.floor_name || 'The next page',
+    chapter: result.location?.dungeon || state.currentDungeon?.name || 'Deep Saga',
+    title: result.location?.floorName || state.currentFloor?.floor_name || 'The next page',
     playerAction: action,
     paragraphs: story.split(/\n\s*\n/).filter(Boolean),
+    narrativeSections: scene.narrativeSections || {},
+    statusSummary: scene.statusSummary || null,
+    storyOpportunities: scene.storyOpportunities || [],
     choices: scene.choices || [],
     engineResolution: result.engineResolution || null,
     status: {
@@ -107,6 +110,9 @@ function scenesFromHistory(state) {
       title: state.currentFloor.floor_name,
       playerAction,
       paragraphs: String(message.message_text || '').split(/\n\s*\n/).filter(Boolean),
+      narrativeSections: message.narrative_sections_json || {},
+      statusSummary: message.status_summary_json || null,
+      storyOpportunities: message.story_opportunities_json || [],
       choices: message.choices_json || [],
       engineResolution: consequence.find((entry) => entry?.engineResolution)?.engineResolution || null,
     })

@@ -1,19 +1,5 @@
 const { getAiConfig } = require('../../config/ai')
 
-const FORBIDDEN_PATTERNS = [
-  /\b(admin|developer|console|system)\s+(power|command|access|mode)/i,
-  /\b(spawn|generate|give myself|add)\b.*\b(gold|xp|item|skill|level|money)\b/i,
-  /\b(set|change)\b.*\b(hp|mana|level|stat|gold|xp)\b/i,
-  /\b(delete|edit|update|hack)\b.*\b(database|save|account|character)\b/i,
-]
-
-const IMPOSSIBLE_PATTERNS = [
-  /\b(become|turn into|transform into)\b.*\b(god|omnipotent|invincible|immortal)\b/i,
-  /\b(create|summon|conjure)\b.*\b(infinite|billion|million)\b/i,
-  /\bteleport\b/i,
-  /\b(stop|reverse|rewrite)\s+time\b/i,
-]
-
 const ALLOWED_SIGNATURES = new Set([
   'attack', 'bite', 'magic', 'defend', 'dodge', 'heal', 'protect', 'spare', 'flee', 'analyze', 'solve',
   'negotiate', 'befriend', 'hide', 'create', 'consume', 'remember', 'refuse', 'explore', 'protect_dragon',
@@ -24,12 +10,6 @@ const ALLOWED_SIGNATURES = new Set([
 function localInterpret(action) {
   const text = action.trim()
   if (!text) return { status: 'INVALID', intent: 'none', reason: 'No action was provided.', confidence: 1 }
-  if (FORBIDDEN_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { status: 'INVALID', intent: 'rule_manipulation', reason: 'The request attempts to bypass game mechanics.', confidence: 1 }
-  }
-  if (IMPOSSIBLE_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { status: 'IMPOSSIBLE', intent: 'reality_breaking_action', reason: 'The character has no known ability that makes this possible.', confidence: 1 }
-  }
 
   const intents = [
     ['flee', /\b(flee|escape|retreat|run(?:ning)? away|leave the fight)\b/i],
@@ -42,7 +22,7 @@ function localInterpret(action) {
     ['explore', /\b(explore|search|open|enter|follow|climb|continue|advance|walk|move|hide|sneak)\b/i],
   ].filter(([, pattern]) => pattern.test(text)).map(([intent]) => intent)
 
-  if (!intents.length) return { status: 'UNKNOWN', intent: 'unknown', reason: 'The intended action could not be identified.', confidence: 0.2 }
+  if (!intents.length) return { status: 'VALID', intent: 'unknown', signatures: ['creative_action'], reason: null, confidence: 0.2 }
   const primary = intents.includes('flee') ? 'flee' : intents[0]
   return { status: 'VALID', intent: primary, secondaryIntents: intents.filter((value) => value !== primary), reason: null, confidence: 0.75 }
 }
@@ -62,7 +42,7 @@ function validateInterpretation(value, fallback) {
     signatures: Array.isArray(value.signatures) ? [...new Set(value.signatures.filter((item) => ALLOWED_SIGNATURES.has(item)))].slice(0, 12) : [],
     referencedEntities: Array.isArray(value.referencedEntities) ? value.referencedEntities.filter((item) => typeof item === 'string').map((item) => item.slice(0, 120)).slice(0, 8) : [],
     requiredCapabilities: Array.isArray(value.requiredCapabilities)
-      ? value.requiredCapabilities.filter((item) => item && typeof item === 'object').map((item) => ({ type: String(item.type || '').slice(0, 30), name: String(item.name || '').slice(0, 120) })).slice(0, 6)
+      ? value.requiredCapabilities.filter((item) => item && typeof item === 'object').map((item) => ({ type: String(item.type || '').slice(0, 30), name: String(item.name || '').slice(0, 120), amount: Math.max(0, Number(item.amount) || 0) })).slice(0, 6)
       : [],
     reason: typeof value.reason === 'string' ? value.reason.slice(0, 240) : null,
     confidence: Math.max(0, Math.min(1, Number(value.confidence) || 0)),
@@ -71,7 +51,6 @@ function validateInterpretation(value, fallback) {
 
 async function interpretAction(action, state) {
   const fallback = localInterpret(action)
-  if (fallback.status === 'INVALID' || fallback.status === 'IMPOSSIBLE') return fallback
   const ai = getAiConfig()
   if (!ai.apiKey) return fallback
 
@@ -84,7 +63,7 @@ async function interpretAction(action, state) {
         temperature: 0,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: `You are Deep Saga's intention interpreter, never its narrator or outcome engine. Understand unrestricted natural language without requiring command words. Return JSON with status, intent, secondaryIntents, target, method, goal, approach, signatures, referencedEntities, requiredCapabilities, reason, and confidence. Do not decide whether an attempt succeeds. status is normally VALID unless language is unknown, ambiguous, explicitly manipulates system rules, or describes no coherent intention. intent must be attack, defend, dodge, heal, flee, social, analyze, explore, unknown, rule_manipulation, or reality_breaking_action. approach describes how the player acts. requiredCapabilities lists every skill, item, physical trait, or environmental object the attempt depends on. signatures may only use: ${[...ALLOWED_SIGNATURES].join(', ')}. Infer semantic signatures from meaning, not keyword matching.` },
+          { role: 'system', content: `You are Deep Saga's intention interpreter, never its narrator or outcome engine. Treat every player statement as an attempted action, not as a fact or a successful state change. Do not reject an attempt because it seems impossible, targets a peaceful entity, or occurs outside combat. Return JSON with status, intent, secondaryIntents, target, method, goal, approach, signatures, referencedEntities, requiredCapabilities, reason, and confidence. status should be VALID for every coherent attempt. intent must be attack, defend, dodge, heal, flee, social, analyze, explore, unknown, rule_manipulation, or reality_breaking_action. requiredCapabilities may identify saved skill, item, gold, or quest dependencies and should include amount when relevant. signatures may only use: ${[...ALLOWED_SIGNATURES].join(', ')}. Infer meaning without deciding success or consequences.` },
           { role: 'user', content: JSON.stringify({
             action,
             currentFloor: state.currentFloor,

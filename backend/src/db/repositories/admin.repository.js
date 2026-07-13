@@ -32,6 +32,10 @@ const tableConfig = {
   ultimateTrials: { table: 'ultimate_skill_trials', order: 'id' },
   turnRequests: { table: 'engine_turn_requests', order: 'created_at', columns: 'id, story_cycle_id, character_life_id, request_key, action_hash, status, created_at, completed_at' },
   narrativeValidation: { table: 'narrative_validation_events', order: 'created_at' },
+  storyThreads: { table: 'story_threads', order: 'id' },
+  cycleStoryThreads: { table: 'cycle_story_threads', order: 'updated_at' },
+  factions: { table: 'factions', order: 'id' },
+  factionReputation: { table: 'cycle_faction_reputation', order: 'updated_at' },
 }
 
 async function getOverview() {

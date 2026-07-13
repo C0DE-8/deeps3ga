@@ -17,13 +17,13 @@ async function playCompleteRun(accountId, finalTitle) {
     const floor = Number(state.currentFloor.floor_number)
     const bossFloor = floor === 5
     let action = bossFloor ? 'I attack with everything I have.' : 'I inspect the path and continue forward carefully.'
-    if (realm === 1 && floor === 2 && state.activeMonsters.length) action = `I attack ${state.activeMonsters[0].name}.`
+    if (!bossFloor && state.activeMonsters.length) action = `I negotiate with ${state.activeMonsters[0].name}, study its behavior, and seek a peaceful way past it.`
+    if (!bossFloor && !state.activeMonsters.length && state.floorRuntime?.decisionRequired && !state.floorRuntime?.decisionCompleted) action = 'I analyze the mystery, speak with those present, and make a deliberate choice about what should happen.'
     if (realm === 1 && floor === 3 && !maraRecruited) {
       action = 'Mara Fenroot, join me and protect the people traveling this forest.'
       maraRecruited = true
     }
-    if (realm === 1 && floor === 4 && state.activeMonsters.length) action = `I attack ${state.activeMonsters[0].name}.`
-    const result = await resolveTurn(state, action)
+    const result = await resolveTurn(state, action, null, null, { actionCheckRoll: 20 })
     turns += 1
     if (result.died) throw new Error(`Simulation died in Realm ${state.currentDungeon.dungeon_number}, Floor ${state.currentFloor.floor_number}.`)
     runCompleted = result.runCompleted
@@ -39,6 +39,8 @@ async function playCompleteRun(accountId, finalTitle) {
   const multiEnemyEncounters = await query("SELECT COUNT(*) AS count FROM (SELECT combat_encounter_id FROM combat_participants WHERE team = 'enemy' GROUP BY combat_encounter_id HAVING COUNT(*) > 1) grouped JOIN combat_encounters ce ON ce.id = grouped.combat_encounter_id WHERE ce.story_cycle_id = ?", [game.storyCycleId])
   const companionActions = await query("SELECT COUNT(*) AS count FROM combat_action_logs cal JOIN combat_encounters ce ON ce.id = cal.combat_encounter_id WHERE ce.story_cycle_id = ? AND cal.actor_type = 'companion'", [game.storyCycleId])
   const recruitedCompanions = await query("SELECT COUNT(*) AS count FROM companions WHERE story_cycle_id = ? AND recruited_at IS NOT NULL", [game.storyCycleId])
+  const storyThreads = await query('SELECT COUNT(*) AS count FROM cycle_story_threads WHERE story_cycle_id = ?', [game.storyCycleId])
+  const factionRecords = await query('SELECT COUNT(*) AS count FROM cycle_faction_reputation WHERE story_cycle_id = ?', [game.storyCycleId])
 
   return {
     storyCycleId: game.storyCycleId,
@@ -51,6 +53,8 @@ async function playCompleteRun(accountId, finalTitle) {
     multiEnemyEncounters: Number(multiEnemyEncounters[0].count),
     companionCombatActions: Number(companionActions[0].count),
     companionsRecruited: Number(recruitedCompanions[0].count),
+    storyThreadsActivated: Number(storyThreads[0].count),
+    factionRecords: Number(factionRecords[0].count),
   }
 }
 
@@ -66,6 +70,7 @@ async function simulateJourney() {
     const secondRun = await playCompleteRun(accountId, 'The Legacy Test Conqueror')
     legacyIds.push(secondRun.legacyHeroId)
     if (secondRun.legacyBossesDefeated !== 1) throw new Error('Second run did not defeat the previous Legacy Hero.')
+    if (!firstRun.storyThreadsActivated || !firstRun.factionRecords) throw new Error('Story threads or faction reputation did not activate.')
     console.log(JSON.stringify({ success: true, firstRun, secondRun }, null, 2))
   } finally {
     for (const legacyId of legacyIds.reverse()) await query('DELETE FROM legacy_heroes WHERE id = ?', [legacyId])

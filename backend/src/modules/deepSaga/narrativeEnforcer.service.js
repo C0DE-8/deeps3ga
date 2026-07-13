@@ -4,15 +4,15 @@ function asText(value) {
   return ''
 }
 
-function normalizeChoice(value, index) {
-  if (typeof value === 'string') return { id: `choice-${index + 1}`, text: value.trim(), action: value.trim(), direction: 'unspecified', consequence: '' }
+function normalizeChoice(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const text = asText(value)
   if (!text) return null
   return {
-    id: String(value.id || `choice-${index + 1}`).slice(0, 80),
+    id: String(value.id || '').trim().slice(0, 80),
     text,
-    action: String(value.action || text).trim().slice(0, 500),
-    direction: String(value.direction || 'unspecified').trim().slice(0, 120),
+    action: String(value.action || '').trim().slice(0, 500),
+    direction: String(value.direction || '').trim().slice(0, 120),
     consequence: String(value.consequence || '').trim().slice(0, 240),
     anchor: String(value.anchor || '').trim().slice(0, 120),
   }
@@ -40,27 +40,61 @@ function authoritativeRewards(resolution) {
   return rewards
 }
 
-function enforceNarrativeScene(scene, resolution, fallbackStory) {
+function buildStatusSummary(state) {
+  if (!state?.characterSheet) return null
+  const sheet = state.characterSheet
+  const weapon = (state.inventory || []).find((item) => item.equipped_slot === 'weapon')
+  return {
+    level: Number(sheet.level),
+    hp: `${sheet.hp}/${sheet.max_hp}`,
+    stamina: `${sheet.stamina}/${sheet.max_stamina}`,
+    mana: `${sheet.mana}/${sheet.max_mana}`,
+    gold: Number(sheet.gold),
+    equippedWeapon: weapon?.name || 'Unarmed',
+    relevantInventory: (state.inventory || []).filter((item) => ['consumable', 'quest', 'relic'].includes(item.item_type)).slice(0, 8).map((item) => `${item.name} x${item.quantity}`),
+    activeQuests: (state.activeQuests || []).map((quest) => quest.name),
+    companions: (state.companions || []).map((companion) => companion.name),
+    statusEffects: (state.statusEffects || []).map((effect) => effect.name),
+  }
+}
+
+function enforceNarrativeScene(scene, resolution, states = {}) {
   const violations = []
   const rejected = Boolean(resolution.rejection)
+  const story = asText(scene.story)
+  if (!story) throw new Error('Narrative AI returned no story text.')
   if ((scene.characterChanges || []).length) violations.push('model_character_changes_replaced')
   if ((scene.newItemsOrSkills || []).length) violations.push('model_rewards_replaced')
   if ((scene.memorySignals || []).length) violations.push('model_memory_writes_blocked')
-  if (rejected) violations.push('rejected_action_forced_to_engine_narrative')
+  if (rejected) violations.push('rejected_action_state_changes_blocked')
 
-  const choices = (scene.choices || []).map(normalizeChoice).filter(Boolean).slice(0, 5)
+  if (!Array.isArray(scene.choices)) throw new Error('Narrative AI choices must be an array.')
+  const choices = scene.choices.map(normalizeChoice)
+  if (choices.some((choice) => !choice)) throw new Error('Narrative AI returned a malformed choice.')
+  if (choices.length > 5) throw new Error('Narrative AI returned more than five choices.')
+  if (choices.some((choice) => !choice.id || !choice.action || !choice.direction || !choice.consequence || !choice.anchor)) throw new Error('Narrative AI returned an incomplete choice.')
   if (!resolution.died && !resolution.runCompleted && choices.length < 3) violations.push('fewer_than_three_choices')
   if (choices.some((choice) => choice.text.split(/\s+/).filter(Boolean).length < 5)) violations.push('choice_text_too_short')
   if (choices.some((choice) => !choice.direction || choice.direction === 'unspecified' || !choice.consequence || !choice.anchor)) violations.push('choice_structure_incomplete')
   const directions = choices.map((choice) => choice.direction.toLowerCase()).filter((direction) => direction !== 'unspecified')
   if (new Set(directions).size !== directions.length) violations.push('duplicate_choice_directions')
-  const hardRejection = ['rule_manipulation', 'reality_breaking_action'].includes(resolution.interpretation?.intent)
+  const genericChoice = /^(continue|look around|study the area|check your character sheet|wait|do something else|describe an action)[.!]?$/i
+  if (choices.some((choice) => genericChoice.test(choice.text.trim()))) violations.push('generic_choice_forbidden')
+  const sceneType = typeof scene.sceneType === 'string' ? scene.sceneType : 'exploration'
+  const wordCount = asText(scene.story).split(/\s+/).filter(Boolean).length
+  const ranges = { small_action: [90, 180], exploration: [180, 320], dialogue: [180, 320], shop: [250, 500], guild: [250, 500], quest_hub: [250, 500], preparation: [250, 500], floor_transition: [350, 700], major_discovery: [350, 700], boss: [350, 700], death: [350, 700], reincarnation: [350, 700] }
+  const range = ranges[sceneType]
+  if (range && wordCount && (wordCount < range[0] || wordCount > range[1])) violations.push('scene_length_outside_target')
+  const majorSceneTypes = new Set(['shop', 'guild', 'quest_hub', 'floor_transition', 'major_discovery', 'npc_introduction', 'preparation', 'boss', 'death', 'reincarnation'])
+  const showStatusSummary = majorSceneTypes.has(sceneType) || Boolean(resolution.advanced) || (resolution.quests || []).length > 0 || (resolution.itemsAwarded || []).length > 0
   return {
     ...scene,
-    story: rejected && hardRejection ? fallbackStory : (asText(scene.story) || fallbackStory),
+    sceneType,
+    story,
     characterChanges: authoritativeChanges(resolution),
     newItemsOrSkills: authoritativeRewards(resolution),
-    choices: resolution.died || resolution.runCompleted ? [] : choices,
+    statusSummary: showStatusSummary ? buildStatusSummary(states.after) : null,
+    choices,
     consequences: [{ engineResolution: resolution }],
     memorySignals: [],
     parsedIntent: resolution.interpretation || {},
@@ -69,4 +103,4 @@ function enforceNarrativeScene(scene, resolution, fallbackStory) {
   }
 }
 
-module.exports = { enforceNarrativeScene }
+module.exports = { buildStatusSummary, enforceNarrativeScene }

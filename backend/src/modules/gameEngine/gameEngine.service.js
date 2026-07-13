@@ -21,22 +21,32 @@ function asArray(value) {
 }
 
 function normalizeScene(scene = {}) {
+  const protectedKeys = ['account', 'accountId', 'user', 'userId', 'owner', 'ownerId', 'ownership', 'admin', 'role', 'authentication', 'auth']
+  const protectedChangeTypes = new Set(['account', 'authentication', 'auth', 'ownership', 'owner', 'admin', 'role', 'user'])
+  if (protectedKeys.some((key) => Object.prototype.hasOwnProperty.call(scene, key))) throw new Error('Narrative AI attempted to return protected account state.')
+  if (scene.stateChanges !== undefined && !Array.isArray(scene.stateChanges)) throw new Error('Narrative AI stateChanges must be an array.')
+  if ((scene.stateChanges || []).some((change) => !change || typeof change !== 'object' || Array.isArray(change) || !change.type)) throw new Error('Narrative AI returned a malformed state change.')
+  if ((scene.stateChanges || []).some((change) => protectedChangeTypes.has(String(change.type).toLowerCase()))) throw new Error('Narrative AI attempted to change protected account state.')
   const storyValue = scene.story ?? scene.narrative ?? scene.text ?? ''
   const story = typeof storyValue === 'string'
     ? storyValue
     : storyValue?.text || storyValue?.content || JSON.stringify(storyValue)
 
   return {
-    ...scene,
+    sceneType: typeof scene.sceneType === 'string' ? scene.sceneType : 'exploration',
     story,
+    narrativeSections: scene.narrativeSections && typeof scene.narrativeSections === 'object' ? scene.narrativeSections : {},
     characterChanges: asArray(scene.characterChanges),
     newItemsOrSkills: asArray(scene.newItemsOrSkills),
-    choices: asArray(scene.choices),
+    choices: scene.choices,
     consequences: asArray(scene.consequences),
     memorySignals: asArray(scene.memorySignals),
     dungeonReaction: asArray(scene.dungeonReaction),
     companionMoments: asArray(scene.companionMoments),
+    npcIntroductions: asArray(scene.npcIntroductions),
+    storyOpportunities: asArray(scene.storyOpportunities),
     bossPresentation: scene.bossPresentation || null,
+    legendSummary: scene.legendSummary || null,
     parsedIntent: scene.parsedIntent && typeof scene.parsedIntent === 'object' ? scene.parsedIntent : {},
     safetyNotes: asArray(scene.safetyNotes),
   }
@@ -73,122 +83,69 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', 
       combat: null, advanced: null, runCompleted: false, died: false,
     }
   }
-  let scene
-  const hardRejection = ['rule_manipulation', 'reality_breaking_action'].includes(interpretation.intent)
-  if (hardRejection) {
-    scene = normalizeScene({
-      story: buildFallbackStory(engineResolution, state),
-      choices: ['Describe a possible action.', 'Study what is actually present.', 'Check your character sheet.'],
-      safetyNotes: [`Action rejected by reality validation: ${interpretation.status}`],
-    })
-  } else {
-    try {
-      scene = normalizeScene(await continueScene({
+  const narrativeState = interpretation.status === 'VALID' && !engineResolution.died && !engineResolution.runCompleted
+    ? await loadState(storyCycleId, accountId)
+    : state
+  let scene = normalizeScene(await continueScene({
       playerAction: playerAction.trim(),
       actionKind,
-      runState: state.run,
+      runState: narrativeState.run,
       worldState: { engineResolution },
       playerState: {
-        characterSheet: state.characterSheet,
-        skills: state.skills,
-        inventory: state.inventory,
-        equipment: state.equipment,
-        statuses: state.statusEffects,
-        injuries: state.injuries,
-        achievements: state.achievements,
-        familyMastery: state.familyMastery,
-        evolutionChoices: state.evolutionChoices,
-        ultimateTrials: state.ultimateTrials,
+        characterSheet: narrativeState.characterSheet,
+        skills: narrativeState.skills,
+        inventory: narrativeState.inventory,
+        equipment: narrativeState.equipment,
+        statuses: narrativeState.statusEffects,
+        injuries: narrativeState.injuries,
+        achievements: narrativeState.achievements,
+        familyMastery: narrativeState.familyMastery,
+        evolutionChoices: narrativeState.evolutionChoices,
+        ultimateTrials: narrativeState.ultimateTrials,
       },
-      currentDungeon: state.currentDungeon,
-      currentFloor: state.currentFloor,
-      floorStoryBeats: (state.floorStoryBeats || []).map((beat) => Number(beat.beat_number) === Number(state.activeStoryBeat?.beat_number)
+      previousLocation: { dungeon: state.currentDungeon, floor: state.currentFloor },
+      currentDungeon: narrativeState.currentDungeon,
+      currentFloor: narrativeState.currentFloor,
+      floorStoryBeats: (narrativeState.floorStoryBeats || []).map((beat) => Number(beat.beat_number) === Number(narrativeState.activeStoryBeat?.beat_number)
         ? { ...beat, status: 'active' }
-        : { beat_number: beat.beat_number, beat_type: beat.beat_type, title: beat.title, status: Number(beat.beat_number) < Number(state.activeStoryBeat?.beat_number) ? 'completed' : 'locked' }),
-      activeStoryBeat: state.activeStoryBeat,
-      lockedStoryBeats: state.lockedStoryBeats,
-      floorRuntime: state.floorRuntime,
-      activeNpcs: state.activeNpcs,
-      activeMonsters: state.activeMonsters,
-      activeBoss: state.activeBoss,
-      activeQuest: state.activeQuests,
+        : { beat_number: beat.beat_number, beat_type: beat.beat_type, title: beat.title, status: Number(beat.beat_number) < Number(narrativeState.activeStoryBeat?.beat_number) ? 'completed' : 'locked' }),
+      activeStoryBeat: narrativeState.activeStoryBeat,
+      lockedStoryBeats: narrativeState.lockedStoryBeats,
+      floorRuntime: narrativeState.floorRuntime,
+      activeNpcs: narrativeState.activeNpcs,
+      activeMonsters: narrativeState.activeMonsters,
+      activeBoss: narrativeState.activeBoss,
+      activeQuest: narrativeState.activeQuests,
+      activeStoryThreads: narrativeState.activeStoryThreads,
+      factionReputation: narrativeState.factionReputation,
       dungeonMemory: {
-        memories: state.storyMemory,
-        previousChoices: state.previousChoices,
-        adaptations: state.dungeonAdaptations,
-        companions: state.companions,
-        companionSoulMemories: state.companionSoulMemories,
-        companionInjuries: state.companionInjuries,
-        progression: state.progressionEvents,
-        engineEvents: state.engineEvents,
-        activeEncounter: state.activeEncounter,
-        combatParticipants: state.combatParticipants,
-        events: state.events,
+        memories: narrativeState.storyMemory,
+        previousChoices: narrativeState.previousChoices,
+        adaptations: narrativeState.dungeonAdaptations,
+        companions: narrativeState.companions,
+        companionSoulMemories: narrativeState.companionSoulMemories,
+        companionInjuries: narrativeState.companionInjuries,
+        progression: narrativeState.progressionEvents,
+        engineEvents: narrativeState.engineEvents,
+        activeEncounter: narrativeState.activeEncounter,
+        combatParticipants: narrativeState.combatParticipants,
+        events: narrativeState.events,
       },
-      guardianProfile: state.previousLegacyHero,
-      }))
-    } catch (error) {
-      scene = normalizeScene({
-        story: buildFallbackStory(engineResolution, state),
-        choices: engineResolution.died || engineResolution.runCompleted
-          ? []
-          : ['Continue forward.', 'Study the surroundings.', 'Check on your condition.'],
-        consequences: [engineResolution],
-        memorySignals: [],
-        safetyNotes: [`Narrator fallback used: ${error.message}`],
-      })
-    }
-  }
+      guardianProfile: narrativeState.previousLegacyHero,
+    }))
 
-  scene = enforceNarrativeScene(scene, engineResolution, buildFallbackStory(engineResolution, state))
+  scene = enforceNarrativeScene(scene, engineResolution, { before: state, after: narrativeState })
 
   const saved = await saveNarrativeTurn({ state, playerAction: playerAction.trim(), actionKind, scene, requestKey })
   let legacyHero = null
   if (engineResolution.runCompleted) legacyHero = await createLegacyHero(Number(storyCycleId), scene.bossPresentation || {})
-  return { scene, engineResolution, saved, legacyHero }
-}
-
-function buildFallbackStory(resolution, state = {}) {
-  const lines = []
-  const rejection = resolution.rejection
-  const anchors = rejection?.sceneAnchors || {}
-  if (rejection?.code === 'target_non_hostile') {
-    lines.push(`You prepare to strike, but ${anchors.target || 'the figure before you'} does not answer with aggression. It recoils, searching for distance rather than an opening to attack.`)
-    lines.push(`${anchors.atmosphere || state.currentFloor?.atmosphere || 'The surrounding path'} presses close around the unfinished movement. Whatever brought ${anchors.target || 'it'} here has not yet shown itself.`)
-  } else if (rejection?.code === 'target_absent') {
-    lines.push('Your attack cuts through empty space. The target you imagined is nowhere within reach, and the sound of the movement travels farther than you intended.')
-    const present = [...(anchors.presentNpcs || []), ...(anchors.presentCreatures || [])]
-    if (present.length) lines.push(`${present.join(', ')} ${present.length === 1 ? 'is' : 'are'} still here, watching what you do next.`)
-  } else if (rejection?.code === 'nothing_to_escape') {
-    lines.push('You gather yourself to run, but no pursuit follows. The path remains open, leaving you to choose a direction instead of fleeing blind.')
-  } else if (rejection?.code === 'ability_not_owned') {
-    lines.push('You reach for the shape of that power, but nothing answers. The instinct has no place in this body yet, and the moment passes without the world yielding to it.')
-  } else if (rejection?.code === 'item_not_available') {
-    lines.push('Your hand searches for the item and closes on empty cloth. Whatever plan depended on it must change before the danger does.')
-  } else if (rejection?.code === 'environment_not_available') {
-    lines.push('You look for the feature your plan depends on, but the surroundings offer no such advantage. The idea must bend around what is actually here.')
-  } else if (rejection) {
-    lines.push(rejection.status === 'AMBIGUOUS' || rejection.status === 'UNKNOWN'
-      ? 'You hesitate between intentions, and the moment refuses to choose for you. A clearer action is needed before anything changes.'
-      : 'You attempt to force the moment beyond what this body and world permit. Nothing answers, and the scene remains exactly as it was.')
+  return {
+    scene,
+    engineResolution,
+    saved,
+    legacyHero,
+    location: { dungeon: narrativeState.currentDungeon?.name, floor: narrativeState.currentFloor?.floor_number, floorName: narrativeState.currentFloor?.floor_name },
   }
-  if (resolution.combat?.escape?.escaped) lines.push('You break away before the enemy can close the distance. Its pursuit fades behind you.')
-  if (resolution.combat?.escape && !resolution.combat.escape.escaped) lines.push('You turn to run, but the enemy reads the movement and cuts off your escape.')
-  if (resolution.combat?.playerDamage) lines.push(`Your action lands for ${resolution.combat.playerDamage} damage against ${resolution.combat.enemyName}.`)
-  if (resolution.combat?.enemyDamage) lines.push(`${resolution.combat.enemyName} answers, and the impact costs you ${resolution.combat.enemyDamage} HP.`)
-  if (resolution.combat?.status === 'victory') lines.push(`${resolution.combat.enemyName} can no longer continue. The encounter is won.`)
-  if (resolution.combat?.status === 'resolved_peacefully') lines.push('The violence ends without another life being taken.')
-  if (resolution.rewards.xp) lines.push(`Experience settles into the body: ${resolution.rewards.xp} XP.`)
-  if (resolution.rewards.gold) lines.push(`You recover ${resolution.rewards.gold} Gold.`)
-  for (const item of resolution.itemsAwarded) lines.push(`Among what remains, you find ${item.name}.`)
-  if (resolution.levelUp) lines.push(`Strength gathers through you. You have reached Level ${resolution.levelUp.newLevel}.`)
-  for (const skill of resolution.skillsUnlocked) lines.push(`${skill.identityText || 'A new instinct awakens.'} Skill unlocked: ${skill.name}.`)
-  if (resolution.advanced?.type === 'floor') lines.push(`The path opens to Floor ${resolution.advanced.floor}.`)
-  if (resolution.advanced?.type === 'realm') lines.push(`The defeated Realm releases you. Realm ${resolution.advanced.dungeon} waits ahead.`)
-  if (resolution.died) lines.push('The body falls silent. This life is over, but the soul remembers.')
-  if (resolution.runCompleted) lines.push('All ten Realms stand behind you. The Dungeon claims this victorious body as a legend.')
-  if (!lines.length) lines.push('The Dungeon receives your decision and shifts around its consequence.')
-  return lines.join('\n\n')
 }
 
 module.exports = {
@@ -200,5 +157,4 @@ module.exports = {
   loadState,
   startGame: createGame,
   normalizeScene,
-  buildFallbackStory,
 }

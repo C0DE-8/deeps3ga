@@ -12,12 +12,28 @@ function mentionedCatalogEntry(action, entries) {
 }
 
 function validateReality(action, interpretation, state) {
-  if (interpretation.status !== 'VALID') return { ...interpretation, validatedByEngine: true }
   const text = normalize(action)
-  const inCombat = Boolean(state.activeEncounter)
-  const enemies = (state.combatParticipants || []).filter((entry) => entry.team === 'enemy' && entry.status === 'active')
   const knownSkill = mentionedCatalogEntry(action, state.skills || [])
   const ownedItem = mentionedCatalogEntry(action, state.inventory || [])
+
+  const declaredFloor = text.match(/\b(?:go|move|travel|teleport|advance|jump)\s+(?:to\s+)?floor\s+(\d+)/i)?.[1]
+  const declaredRealm = text.match(/\b(?:go|move|travel|teleport|advance|jump)\s+(?:to\s+)?(?:realm|dungeon)\s+(\d+)/i)?.[1]
+  const declaresCompletion = /\b(?:complete|finish|clear|skip)\s+(?:this\s+|the\s+)?(?:floor|realm|dungeon)\b/i.test(text)
+  const requestsFloorChange = (declaredFloor && Number(declaredFloor) !== Number(state.currentFloor?.floor_number))
+    || (declaredRealm && Number(declaredRealm) !== Number(state.currentDungeon?.dungeon_number))
+    || declaresCompletion
+  if (requestsFloorChange && !state.floorRuntime?.floorExitUnlocked) {
+    return reject('INVALID', interpretation.intent, 'The requested destination is still behind unresolved progression gates.', interpretation, 'progression_gate', {
+      currentRealm: state.currentDungeon?.name,
+      currentFloor: state.currentFloor?.floor_name,
+      floorNumber: state.currentFloor?.floor_number,
+      objective: state.currentFloor?.story_purpose,
+      encounterRequired: state.floorRuntime?.encounterRequired,
+      encounterCompleted: state.floorRuntime?.encounterCompleted,
+      decisionRequired: state.floorRuntime?.decisionRequired,
+      decisionCompleted: state.floorRuntime?.decisionCompleted,
+    })
+  }
 
   for (const capability of interpretation.requiredCapabilities || []) {
     const capabilityName = normalize(capability.name)
@@ -27,66 +43,27 @@ function validateReality(action, interpretation, state) {
     if (capability.type === 'item' && capabilityName && !(state.inventory || []).some((entry) => normalize(entry.name) === capabilityName)) {
       return reject('IMPOSSIBLE', interpretation.intent, `${capability.name} is not in the inventory.`, interpretation, 'item_not_available', { inventory: (state.inventory || []).map((entry) => entry.name) })
     }
-    if (capability.type === 'environment') {
-      const sceneText = JSON.stringify({ floor: state.currentFloor, npcs: state.activeNpcs, monsters: state.activeMonsters }).toLowerCase()
-      if (capabilityName && !sceneText.includes(capabilityName)) {
-        return reject('IMPOSSIBLE', interpretation.intent, `${capability.name} is not present in the current scene.`, interpretation, 'environment_not_available', { floor: state.currentFloor?.floor_name })
-      }
+    if (capability.type === 'item' && capabilityName) {
+      const item = (state.inventory || []).find((entry) => normalize(entry.name) === capabilityName)
+      if (Number(capability.amount || 1) > Number(item?.quantity || 0)) return reject('IMPOSSIBLE', interpretation.intent, `There is not enough ${capability.name} in the inventory.`, interpretation, 'item_not_available')
+    }
+    if (capability.type === 'gold' && Number(capability.amount || 0) > Number(state.characterSheet?.gold || 0)) {
+      return reject('IMPOSSIBLE', interpretation.intent, 'The character does not have enough Gold.', interpretation, 'gold_not_available', { gold: Number(state.characterSheet?.gold || 0) })
+    }
+    if (capability.type === 'quest' && capabilityName && !(state.activeQuests || []).some((entry) => normalize(entry.name) === capabilityName || normalize(entry.quest_key) === capabilityName)) {
+      return reject('IMPOSSIBLE', interpretation.intent, `${capability.name} is not an active saved quest.`, interpretation, 'quest_not_available', { quests: (state.activeQuests || []).map((entry) => entry.name) })
+    }
+    if (['auth', 'authentication', 'ownership', 'account', 'admin'].includes(normalize(capability.type))) {
+      return reject('INVALID', interpretation.intent, 'Protected account state cannot be changed by a game action.', interpretation, 'protected_state')
     }
   }
 
-  if (interpretation.intent === 'flee' && !inCombat) {
-    return reject('INVALID', 'flee', 'No immediate threat is pursuing the character.', interpretation, 'nothing_to_escape', { floor: state.currentFloor?.floor_name })
+  const namedPower = action.match(/\bcast\s+(?:my\s+)?([a-z][a-z '-]{2,60})/i)?.[1]?.replace(/[.!?].*$/, '').trim()
+  if (namedPower && !(state.skills || []).some((entry) => normalize(entry.name) === normalize(namedPower))) {
+    return reject('IMPOSSIBLE', interpretation.intent, `${namedPower} is not a saved skill.`, interpretation, 'ability_not_owned', { knownSkills: (state.skills || []).map((entry) => entry.name) })
   }
 
-  if (interpretation.intent === 'attack') {
-    const explicitTarget = action.match(/\b(?:attack|strike|stab|shoot|hit)\s+(?:at\s+)?(?:the\s+)?(?!with\b|using\b|my\b)([a-z][a-z '-]{1,80})/i)?.[1]?.replace(/[.!?].*$/, '').trim()
-    const targetName = normalize(interpretation.target || explicitTarget)
-    const presentEntities = [
-      ...(state.activeMonsters || []).map((entry) => ({ ...entry, display_name: entry.name, entityType: 'creature' })),
-      ...(state.activeNpcs || []).map((entry) => ({ ...entry, display_name: entry.name, entityType: 'person' })),
-    ]
-    const presentTarget = targetName ? presentEntities.find((entry) => normalize(entry.display_name).includes(targetName) || targetName.includes(normalize(entry.display_name))) : null
-    const hostileTarget = targetName ? enemies.find((entry) => normalize(entry.display_name).includes(targetName) || targetName.includes(normalize(entry.display_name))) : null
-    const targetIsHostileMonster = presentTarget?.entityType === 'creature' && presentTarget.status !== 'friendly'
-    if (presentTarget && !hostileTarget && !targetIsHostileMonster) {
-      return reject('INVALID', 'attack', `${presentTarget.display_name} is present but is not acting as an enemy.`, interpretation, 'target_non_hostile', {
-        target: presentTarget.display_name,
-        entityType: presentTarget.entityType,
-        status: presentTarget.status || presentTarget.run_life_status || 'present',
-        floor: state.currentFloor?.floor_name,
-        atmosphere: state.currentFloor?.atmosphere,
-        hiddenEvents: state.currentFloor?.hidden_events_json || [],
-      })
-    }
-    if (targetName && !hostileTarget && !targetIsHostileMonster) {
-      return reject('IMPOSSIBLE', 'attack', `${interpretation.target || explicitTarget} is not present in this scene.`, interpretation, 'target_absent', {
-        floor: state.currentFloor?.floor_name,
-        atmosphere: state.currentFloor?.atmosphere,
-        presentNpcs: (state.activeNpcs || []).map((entry) => entry.name),
-        presentCreatures: (state.activeMonsters || []).map((entry) => entry.name),
-      })
-    }
-    const claimsNamedPower = /\b(?:cast|use|activate|invoke|channel)\s+(?:my\s+)?([a-z][a-z '-]{2,60})/i.test(action)
-    const genericWeaponOrBody = /\b(sword|dagger|bow|fist|kick|punch|claw|fang|bite|staff|weapon)\b/i.test(text)
-    if (claimsNamedPower && !knownSkill && !ownedItem && !genericWeaponOrBody) {
-      return reject('IMPOSSIBLE', 'attack', 'The character does not possess that ability or item.', interpretation, 'ability_not_owned', { knownSkills: (state.skills || []).map((entry) => entry.name) })
-    }
-  }
-
-  if (/\b(?:drink|consume|use|equip|throw)\s+(?:my\s+)?(?:the\s+)?[a-z]/i.test(action)) {
-    const refersToSkill = Boolean(knownSkill)
-    const genericObject = /\b(dagger|sword|weapon|cloak|rope|rock|stone|door|lantern)\b/i.test(text)
-    if (!ownedItem && !refersToSkill && !genericObject) {
-      return reject('IMPOSSIBLE', interpretation.intent, 'The requested item is not in the inventory or current scene.', interpretation, 'item_not_available', { inventory: (state.inventory || []).map((entry) => entry.name) })
-    }
-  }
-
-  if (interpretation.intent === 'heal' && Number(state.characterSheet.hp) >= Number(state.characterSheet.max_hp) && !/\b(companion|ally|them|him|her)\b/i.test(text)) {
-    return reject('INVALID', 'heal', 'The character is already at full health.', interpretation)
-  }
-
-  return { ...interpretation, status: 'VALID', validatedByEngine: true, knownSkillId: knownSkill?.id || null, ownedItemId: ownedItem?.inventory_id || null }
+  return { ...interpretation, status: 'VALID', reason: null, validatedByEngine: true, knownSkillId: knownSkill?.id || null, ownedItemId: ownedItem?.inventory_id || null }
 }
 
 module.exports = { validateReality }

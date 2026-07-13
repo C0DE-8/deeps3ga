@@ -544,6 +544,12 @@ The interpreter cannot grant rewards or decide outcomes. The engine validates th
 
 Escape is an attempt rather than a guaranteed command. Agility, stamina, harmful statuses, enemy pursuit ability, and boss restrictions affect the chance. On success the encounter closes while surviving enemies remain alive. On failure enemies pursue and receive their combat turns.
 
+### Continuous Narrative Threads
+
+Deep Saga stores unresolved narrative threads separately from narration. A thread connects requirements, NPCs, locations, quests, shared destinations, enemies, hazards, and priorities. The AI receives active threads and faction reputation as continuity context, but only the engine can discover, advance, complete, or fail them.
+
+Quests remain mechanically independent even when they overlap. One expedition can advance several quests that share a floor, creature, NPC, clue, item, faction, or boss without merging their progress or rewards. Major scenes preserve structured continuation, action resolution, world reaction, connected development, opportunities, authoritative status summaries, and 3-5 distinct choices.
+
 ### Automatic Gameplay Loop
 
 Every submitted action now follows one authoritative sequence:

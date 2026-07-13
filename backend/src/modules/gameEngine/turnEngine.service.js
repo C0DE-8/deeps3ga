@@ -64,6 +64,28 @@ function actionTypeFrom(signatures, interpretation) {
   return 'explore'
 }
 
+function evaluateActionCheck(state, actionType, interpretation = {}, roll = crypto.randomInt(1, 21)) {
+  const statByAction = {
+    social: 'charisma', analyze: 'intelligence', explore: 'agility', heal: 'resolve_stat',
+    defend: 'resolve_stat', dodge: 'agility', flee: 'agility',
+  }
+  const statKey = statByAction[actionType]
+  if (!statKey || actionType === 'defend' || actionType === 'dodge' || actionType === 'flee') return null
+  const sheet = state.characterSheet
+  const stat = Number(sheet[statKey] || 0)
+  const level = Number(sheet.level || 1)
+  const realmDifficulty = Number(state.currentDungeon?.difficulty_level || state.currentDungeon?.dungeon_number || 1)
+  const injuryPenalty = (state.injuries || []).reduce((total, injury) => total + ({ minor: 1, moderate: 3, major: 5, critical: 8 }[injury.severity] || 0), 0)
+  const statusPenalty = (state.statusEffects || []).length * 2
+  const capabilityBonus = (interpretation?.requiredCapabilities || []).length ? 2 : 0
+  const preparationBonus = (state.previousChoices || []).slice(0, 5).some((choice) => /prepare|study|analyze|plan/i.test(choice.action_text || '')) ? 2 : 0
+  const total = stat * 2 + level * 2 + Number(roll) + capabilityBonus + preparationBonus - injuryPenalty - statusPenalty
+  const difficulty = 20 + realmDifficulty * 3
+  const margin = total - difficulty
+  const outcome = margin >= 15 ? 'exceptional' : margin >= 0 ? 'success' : margin >= -8 ? 'partial' : 'failure'
+  return { outcome, roll: Number(roll), stat: statKey, statValue: stat, difficulty, total, margin, modifiers: { capabilityBonus, preparationBonus, injuryPenalty, statusPenalty } }
+}
+
 function findUsedSkill(action, skills) {
   const text = action.toLowerCase()
   return skills.find((skill) => text.includes(skill.name.toLowerCase()) || text.includes(skill.skill_key.replaceAll('-', ' '))) || null
@@ -286,6 +308,59 @@ async function updateQuests(connection, state, signatures, result) {
   }
 }
 
+async function updateStoryThreads(connection, state, result) {
+  result.storyThreads ||= []
+  const [threads] = await connection.execute('SELECT * FROM story_threads ORDER BY FIELD(priority, \'critical\', \'major\', \'standard\', \'minor\'), id')
+  const [questRows] = await connection.execute('SELECT quest_id, status, progress_json FROM cycle_quests WHERE story_cycle_id = ?', [state.run.id])
+  const questStates = new Map(questRows.map((row) => [Number(row.quest_id), row]))
+  const [turnRows] = await connection.execute('SELECT total_turns FROM story_progress WHERE story_cycle_id = ?', [state.run.id])
+
+  for (const thread of threads) {
+    const locationIds = parseJson(thread.related_location_ids_json, []).map(Number)
+    const questIds = parseJson(thread.related_quest_ids_json, []).filter(Boolean).map(Number)
+    const relatedStates = questIds.map((id) => questStates.get(id)).filter(Boolean)
+    const relevant = locationIds.includes(Number(state.run.current_floor_id)) || relatedStates.length > 0
+    if (!relevant) continue
+    const rules = parseJson(thread.completion_rules_json, {})
+    const requiredCompleted = Number(rules.requiredCompleted || 1)
+    const completedCount = relatedStates.filter((quest) => quest.status === 'completed').length
+    const failedCount = relatedStates.filter((quest) => quest.status === 'failed').length
+    const requirements = parseJson(thread.requirements_json, {})
+    const itemRequirements = Array.isArray(requirements.items) ? requirements.items : []
+    const ownedItems = new Map((state.inventory || []).map((item) => [item.item_key, Number(item.quantity)]))
+    const missingItems = itemRequirements.filter((requirement) => Number(ownedItems.get(requirement.key) || 0) < Number(requirement.quantity || 1))
+    let status = completedCount >= requiredCompleted ? 'COMPLETED' : missingItems.length ? 'WAITING_FOR_REQUIREMENT' : relatedStates.some((quest) => quest.status === 'active') ? 'ACTIVE' : 'DISCOVERED'
+    if (questIds.length && failedCount === questIds.length) status = 'FAILED'
+    await connection.execute(
+      `INSERT INTO cycle_story_threads (story_cycle_id, story_thread_id, status, introduced_at_turn, progress_json, resolved_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE status = IF(status IN ('COMPLETED','FAILED'), status, VALUES(status)), progress_json = VALUES(progress_json), resolved_at = COALESCE(resolved_at, VALUES(resolved_at))`,
+      [state.run.id, thread.id, status, Number(turnRows[0]?.total_turns || 0), JSON.stringify({ completedQuestCount: completedCount, requiredCompleted, missingItems, relatedQuestIds: questIds }), ['COMPLETED', 'FAILED'].includes(status) ? new Date() : null],
+    )
+    result.storyThreads.push({ key: thread.thread_key, title: thread.title, status, completedQuestCount: completedCount, requiredCompleted, missingItems })
+  }
+}
+
+async function updateFactionReputation(connection, state, signatures, result) {
+  result.reputation ||= []
+  const positive = signatures.some((signature) => ['protect', 'spare', 'heal', 'befriend', 'show_mercy', 'negotiate'].includes(signature))
+  const negative = signatures.some((signature) => ['refuse_cruel_order'].includes(signature)) ? 0 : signatures.some((signature) => ['cruelty', 'betray_ally', 'harm_hatchling'].includes(signature)) ? -3 : 0
+  const delta = positive ? 1 : negative
+  if (!delta) return
+  const [factions] = await connection.execute('SELECT id, faction_key, name FROM factions WHERE dungeon_id = ?', [state.currentDungeon.id])
+  if (!factions[0]) return
+  await connection.execute(
+    `INSERT INTO cycle_faction_reputation (story_cycle_id, faction_id, reputation, standing, reasons_json)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE reputation = GREATEST(-100, LEAST(100, reputation + VALUES(reputation))),
+       standing = CASE WHEN reputation + VALUES(reputation) >= 60 THEN 'honored' WHEN reputation + VALUES(reputation) >= 25 THEN 'trusted' WHEN reputation + VALUES(reputation) <= -60 THEN 'hated' WHEN reputation + VALUES(reputation) <= -25 THEN 'hostile' WHEN reputation + VALUES(reputation) < 0 THEN 'wary' ELSE 'neutral' END,
+       reasons_json = VALUES(reasons_json)`,
+    [state.run.id, factions[0].id, delta, delta > 0 ? 'neutral' : 'wary', JSON.stringify({ lastSignatures: signatures, floorId: state.run.current_floor_id })],
+  )
+  const [updated] = await connection.execute('SELECT reputation, standing FROM cycle_faction_reputation WHERE story_cycle_id = ? AND faction_id = ?', [state.run.id, factions[0].id])
+  result.reputation.push({ factionKey: factions[0].faction_key, name: factions[0].name, change: delta, reputation: updated[0].reputation, standing: updated[0].standing })
+}
+
 async function processWorldEvents(connection, state, signatures, result) {
   result.events ||= []
   await connection.execute(
@@ -333,7 +408,7 @@ async function processWorldEvents(connection, state, signatures, result) {
 async function getOrStartEncounter(connection, state, actionType) {
   const [active] = await connection.execute("SELECT * FROM combat_encounters WHERE story_cycle_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [state.run.id])
   if (active[0]) return active[0]
-  if (actionType !== 'attack') return null
+  if (!['attack', 'social', 'analyze', 'defend', 'dodge'].includes(actionType)) return null
 
   const isBossFloor = state.currentFloor.floor_type === 'boss'
   if (isBossFloor) {
@@ -650,7 +725,7 @@ async function resolveMultiCombat(connection, state, encounter, action, actionTy
   result.combat = { encounterId: encounter.id, type: encounter.encounter_type, round: encounter.round_number, target: target.display_name, enemies: enemies.map((entry) => ({ name: entry.display_name, hp: entry.current_hp, maxHp: entry.max_hp })) }
   if (actionType === 'flee' && await attemptEscape(connection, state, encounter, result)) return false
 
-  if (actionType === 'social' && signatures.some((value) => ['spare', 'befriend', 'negotiate'].includes(value)) && target.participant_type === 'monster') {
+  if (actionType === 'social' && result.successLevel !== 'failure' && signatures.some((value) => ['spare', 'befriend', 'negotiate'].includes(value)) && target.participant_type === 'monster') {
     await syncParticipant(connection, state, target, target.current_hp, 'spared')
     enemies = enemies.filter((entry) => entry.id !== target.id)
     result.combat.status = enemies.length ? 'active' : 'resolved_peacefully'
@@ -820,12 +895,14 @@ async function tickStatusEffects(connection, state, result) {
 async function initializeFloor(connection, state, dungeonId, floorId) {
   const [floorRows] = await connection.execute('SELECT floor_type, purpose_type FROM dungeon_floors WHERE id = ?', [floorId])
   const floor = floorRows[0]
-  const combatRequired = floor.floor_type === 'boss'
+  const [threatRows] = await connection.execute('SELECT COUNT(*) AS count FROM world_monsters WHERE habitat_floor_id = ?', [floorId])
+  const encounterRequired = floor.floor_type === 'boss' || Number(threatRows[0].count) > 0
+  const decisionRequired = ['puzzle', 'mystery', 'npc_decision', 'moral_decision', 'quiet'].includes(floor.purpose_type)
   await connection.execute(
     `INSERT INTO floor_runtime_states (story_cycle_id, floor_id, status, objective_required, combat_required, entered_at, state_json)
-     VALUES (?, ?, 'active', ?, ?, CURRENT_TIMESTAMP, '{}')
-     ON DUPLICATE KEY UPDATE status = IF(status = 'cleared', status, 'active'), entered_at = COALESCE(entered_at, CURRENT_TIMESTAMP)`,
-    [state.run.id, floorId, floor.floor_type === 'boss' ? 1 : 3, combatRequired ? 1 : 0],
+     VALUES (?, ?, 'active', ?, ?, CURRENT_TIMESTAMP, ?)
+     ON DUPLICATE KEY UPDATE status = IF(status = 'cleared', status, 'active'), combat_required = VALUES(combat_required), state_json = VALUES(state_json), entered_at = COALESCE(entered_at, CURRENT_TIMESTAMP)`,
+    [state.run.id, floorId, floor.floor_type === 'boss' ? 1 : 3, encounterRequired ? 1 : 0, JSON.stringify({ decisionRequired, purposeType: floor.purpose_type })],
   )
   await connection.execute(
     `INSERT IGNORE INTO cycle_npc_states (story_cycle_id, npc_id, current_floor_id, relationship_json, dialogue_state_json)
@@ -860,16 +937,38 @@ async function initializeFloor(connection, state, dungeonId, floorId) {
   }
 }
 
+function evaluateFloorGate({ runtime, runtimeState, bossFloor, activeBoss, result, progress }) {
+  const savedBossVictory = bossFloor && ((activeBoss?.current_hp !== null && activeBoss?.current_hp !== undefined && Number(activeBoss.current_hp) <= 0)
+    || ['defeated', 'spared'].includes(activeBoss?.status)
+    || Boolean(activeBoss?.encounter_state_json?.nonCombatVictory))
+  const encounterCompleted = Boolean(runtime.combat_completed) || (bossFloor
+    ? result.combat?.status === 'victory' || savedBossVictory
+    : ['victory', 'resolved_peacefully', 'escaped'].includes(result.combat?.status))
+  const decisionSignatures = new Set(['solve', 'analyze', 'remember', 'create', 'negotiate', 'befriend', 'protect', 'spare', 'refuse', 'heal', 'show_mercy', 'challenge_law', 'confess_truth'])
+  const decisionCompleted = Boolean(runtime.story_decision_completed) || (!runtimeState.decisionRequired ? true : result.signatures.some((signature) => decisionSignatures.has(signature)))
+  const encounterOngoing = result.combat?.status === 'active'
+  const ready = progress >= Number(runtime.objective_required) && (!runtime.combat_required || encounterCompleted) && decisionCompleted && !encounterOngoing
+  return { encounterCompleted, decisionCompleted, encounterOngoing, ready }
+}
+
 async function advanceFloorIfReady(connection, state, result) {
   const [runtimeRows] = await connection.execute('SELECT * FROM floor_runtime_states WHERE story_cycle_id = ? AND floor_id = ? FOR UPDATE', [state.run.id, state.run.current_floor_id])
   const runtime = runtimeRows[0]
   if (!runtime) return
-  const progress = Number(runtime.objective_progress) + result.floorProgressGain
-  const combatCompleted = runtime.combat_completed || ['victory', 'resolved_peacefully'].includes(result.combat?.status)
-  const encounterOngoing = result.combat?.status === 'active'
-  const ready = progress >= Number(runtime.objective_required) && (!runtime.combat_required || combatCompleted) && !encounterOngoing
-  await connection.execute('UPDATE floor_runtime_states SET scene_count = scene_count + 1, objective_progress = ?, combat_completed = ? WHERE story_cycle_id = ? AND floor_id = ?', [progress, combatCompleted ? 1 : 0, state.run.id, state.run.current_floor_id])
-  result.floor = { progress, required: Number(runtime.objective_required), ready }
+  const progress = Math.min(Number(runtime.objective_required), Number(runtime.objective_progress) + result.floorProgressGain)
+  const runtimeState = parseJson(runtime.state_json, {})
+  const bossFloor = state.currentFloor.floor_type === 'boss'
+  const { encounterCompleted, decisionCompleted, ready } = evaluateFloorGate({ runtime, runtimeState, bossFloor, activeBoss: state.activeBoss, result, progress })
+  await connection.execute('UPDATE floor_runtime_states SET scene_count = scene_count + 1, objective_progress = ?, combat_completed = ?, story_decision_completed = ? WHERE story_cycle_id = ? AND floor_id = ?', [progress, encounterCompleted ? 1 : 0, decisionCompleted ? 1 : 0, state.run.id, state.run.current_floor_id])
+  result.floor = {
+    progress,
+    required: Number(runtime.objective_required),
+    encounterRequired: Boolean(runtime.combat_required),
+    encounterCompleted: Boolean(encounterCompleted),
+    decisionRequired: Boolean(runtimeState.decisionRequired),
+    decisionCompleted: Boolean(decisionCompleted),
+    ready,
+  }
   if (!ready) return
 
   await connection.execute("UPDATE floor_runtime_states SET status = 'cleared', cleared_at = CURRENT_TIMESTAMP WHERE story_cycle_id = ? AND floor_id = ?", [state.run.id, state.run.current_floor_id])
@@ -927,15 +1026,20 @@ async function updateBehavior(connection, state, action, actionType, signatures,
   )
 }
 
-async function resolveTurn(state, action, interpretation = null, requestKey = null) {
+async function resolveTurn(state, action, interpretation = null, requestKey = null, options = {}) {
   const signatures = interpretation?.signatures?.length ? interpretation.signatures : deriveActionSignatures(action)
   const actionType = actionTypeFrom(signatures, interpretation)
   const usedSkill = findUsedSkill(action, state.skills)
+  const actionCheck = evaluateActionCheck(state, actionType, interpretation, options.actionCheckRoll)
+  const successLevel = actionCheck?.outcome || 'success'
+  const effectiveSignatures = successLevel === 'failure' ? [] : signatures
   const result = {
     actionType,
     interpretation,
-    signatures,
-    successLevel: 'success',
+    attemptedSignatures: signatures,
+    signatures: effectiveSignatures,
+    actionCheck,
+    successLevel,
     rewards: { xp: 0, gold: 0, soulEnergy: 0 },
     skillProgress: [],
     skillsUnlocked: [],
@@ -947,7 +1051,9 @@ async function resolveTurn(state, action, interpretation = null, requestKey = nu
     ultimateTrials: [],
     evolutionChoices: [],
     quests: [],
-    floorProgressGain: 1,
+    storyThreads: [],
+    reputation: [],
+    floorProgressGain: successLevel === 'failure' ? 0 : successLevel === 'exceptional' ? 2 : 1,
     combat: null,
     advanced: null,
     runCompleted: false,
@@ -974,17 +1080,19 @@ async function resolveTurn(state, action, interpretation = null, requestKey = nu
     }
     await connection.execute('UPDATE story_progress SET total_turns = total_turns + 1 WHERE story_cycle_id = ?', [state.run.id])
     await initializeFloor(connection, state, state.currentDungeon.id, state.run.current_floor_id)
-    await processCompanionAction(connection, state, action, signatures, result)
+    await processCompanionAction(connection, state, action, effectiveSignatures, result)
     await useConsumable(connection, state, action, result)
     const encounter = await getOrStartEncounter(connection, state, actionType)
-    const combatResolved = await resolveMultiCombat(connection, state, encounter, action, actionType, signatures, usedSkill, result)
+    const combatResolved = await resolveMultiCombat(connection, state, encounter, action, actionType, effectiveSignatures, usedSkill, result)
     if (encounter && !combatResolved && !['analyze', 'defend', 'dodge', 'heal', 'attack'].includes(actionType)) result.floorProgressGain = 0
     await useOwnedSkill(connection, state, usedSkill, result)
-    await progressSkills(connection, state, action, signatures, result.successLevel, result)
-    await updateQuests(connection, state, signatures, result)
-    await processWorldEvents(connection, state, signatures, result)
-    await processAdvancedSkills(connection, state, action, signatures, result)
-    await updateBehavior(connection, state, action, actionType, signatures, usedSkill)
+    await progressSkills(connection, state, action, effectiveSignatures, result.successLevel, result)
+    await updateQuests(connection, state, effectiveSignatures, result)
+    await updateStoryThreads(connection, state, result)
+    await updateFactionReputation(connection, state, effectiveSignatures, result)
+    await processWorldEvents(connection, state, effectiveSignatures, result)
+    await processAdvancedSkills(connection, state, action, effectiveSignatures, result)
+    await updateBehavior(connection, state, action, actionType, effectiveSignatures, usedSkill)
     await advanceFloorIfReady(connection, state, result)
     await tickStatusEffects(connection, state, result)
     const [health] = await connection.execute('SELECT hp FROM character_sheets WHERE character_life_id = ?', [state.run.character_life_id])
@@ -1008,4 +1116,4 @@ async function resolveTurn(state, action, interpretation = null, requestKey = nu
   return resolved
 }
 
-module.exports = { calculateEscapeChance, damageMultiplier, deriveActionSignatures, resolveTurn }
+module.exports = { calculateEscapeChance, damageMultiplier, deriveActionSignatures, evaluateActionCheck, evaluateFloorGate, resolveTurn }
