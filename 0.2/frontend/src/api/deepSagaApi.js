@@ -1,3 +1,5 @@
+import { fetchAuthStatus } from './authApi'
+import { expireStoredSession, SESSION_EXPIRED_MESSAGE } from './httpClient'
 import { request } from './httpClient'
 
 const DUNGEON_NAMES = [
@@ -25,7 +27,15 @@ function writeStory(player, messages) {
 }
 
 async function currentPlayer() {
-  const response = await request('/auth/me')
+  const response = await fetchAuthStatus()
+
+  if (!response.authenticated) {
+    expireStoredSession(response.message || SESSION_EXPIRED_MESSAGE)
+    const error = new Error(response.message || SESSION_EXPIRED_MESSAGE)
+    error.status = 401
+    throw error
+  }
+
   return response.data.player
 }
 

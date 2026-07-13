@@ -15,7 +15,11 @@ export async function loginPlayer({ identifier, password }) {
 }
 
 export async function fetchCurrentPlayer() {
-  return request('/auth/me')
+  const response = await fetchAuthStatus()
+  return {
+    ...response,
+    data: { player: response.authenticated ? response.data.player : null },
+  }
 }
 
 export async function fetchAuthStatus() {
