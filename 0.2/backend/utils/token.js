@@ -16,14 +16,19 @@ function sign(value, secret) {
 
 function createToken(player) {
   const secret = getSecret();
+  const playerId = player.player_id || player.playerId;
 
   if (!secret) {
     throw new Error("AUTH_TOKEN_SECRET or API_KEY is required");
   }
 
+  if (!playerId) {
+    throw new Error("A player ID is required to create an auth token");
+  }
+
   const header = base64Url({ alg: "HS256", typ: "JWT" });
   const payload = base64Url({
-    sub: player.player_id,
+    sub: playerId,
     email: player.email,
     exp: Date.now() + tokenTtlMs
   });
