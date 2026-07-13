@@ -62,6 +62,7 @@ const monsterRaces = [
 ];
 
 let schemaReady = null;
+const allowedPersonas = new Set(["ADMIN", "TRICKSTER", "SENSEI"]);
 
 function parseJson(value, fallback) {
   if (!value) return fallback;
@@ -91,6 +92,7 @@ function serializePlayer(row) {
   return {
     playerId: row.player_id,
     email: row.email,
+    narratorPersona: normalizePersona(row.narrator_persona),
     currentRun: Number(row.current_run || 1),
     cycleClears: Number(row.cycle_clears || 0),
     currentBody: parseJson(row.current_body, null),
@@ -98,6 +100,11 @@ function serializePlayer(row) {
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at
   };
+}
+
+function normalizePersona(persona) {
+  const normalized = String(persona || "ADMIN").trim().toUpperCase();
+  return allowedPersonas.has(normalized) ? normalized : "ADMIN";
 }
 
 function createPlayerId() {
@@ -115,6 +122,7 @@ async function ensurePlayerSchema() {
       player_id VARCHAR(32) NOT NULL UNIQUE,
       email VARCHAR(254) NOT NULL UNIQUE,
       password_hash VARCHAR(180) NOT NULL,
+      narrator_persona VARCHAR(24) NOT NULL DEFAULT 'ADMIN',
       current_run INT NOT NULL DEFAULT 1,
       cycle_clears INT NOT NULL DEFAULT 0,
       current_body JSON NULL,
@@ -129,12 +137,27 @@ async function ensurePlayerSchema() {
 
   try {
     await schemaReady;
+    await ensurePersonaColumn();
   } catch (error) {
     schemaReady = null;
     throw error;
   }
 
   return schemaReady;
+}
+
+async function ensurePersonaColumn() {
+  try {
+    await db.execute("ALTER TABLE deep_saga_players ADD COLUMN narrator_persona VARCHAR(24) NOT NULL DEFAULT 'ADMIN' AFTER password_hash");
+  } catch (error) {
+    const message = String(error.message || "").toLowerCase();
+
+    if (message.includes("duplicate") || message.includes("exists")) {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 async function findPlayerByIdentifier(identifier) {
@@ -145,11 +168,24 @@ async function findPlayerByIdentifier(identifier) {
   }
 
   const rows = await db.query(
-    "SELECT player_id, email, password_hash, current_run, cycle_clears, current_body, memory_log, created_at, last_login_at FROM deep_saga_players WHERE LOWER(email) = ? OR LOWER(player_id) = ? LIMIT 1",
+    "SELECT player_id, email, password_hash, narrator_persona, current_run, cycle_clears, current_body, memory_log, created_at, last_login_at FROM deep_saga_players WHERE LOWER(email) = ? OR LOWER(player_id) = ? LIMIT 1",
     [normalized, normalized]
   );
 
   return rows[0] || null;
+}
+
+async function updatePlayerPersona(playerId, persona) {
+  await ensurePlayerSchema();
+
+  const narratorPersona = normalizePersona(persona);
+  await db.execute(
+    "UPDATE deep_saga_players SET narrator_persona = ? WHERE player_id = ?",
+    [narratorPersona, playerId]
+  );
+
+  const player = await findPlayerByIdentifier(playerId);
+  return serializePlayer(player);
 }
 
 async function registerPlayer({ email, password }) {
@@ -206,7 +242,9 @@ module.exports = {
   ensurePlayerSchema,
   loginPlayer,
   monsterRaces,
+  normalizePersona,
   randomMonsterBody,
   registerPlayer,
-  serializePlayer
+  serializePlayer,
+  updatePlayerPersona
 };

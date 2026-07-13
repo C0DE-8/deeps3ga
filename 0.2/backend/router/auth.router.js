@@ -1,7 +1,7 @@
 const express = require("express");
 const { optionalAuth, requireAuth } = require("../middleware/auth");
 const { createToken } = require("../utils/token");
-const { loginPlayer, registerPlayer } = require("../services/player.service");
+const { loginPlayer, normalizePersona, registerPlayer, updatePlayerPersona } = require("../services/player.service");
 
 const router = express.Router();
 
@@ -87,6 +87,46 @@ router.get("/status", optionalAuth, (req, res) => {
     authenticated: true,
     data: { player: req.auth.player }
   });
+});
+
+router.get("/personas", (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      personas: [
+        {
+          key: "ADMIN",
+          name: "The Divine Administrator",
+          description: "Cold, analytical, survival-focused narration."
+        },
+        {
+          key: "TRICKSTER",
+          name: "The Chaotic Observer",
+          description: "Playful, mocking, dangerous narration with crooked hints."
+        },
+        {
+          key: "SENSEI",
+          name: "The Iron Mentor",
+          description: "Stern, tactical narration with battlefield lessons."
+        }
+      ]
+    }
+  });
+});
+
+router.patch("/persona", requireAuth, async (req, res) => {
+  try {
+    const narratorPersona = normalizePersona(req.body.persona);
+    const player = await updatePlayerPersona(req.auth.player.playerId, narratorPersona);
+
+    return res.json({
+      success: true,
+      message: "Narrator persona updated.",
+      data: { player }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Persona update failed.", error: error.message });
+  }
 });
 
 module.exports = router;

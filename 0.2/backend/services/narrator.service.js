@@ -1,3 +1,5 @@
+const { buildGameMasterPrompt } = require("../config/prompts");
+
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
   const race = body.race || "monster";
@@ -84,6 +86,7 @@ function buildContext(player, playerAction) {
   return {
     player: {
       playerId: player.playerId,
+      narratorPersona: player.narratorPersona || "ADMIN",
       run: player.currentRun,
       cycleClears: player.cycleClears
     },
@@ -112,6 +115,11 @@ function buildContext(player, playerAction) {
 
 async function callOpenAi(context) {
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const instructions = buildGameMasterPrompt({
+    persona: context.player?.narratorPersona || process.env.DEEP_SAGA_PERSONA || "ADMIN",
+    context
+  });
+
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -120,14 +128,7 @@ async function callOpenAi(context) {
     },
     body: JSON.stringify({
       model,
-      instructions: [
-        "You are the sole Game Master and narrator of Deep Saga.",
-        "Write in second person, like the player is reading and shaping a dark fantasy reincarnation novel.",
-        "Never break character with backend or system wording.",
-        "Use the supplied saved state as the source of truth.",
-        "Return exactly one JSON object with keys: narration, choices, stateChanges, recordChanges, memoryUpdates.",
-        "choices must be an array of 3 to 5 strings."
-      ].join(" "),
+      instructions,
       input: JSON.stringify(context)
     })
   });

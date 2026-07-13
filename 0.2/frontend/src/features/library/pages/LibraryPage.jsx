@@ -1,22 +1,50 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, BookOpen, CirclePlus, Crown, Skull } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { fetchPersonas, updateNarratorPersona } from '../../../api/authApi'
 import { fetchGameSaves, startGame } from '../../../api/deepSagaApi'
+import { useAuth } from '../../auth/useAuth'
 import { AppHeader } from '../../shell/AppHeader'
 import styles from './LibraryPage.module.css'
 
 export function LibraryPage() {
+  const { player, setPlayer } = useAuth()
   const [saves, setSaves] = useState([])
+  const [personas, setPersonas] = useState([])
   const [loading, setLoading] = useState(true)
+  const [personaSaving, setPersonaSaving] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  useEffect(() => { fetchGameSaves().then(setSaves).catch((e) => setError(e.message || 'The archive could not be opened.')).finally(() => setLoading(false)) }, [])
+  useEffect(() => {
+    Promise.all([fetchGameSaves(), fetchPersonas()])
+      .then(([saveList, personaResponse]) => {
+        setSaves(saveList)
+        setPersonas(personaResponse.data.personas || [])
+      })
+      .catch((e) => setError(e.message || 'The archive could not be opened.'))
+      .finally(() => setLoading(false))
+  }, [])
 
   async function begin() {
     setLoading(true)
     try { const game = await startGame(); navigate(`/read/${game.storyCycleId}`) }
     catch (e) { setError(e.message || 'A new life could not begin.'); setLoading(false) }
+  }
+
+  async function changePersona(event) {
+    const nextPersona = event.target.value
+    setPersonaSaving(true)
+    setError('')
+
+    try {
+      const response = await updateNarratorPersona(nextPersona)
+      setPlayer(response.data.player)
+    } catch (e) {
+      setError(e.message || 'The narrator persona could not be changed.')
+    } finally {
+      setPersonaSaving(false)
+    }
   }
 
   const active = saves.find((save) => ['opening_death', 'awake', 'in_progress'].includes(save.status))
@@ -26,6 +54,17 @@ export function LibraryPage() {
       <section className={styles.hero}>
         <p>Your soul archive</p>
         <h1>Every life leaves a page behind.</h1>
+        <div className={styles.personaPanel}>
+          <label htmlFor="narrator-persona">
+            <span>Narrator persona</span>
+            <select id="narrator-persona" value={player?.narratorPersona || 'ADMIN'} onChange={changePersona} disabled={personaSaving || !personas.length}>
+              {(personas.length ? personas : [{ key: 'ADMIN', name: 'The Divine Administrator' }]).map((persona) => (
+                <option key={persona.key} value={persona.key}>{persona.name}</option>
+              ))}
+            </select>
+          </label>
+          <p>{personas.find((persona) => persona.key === (player?.narratorPersona || 'ADMIN'))?.description || 'Choose how Deep Saga speaks to you.'}</p>
+        </div>
         <button onClick={active ? () => navigate(`/read/${active.story_cycle_id}`) : begin} disabled={loading}>
           {active ? <BookOpen size={19} /> : <CirclePlus size={19} />}{active ? 'Continue reading' : 'Begin a new life'}
         </button>

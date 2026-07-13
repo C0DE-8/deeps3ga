@@ -12,7 +12,7 @@ async function loadAuth(req) {
   }
 
   const rows = await db.query(
-    "SELECT player_id, email, current_run, cycle_clears, current_body, memory_log, created_at, last_login_at FROM deep_saga_players WHERE player_id = ? LIMIT 1",
+    "SELECT player_id, email, narrator_persona, current_run, cycle_clears, current_body, memory_log, created_at, last_login_at FROM deep_saga_players WHERE player_id = ? LIMIT 1",
     [payload.sub]
   );
 
