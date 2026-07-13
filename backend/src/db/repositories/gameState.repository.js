@@ -102,6 +102,7 @@ async function createGame(accountId) {
     await connection.execute("INSERT INTO story_progress (story_cycle_id, current_dungeon_id, current_floor_id, current_chapter, current_scene, story_state_json) VALUES (?, 1, 101, 1, 'last-breath', ?)", [storyCycleId, JSON.stringify({ chapter: 1, scene: 'last-breath', legacyHeroId: legacy[0]?.id || null })])
     await connection.execute('INSERT INTO player_behavior_profiles (character_life_id) VALUES (?)', [lifeId])
     await connection.execute("INSERT INTO character_inventory (character_life_id, item_id, quantity, equipped_slot, item_state_json) SELECT ?, id, 1, CASE item_key WHEN 'rust-dagger' THEN 'weapon' WHEN 'torn-cloak' THEN 'armor' END, '{}' FROM items WHERE item_key IN ('rust-dagger', 'torn-cloak')", [lifeId])
+    await connection.execute("INSERT IGNORE INTO equipment_states (character_inventory_id, bonuses_json) SELECT id, '{}' FROM character_inventory WHERE character_life_id = ? AND equipped_slot IS NOT NULL", [lifeId])
     await connection.execute("INSERT INTO character_skills (character_life_id, skill_id) SELECT ?, id FROM skills WHERE skill_key IN ('brace', 'soul-echo')", [lifeId])
     await connection.execute('INSERT INTO cycle_dungeon_progress (story_cycle_id, dungeon_id, highest_floor) VALUES (?, 1, 1)', [storyCycleId])
     await connection.execute("INSERT INTO cycle_npc_states (story_cycle_id, npc_id, current_floor_id, relationship_json, dialogue_state_json) SELECT ?, id, current_floor_id, '{}', '{}' FROM world_npcs WHERE current_floor_id = 101", [storyCycleId])
@@ -132,13 +133,13 @@ async function getGameState(storyCycleId) {
   ])
   if (!run) return null
 
-  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, companionMemories, skills, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, adaptations, legacyHeroes] = await Promise.all([
+  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, companionMemories, companionSoulMemories, companionInjuries, skills, equipment, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, combatParticipants, cycleEvents, achievements, familyMastery, evolutionChoices, ultimateTrials, adaptations, legacyHeroes] = await Promise.all([
     query('SELECT * FROM character_sheets WHERE character_life_id = ?', [run.character_life_id]),
     query('SELECT * FROM dungeons WHERE id = ?', [run.current_dungeon_id]),
     query('SELECT * FROM dungeon_floors WHERE id = ?', [run.current_floor_id]),
     query(
       `SELECT n.*, ns.life_status AS run_life_status, ns.relationship_json AS run_relationship_json,
-              ns.dialogue_state_json, ns.present
+              ns.dialogue_state_json, ns.present, ns.recruitment_status
          FROM cycle_npc_states ns JOIN world_npcs n ON n.id = ns.npc_id
         WHERE ns.story_cycle_id = ? AND ns.current_floor_id = ? AND ns.present = 1`,
       [storyCycleId, run.current_floor_id],
@@ -183,15 +184,18 @@ async function getGameState(storyCycleId) {
         WHERE c.story_cycle_id = ? AND c.active = 1 ORDER BY cm.created_at`,
       [storyCycleId],
     ),
+    query('SELECT world_npc_id, memory_type, summary, emotional_weight, facts_json, created_at FROM companion_reincarnation_memories WHERE soul_profile_id = ? ORDER BY created_at DESC LIMIT 30', [run.soul_profile_id]),
+    query(`SELECT ci.companion_id, ci.name, ci.severity, ci.effects_json, ci.created_at FROM companion_injuries ci JOIN companions c ON c.id = ci.companion_id WHERE c.story_cycle_id = ? AND ci.healed_at IS NULL`, [storyCycleId]),
     query(
-      `SELECT s.skill_key, s.name, s.skill_type, s.description, s.effects_json,
+      `SELECT s.skill_key, s.family_id, s.name, s.skill_type, s.category, s.rarity, s.visibility, s.family_tier, s.description, s.identity_text, s.effects_json, s.evolution_rules_json,
               cs.skill_level, cs.skill_xp, cs.xp_needed, cs.unlocked, cs.times_used, cs.last_used_at, cs.equipped
          FROM character_skills cs JOIN skills s ON s.id = cs.skill_id
         WHERE cs.character_life_id = ?`,
       [run.character_life_id],
     ),
+    query(`SELECT ci.id AS inventory_id, ci.equipped_slot, es.durability, es.max_durability, es.upgrade_level, es.bound_to_soul, es.bonuses_json FROM character_inventory ci JOIN equipment_states es ON es.character_inventory_id = ci.id WHERE ci.character_life_id = ?`, [run.character_life_id]),
     query(
-      `SELECT i.item_key, i.name, i.item_type, i.description, i.rarity, i.effects_json,
+      `SELECT ci.id AS inventory_id, i.item_key, i.name, i.item_type, i.description, i.rarity, i.effects_json,
               ci.quantity, ci.equipped_slot, ci.item_state_json
          FROM character_inventory ci JOIN items i ON i.id = ci.item_id
         WHERE ci.character_life_id = ?`,
@@ -210,6 +214,12 @@ async function getGameState(storyCycleId) {
     query('SELECT event_type, source_type, source_id, amount, summary, payload_json, created_at FROM character_progression_events WHERE story_cycle_id = ? ORDER BY id DESC LIMIT 30', [storyCycleId]),
     query('SELECT event_type, event_key, event_payload_json, created_at FROM game_engine_events WHERE story_cycle_id = ? ORDER BY id DESC LIMIT 30', [storyCycleId]),
     query("SELECT id, encounter_type, status, round_number, state_json, started_at FROM combat_encounters WHERE story_cycle_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [storyCycleId]),
+    query(`SELECT cp.* FROM combat_participants cp JOIN combat_encounters ce ON ce.id = cp.combat_encounter_id WHERE ce.story_cycle_id = ? AND ce.status = 'active' ORDER BY cp.team, cp.speed_stat DESC`, [storyCycleId]),
+    query(`SELECT we.event_key, we.name, ce.status, ce.state_json, ce.triggered_at, ce.completed_at FROM cycle_events ce JOIN world_events we ON we.id = ce.world_event_id WHERE ce.story_cycle_id = ? ORDER BY we.id`, [storyCycleId]),
+    query('SELECT achievement_key, name, description, evidence_json, achieved_at FROM character_achievements WHERE character_life_id = ? ORDER BY achieved_at', [run.character_life_id]),
+    query(`SELECT sf.family_key, sf.name, cfm.mastery_xp, cfm.mastery_level, cfm.skills_unlocked, cfm.ultimate_trial_unlocked FROM character_family_mastery cfm JOIN skill_families sf ON sf.id = cfm.skill_family_id WHERE cfm.character_life_id = ?`, [run.character_life_id]),
+    query(`SELECT sec.id, source.name AS source_name, option.name AS option_name, option.skill_key AS option_key, sec.status, sec.offered_reason_json FROM skill_evolution_choices sec JOIN skills source ON source.id = sec.source_skill_id JOIN skills option ON option.id = sec.option_skill_id WHERE sec.character_life_id = ? AND sec.status = 'available'`, [run.character_life_id]),
+    query(`SELECT uts.trial_key, s.name AS skill_name, s.skill_key, uts.status, uts.progress, uts.required_progress, uts.conditions_json, uts.evidence_json FROM ultimate_skill_trials uts JOIN skills s ON s.id = uts.skill_id WHERE uts.character_life_id = ?`, [run.character_life_id]),
     query('SELECT * FROM dungeon_adaptations WHERE soul_profile_id = ? AND active = 1', [run.soul_profile_id]),
     query(
       `SELECT id, legacy_number, hero_name, final_title, identity_snapshot_json, character_snapshot_json,
@@ -231,7 +241,7 @@ async function getGameState(storyCycleId) {
     storyMemory: memories.map((row) => hydrate(row, [['facts_json', {}]])),
     previousChoices: choices.map((row) => hydrate(row, [['intent_json', {}], ['outcome_json', {}]])),
     companions: companions.map((row) => ({
-      ...hydrate(row, [['personality_json', {}], ['secrets_json', []], ['relationship_state_json', {}]]),
+      ...hydrate(row, [['personality_json', {}], ['secrets_json', []], ['relationship_state_json', {}], ['combat_style_json', {}]]),
       memories: companionMemories
         .filter((memory) => Number(memory.companion_id) === Number(row.id))
         .map((memory) => ({
@@ -241,8 +251,11 @@ async function getGameState(storyCycleId) {
           createdAt: memory.created_at,
         })),
     })),
-    skills: skills.map((row) => hydrate(row, [['effects_json', {}]])),
+    companionSoulMemories: companionSoulMemories.map((row) => hydrate(row, [['facts_json', {}]])),
+    companionInjuries: companionInjuries.map((row) => hydrate(row, [['effects_json', {}]])),
+    skills: skills.map((row) => hydrate(row, [['effects_json', {}], ['evolution_rules_json', {}]])),
     inventory: inventory.map((row) => hydrate(row, [['effects_json', {}], ['item_state_json', {}]])),
+    equipment: equipment.map((row) => hydrate(row, [['bonuses_json', {}]])),
     statusEffects: statuses.map((row) => hydrate(row, [['state_json', {}]])),
     traits: traits.map((row) => hydrate(row, [['effects_json', {}]])),
     injuries: injuries.map((row) => hydrate(row, [['effects_json', {}]])),
@@ -250,6 +263,12 @@ async function getGameState(storyCycleId) {
     progressionEvents: progressionEvents.map((row) => hydrate(row, [['payload_json', {}]])),
     engineEvents: engineEvents.map((row) => hydrate(row, [['event_payload_json', {}]])),
     activeEncounter: hydrate(activeEncounters[0], [['state_json', {}]]),
+    combatParticipants: combatParticipants.map((row) => hydrate(row, [['resistances_json', {}], ['weaknesses_json', {}], ['state_json', {}]])),
+    events: cycleEvents.map((row) => hydrate(row, [['state_json', {}]])),
+    achievements: achievements.map((row) => hydrate(row, [['evidence_json', {}]])),
+    familyMastery,
+    evolutionChoices: evolutionChoices.map((row) => hydrate(row, [['offered_reason_json', {}]])),
+    ultimateTrials: ultimateTrials.map((row) => hydrate(row, [['conditions_json', {}], ['evidence_json', {}]])),
     dungeonAdaptations: adaptations.map((row) => hydrate(row, [['affected_enemy_rules_json', {}]])),
     previousLegacyHero: hydrate(legacyHeroes[0], [['identity_snapshot_json', {}], ['character_snapshot_json', {}], ['skills_snapshot_json', []], ['equipment_snapshot_json', []], ['combat_style_snapshot_json', {}], ['boss_snapshot_json', {}]]),
   }

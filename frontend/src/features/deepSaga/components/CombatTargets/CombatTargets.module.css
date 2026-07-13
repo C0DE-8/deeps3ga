@@ -1,0 +1,5 @@
+.targets { margin-bottom:12px;padding:12px;border:1px solid #c9bda8;border-radius:6px;background:#e8e0d1; }
+.targets>span { display:flex;align-items:center;gap:6px;color:#7c633d;font-size:.7rem;font-weight:900;text-transform:uppercase; }
+.targets>div { display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:9px; }
+.targets button { min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid #b9ad98;border-radius:5px;background:#f7f1e7;color:#302c26;text-align:left; }
+.targets small { color:#81786a;font-size:.68rem;white-space:nowrap; }

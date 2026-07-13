@@ -1,4 +1,7 @@
+const crypto = require('crypto')
 const { withTransaction } = require('../../db/connection')
+const { closeCompanionsForDeath, processCompanionAction } = require('./companionEngine.service')
+const { processAdvancedSkills } = require('./advancedSkillEngine.service')
 
 function parseJson(value, fallback) {
   if (value === null || value === undefined) return fallback
@@ -142,6 +145,33 @@ async function awardCatalogItems(connection, state, itemNames, sourceType, sourc
   }
 }
 
+async function awardSkillProgressByKey(connection, state, progressByKey, sourceType, sourceId, result) {
+  for (const [skillKey, amountValue] of Object.entries(progressByKey || {})) {
+    const [skills] = await connection.execute('SELECT * FROM skills WHERE skill_key = ?', [skillKey])
+    const skill = skills[0]
+    if (!skill) continue
+    const amount = Math.max(1, Number(amountValue || 1))
+    const contextHash = crypto.createHash('sha256').update(`${state.run.character_life_id}:${skill.id}:${sourceType}:${sourceId}`).digest('hex')
+    await connection.execute(
+      `INSERT IGNORE INTO skill_progress_events (character_life_id, skill_id, story_cycle_id, action_text, action_signature, context_hash, success_level, progress_amount, eligible, evidence_json)
+       VALUES (?, ?, ?, ?, ?, ?, 'exceptional', ?, 1, ?)`,
+      [state.run.character_life_id, skill.id, state.run.id, `${sourceType} reward`, `${sourceType}_reward`, contextHash, amount, JSON.stringify({ sourceType, sourceId, floorId: state.run.current_floor_id })],
+    )
+    const [counts] = await connection.execute('SELECT COALESCE(SUM(progress_amount), 0) AS progress FROM skill_progress_events WHERE character_life_id = ? AND skill_id = ? AND eligible = 1', [state.run.character_life_id, skill.id])
+    const progress = Number(counts[0].progress)
+    const threshold = rarityThreshold[skill.rarity] || 5
+    result.skillProgress.push({ skillKey, name: skill.name, progress, required: threshold })
+    if (skill.visibility !== 'hidden' && progress >= threshold) {
+      const [inserted] = await connection.execute(
+        `INSERT IGNORE INTO character_skills (character_life_id, skill_id, skill_level, skill_xp, xp_needed, unlocked, discovered_at, discovery_context_json, equipped)
+         VALUES (?, ?, 1, 0, 100, 1, CURRENT_TIMESTAMP, ?, 0)`,
+        [state.run.character_life_id, skill.id, JSON.stringify({ sourceType, sourceId })],
+      )
+      if (inserted.affectedRows) result.skillsUnlocked.push({ skillKey, name: skill.name, identityText: skill.identity_text })
+    }
+  }
+}
+
 const skillCandidates = {
   bite: ['blood-fang'],
   consume: ['devour', 'predator'],
@@ -170,11 +200,16 @@ async function progressSkills(connection, state, action, signatures, successLeve
     const [owned] = await connection.execute('SELECT * FROM character_skills WHERE character_life_id = ? AND skill_id = ?', [state.run.character_life_id, skill.id])
     if (owned[0]) continue
 
-    await connection.execute(
-      `INSERT INTO skill_progress_events (character_life_id, skill_id, story_cycle_id, action_text, action_signature, success_level, progress_amount, evidence_json)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
-      [state.run.character_life_id, skill.id, state.run.id, action, signatures[0], successLevel, JSON.stringify({ signatures, floorId: state.run.current_floor_id })],
+    const normalizedAction = action.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
+    const contextHash = crypto.createHash('sha256').update(`${state.run.character_life_id}:${skill.id}:${state.run.current_floor_id}:${normalizedAction}`).digest('hex')
+    const [floorProgress] = await connection.execute("SELECT COUNT(*) AS count FROM skill_progress_events WHERE character_life_id = ? AND skill_id = ? AND JSON_UNQUOTE(JSON_EXTRACT(evidence_json, '$.floorId')) = ? AND eligible = 1", [state.run.character_life_id, skill.id, String(state.run.current_floor_id)])
+    if (Number(floorProgress[0].count) >= 2) continue
+    const [inserted] = await connection.execute(
+      `INSERT IGNORE INTO skill_progress_events (character_life_id, skill_id, story_cycle_id, action_text, action_signature, context_hash, success_level, progress_amount, eligible, evidence_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
+      [state.run.character_life_id, skill.id, state.run.id, action, signatures[0], contextHash, successLevel, JSON.stringify({ signatures, floorId: state.run.current_floor_id })],
     )
+    if (!inserted.affectedRows) continue
     const [counts] = await connection.execute("SELECT COALESCE(SUM(progress_amount), 0) AS progress FROM skill_progress_events WHERE character_life_id = ? AND skill_id = ? AND success_level IN ('success', 'exceptional')", [state.run.character_life_id, skill.id])
     const progress = Number(counts[0].progress)
     const threshold = rarityThreshold[skill.rarity] || 5
@@ -210,7 +245,7 @@ async function useOwnedSkill(connection, state, skill, result) {
       WHERE cs.character_life_id = ? AND s.skill_key = ?`,
     [level, xp, needed, state.run.character_life_id, skill.skill_key],
   )
-  result.skillUsed = { name: skill.name, level, xp, xpNeeded: needed }
+  result.skillUsed = { skillKey: skill.skill_key, name: skill.name, level, xp, xpNeeded: needed }
 }
 
 async function updateQuests(connection, state, signatures, result) {
@@ -241,7 +276,56 @@ async function updateQuests(connection, state, signatures, result) {
     const status = progress >= required ? 'completed' : 'active'
     await connection.execute('UPDATE cycle_quests SET status = ?, progress_json = ?, choices_json = ? WHERE story_cycle_id = ? AND quest_id = ?', [status, JSON.stringify({ progress, required, matched: [...new Set([...(progressState.matched || []), ...matched])] }), JSON.stringify(signatures), state.run.id, quest.id])
     result.quests.push({ key: quest.quest_key, name: quest.name, status, progress, required })
-    if (status === 'completed') await grantProgression(connection, state, parseJson(quest.rewards_json, {}), 'quest', quest.id, result)
+    if (status === 'completed') {
+      const rewards = parseJson(quest.rewards_json, {})
+      await grantProgression(connection, state, rewards, 'quest', quest.id, result)
+      if (rewards.item) await awardCatalogItems(connection, state, [rewards.item], 'quest', quest.id, result)
+      await awardSkillProgressByKey(connection, state, rewards.skillProgress, 'quest', quest.id, result)
+    }
+  }
+}
+
+async function processWorldEvents(connection, state, signatures, result) {
+  result.events ||= []
+  await connection.execute(
+    `INSERT IGNORE INTO cycle_events (story_cycle_id, world_event_id, status, state_json)
+     SELECT ?, id, 'available', '{}' FROM world_events WHERE floor_id = ?`,
+    [state.run.id, state.run.current_floor_id],
+  )
+  const [events] = await connection.execute(
+    `SELECT we.*, ce.status, ce.state_json FROM cycle_events ce JOIN world_events we ON we.id = ce.world_event_id
+      WHERE ce.story_cycle_id = ? AND ce.status IN ('available', 'triggered')`,
+    [state.run.id],
+  )
+  for (const event of events) {
+    const triggers = parseJson(event.trigger_rules_json, {})
+    let matches = (triggers.signatures || []).filter((signature) => signatures.includes(signature)).length
+    if (triggers.quest) {
+      const [quests] = await connection.execute(`SELECT cq.status FROM cycle_quests cq JOIN quests q ON q.id = cq.quest_id WHERE cq.story_cycle_id = ? AND q.quest_key = ?`, [state.run.id, triggers.quest])
+      if (quests[0]?.status === triggers.status) matches = Number(triggers.required || 1)
+    }
+    const stateData = parseJson(event.state_json, {})
+    const progress = Number(stateData.progress || 0) + matches
+    const required = Number(triggers.required || Math.max(1, (triggers.signatures || []).length))
+    if (!matches) continue
+    const complete = progress >= required
+    await connection.execute('UPDATE cycle_events SET status = ?, state_json = ?, triggered_at = COALESCE(triggered_at, CURRENT_TIMESTAMP), completed_at = ? WHERE story_cycle_id = ? AND world_event_id = ?', [complete ? 'completed' : 'triggered', JSON.stringify({ progress, required, signatures }), complete ? new Date() : null, state.run.id, event.id])
+    result.events.push({ key: event.event_key, name: event.name, status: complete ? 'completed' : 'triggered', progress, required })
+    if (!complete) continue
+    const outcomes = parseJson(event.outcomes_json, {})
+    await grantProgression(connection, state, { gold: outcomes.gold, soulEnergy: outcomes.soulEnergy }, 'event', event.id, result)
+    if (outcomes.item) await awardCatalogItems(connection, state, [outcomes.item], 'event', event.id, result)
+    await awardSkillProgressByKey(connection, state, outcomes.skillProgress, 'event', event.id, result)
+    if (outcomes.companionCandidate) {
+      await connection.execute("UPDATE cycle_npc_states cns JOIN world_npcs n ON n.id = cns.npc_id SET cns.recruitment_status = 'candidate' WHERE cns.story_cycle_id = ? AND n.name = ?", [state.run.id, outcomes.companionCandidate])
+    }
+    if (outcomes.achievement) {
+      await connection.execute(
+        `INSERT IGNORE INTO character_achievements (character_life_id, story_cycle_id, achievement_key, name, description, evidence_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [state.run.character_life_id, state.run.id, outcomes.achievement, event.name, event.description, JSON.stringify({ eventKey: event.event_key })],
+      )
+    }
   }
 }
 
@@ -386,6 +470,293 @@ async function resolveCombat(connection, state, encounter, action, actionType, s
   return false
 }
 
+async function useConsumable(connection, state, action, result) {
+  const [consumables] = await connection.execute(
+    `SELECT ci.id AS inventory_id, ci.quantity, i.id AS item_id, i.item_key, i.name, i.effects_json
+       FROM character_inventory ci JOIN items i ON i.id = ci.item_id
+      WHERE ci.character_life_id = ? AND i.item_type = 'consumable' AND ci.quantity > 0`,
+    [state.run.character_life_id],
+  )
+  const text = action.toLowerCase()
+  const item = consumables.find((entry) => text.includes(entry.name.toLowerCase()) || text.includes(entry.item_key.replaceAll('-', ' ')))
+  if (!item) return false
+  const effects = parseJson(item.effects_json, {})
+  await connection.execute('UPDATE character_sheets SET hp = LEAST(max_hp, hp + ?), mana = LEAST(max_mana, mana + ?) WHERE character_life_id = ?', [Number(effects.heal || 0), Number(effects.manaRestore || 0), state.run.character_life_id])
+  for (const statusKey of effects.statusRemove || []) {
+    await connection.execute(`UPDATE character_status_effects cse JOIN status_effects se ON se.id = cse.status_effect_id SET cse.removed_at = CURRENT_TIMESTAMP WHERE cse.character_life_id = ? AND se.status_key = ? AND cse.removed_at IS NULL`, [state.run.character_life_id, statusKey])
+  }
+  if (Number(item.quantity) <= 1) await connection.execute('DELETE FROM character_inventory WHERE id = ?', [item.inventory_id])
+  else await connection.execute('UPDATE character_inventory SET quantity = quantity - 1 WHERE id = ?', [item.inventory_id])
+  result.consumableUsed = { itemKey: item.item_key, name: item.name, healing: Number(effects.heal || 0), mana: Number(effects.manaRestore || 0) }
+  return true
+}
+
+async function equipmentBonuses(connection, characterLifeId) {
+  const [equipment] = await connection.execute(
+    `SELECT i.effects_json, es.bonuses_json, es.durability
+       FROM character_inventory ci JOIN items i ON i.id = ci.item_id
+       LEFT JOIN equipment_states es ON es.character_inventory_id = ci.id
+      WHERE ci.character_life_id = ? AND ci.equipped_slot IS NOT NULL`,
+    [characterLifeId],
+  )
+  return equipment.reduce((total, row) => {
+    if (row.durability !== null && Number(row.durability) <= 0) return total
+    const effects = { ...parseJson(row.effects_json, {}), ...parseJson(row.bonuses_json, {}) }
+    total.attack += Number(effects.attack || 0)
+    total.defense += Number(effects.defense || 0)
+    total.magic += Number(effects.thaumaturgy || effects.magic || 0)
+    return total
+  }, { attack: 0, defense: 0, magic: 0 })
+}
+
+async function ensureCombatParticipants(connection, state, encounter) {
+  await connection.execute(
+    `INSERT IGNORE INTO combat_participants (combat_encounter_id, participant_type, reference_id, display_name, team, current_hp, max_hp, attack_stat, defense_stat, speed_stat, resistances_json, weaknesses_json, state_json)
+     VALUES (?, 'player', ?, ?, 'player', ?, ?, ?, ?, ?, '{}', '{}', '{}')`,
+    [encounter.id, state.run.character_life_id, state.characterSheet.character_name, state.characterSheet.hp, state.characterSheet.max_hp, state.characterSheet.strength, state.characterSheet.defense, state.characterSheet.agility],
+  )
+  if (encounter.encounter_type === 'monster') {
+    const [monsters] = await connection.execute(
+      `SELECT cms.id, cms.current_hp, cms.max_hp, wm.name, wm.stats_json
+         FROM cycle_monster_states cms JOIN world_monsters wm ON wm.id = cms.monster_id
+        WHERE cms.story_cycle_id = ? AND cms.current_floor_id = ? AND cms.status = 'alive'`,
+      [state.run.id, state.run.current_floor_id],
+    )
+    for (const monster of monsters) {
+      const stats = parseJson(monster.stats_json, {})
+      await connection.execute(
+        `INSERT IGNORE INTO combat_participants (combat_encounter_id, participant_type, reference_id, display_name, team, current_hp, max_hp, attack_stat, defense_stat, speed_stat, resistances_json, weaknesses_json, state_json)
+         VALUES (?, 'monster', ?, ?, 'enemy', ?, ?, ?, ?, ?, ?, ?, '{}')`,
+        [encounter.id, monster.id, monster.name, monster.current_hp, monster.max_hp, Number(stats.attack || 6), Number(stats.defense || 3), Number(stats.speed || 5), JSON.stringify(stats.resistances || {}), JSON.stringify(stats.weaknesses || {})],
+      )
+    }
+  } else if (encounter.legacy_hero_id) {
+    const [rows] = await connection.execute('SELECT hero_name, character_snapshot_json FROM legacy_heroes WHERE id = ?', [encounter.legacy_hero_id])
+    const snapshot = parseJson(rows[0].character_snapshot_json, {})
+    await connection.execute(
+      `INSERT IGNORE INTO combat_participants (combat_encounter_id, participant_type, reference_id, display_name, team, current_hp, max_hp, attack_stat, defense_stat, speed_stat, resistances_json, weaknesses_json, state_json)
+       VALUES (?, 'legacy_boss', ?, ?, 'enemy', ?, ?, ?, ?, ?, '{}', '{}', ?)`,
+      [encounter.id, encounter.legacy_hero_id, rows[0].hero_name, Number(snapshot.hp || 200), Number(snapshot.hp || 200), Number(snapshot.stats?.strength || 20), Number(snapshot.stats?.defense || 15), Number(snapshot.stats?.agility || 10), JSON.stringify({ phase: 1 })],
+    )
+  } else {
+    const [bosses] = await connection.execute(`SELECT bs.current_hp, bs.max_hp, bp.boss_name, bp.mechanics_json FROM cycle_boss_states bs JOIN boss_profiles bp ON bp.id = bs.boss_profile_id WHERE bs.story_cycle_id = ? AND bs.boss_profile_id = ?`, [state.run.id, encounter.boss_profile_id])
+    const boss = bosses[0]
+    const mechanics = parseJson(boss.mechanics_json, {})
+    await connection.execute(
+      `INSERT IGNORE INTO combat_participants (combat_encounter_id, participant_type, reference_id, display_name, team, current_hp, max_hp, attack_stat, defense_stat, speed_stat, resistances_json, weaknesses_json, state_json)
+       VALUES (?, 'boss', ?, ?, 'enemy', ?, ?, ?, ?, ?, '{}', '{}', ?)`,
+      [encounter.id, encounter.boss_profile_id, boss.boss_name, boss.current_hp, boss.max_hp, 3 + Number(state.currentDungeon.dungeon_number), 5 + Number(state.currentDungeon.dungeon_number), 5 + Number(state.currentDungeon.dungeon_number), JSON.stringify({ phase: 1, mechanics })],
+    )
+  }
+  const [companions] = await connection.execute("SELECT * FROM companions WHERE story_cycle_id = ? AND active = 1 AND companion_status IN ('active', 'injured') AND hp > 0", [state.run.id])
+  for (const companion of companions) {
+    await connection.execute(
+      `INSERT IGNORE INTO combat_participants (combat_encounter_id, participant_type, reference_id, display_name, team, current_hp, max_hp, attack_stat, defense_stat, speed_stat, resistances_json, weaknesses_json, state_json)
+       VALUES (?, 'companion', ?, ?, 'player', ?, ?, ?, ?, ?, '{}', '{}', ?)`,
+      [encounter.id, companion.id, companion.name, companion.hp, companion.max_hp, companion.attack_stat, companion.defense_stat, companion.speed_stat, JSON.stringify({ role: companion.role_name })],
+    )
+  }
+  const [participants] = await connection.execute("SELECT * FROM combat_participants WHERE combat_encounter_id = ? AND status = 'active' ORDER BY speed_stat DESC, id", [encounter.id])
+  return participants.map((row) => ({ ...row, resistances_json: parseJson(row.resistances_json, {}), weaknesses_json: parseJson(row.weaknesses_json, {}), state_json: parseJson(row.state_json, {}) }))
+}
+
+function damageMultiplier(target, damageType) {
+  const resistance = Number(target.resistances_json?.[damageType] || 0)
+  const weakness = Number(target.weaknesses_json?.[damageType] || 0)
+  return Math.max(0.1, 1 - resistance + weakness)
+}
+
+function bossWeaknessMultiplier(target, action) {
+  const weaknesses = target.state_json?.mechanics?.weaknesses || []
+  const words = action.toLowerCase()
+  return weaknesses.some((weakness) => String(weakness).toLowerCase().split(/[^a-z]+/).filter((word) => word.length > 3).some((word) => words.includes(word))) ? 1.35 : 1
+}
+
+async function syncParticipant(connection, state, participant, hp, status = 'active') {
+  await connection.execute('UPDATE combat_participants SET current_hp = ?, status = ? WHERE id = ?', [Math.max(0, hp), status, participant.id])
+  if (participant.participant_type === 'player') await connection.execute('UPDATE character_sheets SET hp = ? WHERE character_life_id = ?', [Math.max(0, hp), state.run.character_life_id])
+  if (participant.participant_type === 'monster') await connection.execute('UPDATE cycle_monster_states SET current_hp = ?, status = ? WHERE id = ?', [Math.max(0, hp), status === 'defeated' ? 'defeated' : 'alive', participant.reference_id])
+  if (participant.participant_type === 'boss') await connection.execute('UPDATE cycle_boss_states SET current_hp = ?, status = ? WHERE story_cycle_id = ? AND boss_profile_id = ?', [Math.max(0, hp), status === 'defeated' ? 'defeated' : 'alive', state.run.id, participant.reference_id])
+  if (participant.participant_type === 'companion') await connection.execute('UPDATE companions SET hp = ?, companion_status = ? WHERE id = ?', [Math.max(0, hp), status === 'dead' ? 'dead' : hp < participant.max_hp * 0.3 ? 'injured' : 'active', participant.reference_id])
+}
+
+async function applyEnemyStatus(connection, state, enemy, target) {
+  if (target.participant_type !== 'player' || enemy.participant_type !== 'monster') return null
+  const [rows] = await connection.execute(`SELECT wm.behavior_json FROM cycle_monster_states cms JOIN world_monsters wm ON wm.id = cms.monster_id WHERE cms.id = ?`, [enemy.reference_id])
+  const statusKey = parseJson(rows[0]?.behavior_json, {}).statusOnHit
+  if (!statusKey) return null
+  const [effects] = await connection.execute('SELECT id, default_duration_turns FROM status_effects WHERE status_key = ?', [statusKey])
+  if (!effects[0]) return null
+  await connection.execute(
+    `INSERT INTO character_status_effects (character_life_id, status_effect_id, source_type, source_id, intensity, remaining_turns, state_json)
+     VALUES (?, ?, 'monster', ?, 1, ?, '{}')`,
+    [state.run.character_life_id, effects[0].id, enemy.reference_id, effects[0].default_duration_turns],
+  )
+  return statusKey
+}
+
+async function resolveMultiCombat(connection, state, encounter, action, actionType, signatures, usedSkill, result) {
+  if (!encounter) return false
+  if (actionType === 'flee') return resolveCombat(connection, state, encounter, action, actionType, signatures, usedSkill, result)
+  const participants = await ensureCombatParticipants(connection, state, encounter)
+  const player = participants.find((entry) => entry.participant_type === 'player')
+  let enemies = participants.filter((entry) => entry.team === 'enemy')
+  const companions = participants.filter((entry) => entry.participant_type === 'companion')
+  const target = enemies.find((entry) => action.toLowerCase().includes(entry.display_name.toLowerCase())) || enemies.sort((a, b) => a.current_hp - b.current_hp)[0]
+  if (!target) return false
+  result.combat = { encounterId: encounter.id, type: encounter.encounter_type, round: encounter.round_number, target: target.display_name, enemies: enemies.map((entry) => ({ name: entry.display_name, hp: entry.current_hp, maxHp: entry.max_hp })) }
+
+  if (actionType === 'social' && signatures.some((value) => ['spare', 'befriend', 'negotiate'].includes(value)) && target.participant_type === 'monster') {
+    await syncParticipant(connection, state, target, target.current_hp, 'spared')
+    enemies = enemies.filter((entry) => entry.id !== target.id)
+    result.combat.status = enemies.length ? 'active' : 'resolved_peacefully'
+    if (!enemies.length) await connection.execute("UPDATE combat_encounters SET status = 'resolved_peacefully', ended_at = CURRENT_TIMESTAMP WHERE id = ?", [encounter.id])
+    result.floorProgressGain += enemies.length ? 1 : 2
+    return !enemies.length
+  }
+
+  const bonuses = await equipmentBonuses(connection, state.run.character_life_id)
+  const damageType = signatures.includes('magic') ? (action.toLowerCase().includes('fire') ? 'fire' : 'magic') : 'physical'
+  let playerDamage = 0
+  if (actionType === 'attack') {
+    const base = damageType === 'physical' ? Number(state.characterSheet.strength) + bonuses.attack : Number(state.characterSheet.thaumaturgy) + bonuses.magic
+    playerDamage = Math.max(1, Math.floor((base + Number(state.characterSheet.level) * 2 + (usedSkill ? Number(usedSkill.skill_level || 1) * 3 : 0) - Number(target.defense_stat) * 0.35) * damageMultiplier(target, damageType) * bossWeaknessMultiplier(target, action)))
+  }
+  if (actionType === 'heal') {
+    const healing = Math.max(5, Number(state.characterSheet.resolve_stat) + Number(state.characterSheet.level) * 2)
+    player.current_hp = Math.min(player.max_hp, player.current_hp + healing)
+    await syncParticipant(connection, state, player, player.current_hp)
+    result.combat.healing = healing
+  }
+  target.current_hp -= playerDamage
+  await connection.execute(`INSERT INTO combat_action_logs (combat_encounter_id, round_number, actor_type, actor_id, action_type, action_text, damage, result_json) VALUES (?, ?, 'player', ?, ?, ?, ?, ?)`, [encounter.id, encounter.round_number, state.run.character_life_id, actionType, action, playerDamage, JSON.stringify({ target: target.display_name, damageType })])
+
+  for (const companion of companions) {
+    if (target.current_hp <= 0) break
+    const role = companion.state_json?.role
+    if (role === 'healer' && player.current_hp < player.max_hp * 0.5) {
+      const healing = Math.max(5, Math.floor(companion.attack_stat * 0.8))
+      player.current_hp = Math.min(player.max_hp, player.current_hp + healing)
+      await syncParticipant(connection, state, player, player.current_hp)
+      result.companionActions ||= []
+      result.companionActions.push({ name: companion.display_name, action: 'heal', healing })
+    } else {
+      const damage = Math.max(1, Math.floor(companion.attack_stat - target.defense_stat * 0.3))
+      target.current_hp -= damage
+      result.companionActions ||= []
+      result.companionActions.push({ name: companion.display_name, action: 'attack', target: target.display_name, damage })
+      await connection.execute(`INSERT INTO combat_action_logs (combat_encounter_id, round_number, actor_type, actor_id, action_type, action_text, damage, result_json) VALUES (?, ?, 'companion', ?, 'attack', ?, ?, ?)`, [encounter.id, encounter.round_number, companion.reference_id, `${companion.display_name} attacks ${target.display_name}.`, damage, JSON.stringify({ target: target.id })])
+    }
+  }
+
+  result.combat.playerDamage = playerDamage
+  result.combat.enemyName = target.display_name
+  result.combat.enemyHp = Math.max(0, target.current_hp)
+  if (target.current_hp <= 0) {
+    await syncParticipant(connection, state, target, 0, 'defeated')
+    if (target.participant_type === 'monster') {
+      const [rewardRows] = await connection.execute(`SELECT cms.xp_reward, cms.gold_reward, wm.loot_json FROM cycle_monster_states cms JOIN world_monsters wm ON wm.id = cms.monster_id WHERE cms.id = ?`, [target.reference_id])
+      await grantProgression(connection, state, { xp: rewardRows[0].xp_reward, gold: rewardRows[0].gold_reward }, 'monster', target.reference_id, result)
+      await awardCatalogItems(connection, state, parseJson(rewardRows[0].loot_json, []), 'monster', target.reference_id, result)
+    }
+    enemies = enemies.filter((entry) => entry.id !== target.id)
+    if (!enemies.length) {
+      await connection.execute("UPDATE combat_encounters SET status = 'victory', ended_at = CURRENT_TIMESTAMP WHERE id = ?", [encounter.id])
+      if (target.participant_type !== 'monster') {
+        if (target.participant_type === 'boss') await connection.execute("UPDATE cycle_boss_states SET status = 'defeated', defeated_at = CURRENT_TIMESTAMP WHERE story_cycle_id = ? AND boss_profile_id = ?", [state.run.id, target.reference_id])
+        await grantProgression(connection, state, { xp: 100 + Number(state.currentDungeon.dungeon_number) * 50, gold: 50 + Number(state.currentDungeon.dungeon_number) * 25, soulEnergy: 10 * Number(state.currentDungeon.dungeon_number) }, 'boss', target.reference_id, result)
+        if (target.participant_type === 'boss') {
+          const [bossRewards] = await connection.execute('SELECT mechanics_json FROM boss_profiles WHERE id = ?', [target.reference_id])
+          await awardCatalogItems(connection, state, parseJson(bossRewards[0]?.mechanics_json, {}).rewards || [], 'boss', target.reference_id, result)
+        }
+      }
+      result.combat.status = 'victory'
+      result.floorProgressGain += 3
+      return true
+    }
+  } else {
+    await syncParticipant(connection, state, target, target.current_hp)
+  }
+
+  const playerDefense = Number(state.characterSheet.defense) + bonuses.defense
+  for (const enemy of enemies) {
+    const possibleTargets = [player, ...companions.filter((entry) => entry.current_hp > 0)]
+    const enemyTarget = possibleTargets[(Number(encounter.round_number) + Number(enemy.id)) % possibleTargets.length]
+    const reduction = enemyTarget.participant_type === 'player' && actionType === 'defend' ? 0.4 : enemyTarget.participant_type === 'player' && actionType === 'dodge' ? 0.6 : 1
+    const defense = enemyTarget.participant_type === 'player' ? playerDefense : enemyTarget.defense_stat
+    const damage = Math.max(1, Math.floor((Number(enemy.attack_stat) - defense * 0.45) * reduction))
+    enemyTarget.current_hp -= damage
+    await syncParticipant(connection, state, enemyTarget, enemyTarget.current_hp, enemyTarget.current_hp <= 0 ? (enemyTarget.participant_type === 'companion' ? 'dead' : 'defeated') : 'active')
+    if (enemyTarget.participant_type === 'companion' && enemyTarget.current_hp <= enemyTarget.max_hp * 0.3) {
+      const dead = enemyTarget.current_hp <= 0
+      await connection.execute(
+        `INSERT INTO companion_injuries (companion_id, combat_encounter_id, name, severity, effects_json)
+         SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM companion_injuries WHERE companion_id = ? AND healed_at IS NULL AND name = ?)`,
+        [enemyTarget.reference_id, encounter.id, dead ? 'Fatal Battle Wound' : 'Severe Battle Wound', dead ? 'critical' : 'major', JSON.stringify({ combatPenalty: dead ? 1 : 0.25 }), enemyTarget.reference_id, dead ? 'Fatal Battle Wound' : 'Severe Battle Wound'],
+      )
+      const [companionRows] = await connection.execute('SELECT * FROM companions WHERE id = ?', [enemyTarget.reference_id])
+      const companion = companionRows[0]
+      await connection.execute(
+        `INSERT INTO companion_relationship_events (companion_id, story_cycle_id, event_type, summary, context_json)
+         VALUES (?, ?, ?, ?, ?)`,
+        [companion.id, state.run.id, dead ? 'died' : 'injured', dead ? `${companion.name} died in battle.` : `${companion.name} was seriously injured.`, JSON.stringify({ encounterId: encounter.id, enemy: enemy.display_name })],
+      )
+      if (dead && companion.world_npc_id) {
+        await connection.execute(
+          `INSERT INTO companion_reincarnation_memories (soul_profile_id, world_npc_id, source_story_cycle_id, memory_type, summary, emotional_weight, facts_json)
+           VALUES (?, ?, ?, 'death', ?, 100, ?)`,
+          [state.run.soul_profile_id, companion.world_npc_id, state.run.id, `${companion.name} died beside the player during Life ${state.run.life_number}.`, JSON.stringify({ encounterId: encounter.id })],
+        )
+      }
+    }
+    if (enemyTarget.participant_type === 'player' && damage > 0) {
+      await connection.execute(`UPDATE equipment_states es JOIN character_inventory ci ON ci.id = es.character_inventory_id SET es.durability = GREATEST(0, es.durability - 1) WHERE ci.character_life_id = ? AND ci.equipped_slot IS NOT NULL`, [state.run.character_life_id])
+    }
+    const status = await applyEnemyStatus(connection, state, enemy, enemyTarget)
+    await connection.execute(`INSERT INTO combat_action_logs (combat_encounter_id, round_number, actor_type, actor_id, action_type, action_text, damage, result_json) VALUES (?, ?, ?, ?, 'attack', ?, ?, ?)`, [encounter.id, encounter.round_number, enemy.participant_type === 'monster' ? 'monster' : 'boss', enemy.reference_id, `${enemy.display_name} attacks ${enemyTarget.display_name}.`, damage, JSON.stringify({ target: enemyTarget.id, status })])
+    result.enemyActions ||= []
+    result.enemyActions.push({ name: enemy.display_name, target: enemyTarget.display_name, damage, status })
+  }
+
+  if (target.participant_type === 'boss' || target.participant_type === 'legacy_boss') {
+    const ratio = Math.max(0, target.current_hp) / target.max_hp
+    const phase = ratio <= 0.33 ? 3 : ratio <= 0.66 ? 2 : 1
+    if (phase !== Number(target.state_json?.phase || 1)) {
+      target.state_json.phase = phase
+      await connection.execute('UPDATE combat_participants SET attack_stat = attack_stat + 2, state_json = ? WHERE id = ?', [JSON.stringify(target.state_json), target.id])
+      const phaseName = target.state_json?.mechanics?.phases?.[phase - 1] || `Phase ${phase}`
+      result.combat.phaseTransition = { phase, name: phaseName }
+    }
+  }
+  await connection.execute('UPDATE combat_encounters SET round_number = round_number + 1 WHERE id = ?', [encounter.id])
+  result.combat.status = 'active'
+  result.combat.remainingEnemies = enemies.map((entry) => entry.display_name)
+  return false
+}
+
+async function tickStatusEffects(connection, state, result) {
+  const [statuses] = await connection.execute(
+    `SELECT cse.id, cse.intensity, cse.remaining_turns, se.status_key, se.effects_json
+       FROM character_status_effects cse JOIN status_effects se ON se.id = cse.status_effect_id
+      WHERE cse.character_life_id = ? AND cse.removed_at IS NULL`,
+    [state.run.character_life_id],
+  )
+  result.statusChanges ||= []
+  for (const status of statuses) {
+    const effects = parseJson(status.effects_json, {})
+    const damage = effects.damageOverTime ? Math.max(1, Number(status.intensity) * 2) : 0
+    if (damage) {
+      await connection.execute('UPDATE character_sheets SET hp = GREATEST(0, hp - ?) WHERE character_life_id = ?', [damage, state.run.character_life_id])
+      result.statusChanges.push({ status: status.status_key, damage })
+    }
+    if (status.remaining_turns !== null) {
+      const remaining = Number(status.remaining_turns) - 1
+      await connection.execute('UPDATE character_status_effects SET remaining_turns = ?, removed_at = ? WHERE id = ?', [Math.max(0, remaining), remaining <= 0 ? new Date() : null, status.id])
+      if (remaining <= 0) result.statusChanges.push({ status: status.status_key, removed: true })
+    }
+  }
+}
+
 async function initializeFloor(connection, state, dungeonId, floorId) {
   const [floorRows] = await connection.execute('SELECT floor_type, purpose_type FROM dungeon_floors WHERE id = ?', [floorId])
   const floor = floorRows[0]
@@ -400,6 +771,14 @@ async function initializeFloor(connection, state, dungeonId, floorId) {
     `INSERT IGNORE INTO cycle_npc_states (story_cycle_id, npc_id, current_floor_id, relationship_json, dialogue_state_json)
      SELECT ?, id, ?, '{}', '{}' FROM world_npcs WHERE current_floor_id = ?`,
     [state.run.id, floorId, floorId],
+  )
+  await connection.execute(
+    `UPDATE cycle_npc_states cns JOIN world_npcs n ON n.id = cns.npc_id
+        SET cns.recruitment_status = 'candidate'
+      WHERE cns.story_cycle_id = ? AND cns.current_floor_id = ?
+        AND JSON_EXTRACT(n.personality_json, '$.companionRole') IS NOT NULL
+        AND cns.recruitment_status = 'unavailable'`,
+    [state.run.id, floorId],
   )
   await connection.execute(
     `INSERT INTO cycle_monster_states (story_cycle_id, monster_id, current_floor_id, current_hp, max_hp, xp_reward, gold_reward, state_json)
@@ -427,7 +806,8 @@ async function advanceFloorIfReady(connection, state, result) {
   if (!runtime) return
   const progress = Number(runtime.objective_progress) + result.floorProgressGain
   const combatCompleted = runtime.combat_completed || ['victory', 'resolved_peacefully'].includes(result.combat?.status)
-  const ready = progress >= Number(runtime.objective_required) && (!runtime.combat_required || combatCompleted)
+  const encounterOngoing = result.combat?.status === 'active'
+  const ready = progress >= Number(runtime.objective_required) && (!runtime.combat_required || combatCompleted) && !encounterOngoing
   await connection.execute('UPDATE floor_runtime_states SET scene_count = scene_count + 1, objective_progress = ?, combat_completed = ? WHERE story_cycle_id = ? AND floor_id = ?', [progress, combatCompleted ? 1 : 0, state.run.id, state.run.current_floor_id])
   result.floor = { progress, required: Number(runtime.objective_required), ready }
   if (!ready) return
@@ -489,6 +869,12 @@ async function resolveTurn(state, action) {
     skillProgress: [],
     skillsUnlocked: [],
     itemsAwarded: [],
+    companions: [],
+    events: [],
+    achievements: [],
+    familyMastery: [],
+    ultimateTrials: [],
+    evolutionChoices: [],
     quests: [],
     floorProgressGain: 1,
     combat: null,
@@ -500,20 +886,26 @@ async function resolveTurn(state, action) {
   await withTransaction(async (connection) => {
     await connection.execute('UPDATE story_progress SET total_turns = total_turns + 1 WHERE story_cycle_id = ?', [state.run.id])
     await initializeFloor(connection, state, state.currentDungeon.id, state.run.current_floor_id)
+    await processCompanionAction(connection, state, action, signatures, result)
+    await useConsumable(connection, state, action, result)
     const encounter = await getOrStartEncounter(connection, state, actionType)
-    const combatResolved = await resolveCombat(connection, state, encounter, action, actionType, signatures, usedSkill, result)
+    const combatResolved = await resolveMultiCombat(connection, state, encounter, action, actionType, signatures, usedSkill, result)
     if (encounter && !combatResolved && !['analyze', 'defend', 'dodge', 'heal', 'attack'].includes(actionType)) result.floorProgressGain = 0
     await useOwnedSkill(connection, state, usedSkill, result)
     await progressSkills(connection, state, action, signatures, result.successLevel, result)
     await updateQuests(connection, state, signatures, result)
+    await processWorldEvents(connection, state, signatures, result)
+    await processAdvancedSkills(connection, state, action, signatures, result)
     await updateBehavior(connection, state, actionType, signatures)
     await advanceFloorIfReady(connection, state, result)
+    await tickStatusEffects(connection, state, result)
     const [health] = await connection.execute('SELECT hp FROM character_sheets WHERE character_life_id = ?', [state.run.character_life_id])
     if (Number(health[0].hp) <= 0) {
       await connection.execute("UPDATE character_lives SET status = 'dead', death_scene = ?, ended_at = CURRENT_TIMESTAMP WHERE id = ?", [`Fell during combat on ${state.currentFloor.floor_name}.`, state.run.character_life_id])
       await connection.execute("UPDATE story_cycles SET status = 'dead', ended_at = CURRENT_TIMESTAMP WHERE id = ?", [state.run.id])
       await connection.execute('UPDATE soul_profiles SET total_deaths = total_deaths + 1 WHERE id = ?', [state.run.soul_profile_id])
       if (encounter) await connection.execute("UPDATE combat_encounters SET status = 'defeat', ended_at = CURRENT_TIMESTAMP WHERE id = ?", [encounter.id])
+      await closeCompanionsForDeath(connection, state)
       result.died = true
     }
     await recordEngineEvent(connection, state, 'turn_resolved', `turn-${Date.now()}`, result)

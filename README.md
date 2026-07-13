@@ -59,13 +59,13 @@ Action-based skill awarding                  Working for normal and secret skill
 Automatic XP and level progression           Working
 Quest objective resolution                   Working for seeded quests
 Automatic Floor and Realm advancement        Working
-Companion recruitment workflow               Not complete
+Companion recruitment and relationships      Working
 Death triggered naturally by combat          Working
 Full 50-Floor authored story catalog         Not complete
-Complete 100+ NPC catalog                     Not complete
-Complete 300+ monster catalog                 Not complete
-Complete 500-item catalog                     Not complete
-Complete 200-skill catalog                    Not complete
+NPC catalog                                   39 of 100+
+Monster catalog                               39 of 300+
+Item catalog                                  15 of 500
+Skill catalog                                 59 of 200
 End-to-end Legacy Boss encounter              Working
 ```
 
@@ -76,12 +76,12 @@ This means a user can now move through all 50 Floors under automatic mechanics, 
 The remaining game work should be completed in this order:
 
 1. Complete all authored Floor Stories and content targets.
-2. Add companion recruitment, departure, loyalty, and combat participation.
-3. Expand status effects, injuries, resistances, healing items, and equipment calculations.
-4. Add richer quest branches and permanent NPC or world consequences.
-5. Add special achievement evaluators for fully hidden and mythical skills.
-6. Expand combat targeting, multiple enemies, companion turns, and boss-specific mechanics.
-7. Balance every Realm with player testing instead of only deterministic simulation.
+2. Expand companion dialogue branches and unique personal quests.
+3. Expand status, resistance, equipment, and consumable content.
+4. Add more permanent NPC and world consequence branches.
+5. Add more unique achievements and Ultimate trials.
+6. Add more multi-enemy formations and Boss-specific phase actions.
+7. Balance every Realm with real player testing.
 
 ## What We Have
 
@@ -374,12 +374,13 @@ The project separates the world structure that already exists from the larger au
 | Floors | 50 | 50 | Complete structure, five per realm |
 | Floor descriptions and purposes | 50 | 50 | Seeded inside the floor records |
 | Separate story chapter records | 0 | 50+ | Awaiting full authored scenes |
-| NPCs | 19 | 100+ | Principal cast plus one new reincarnation-fantasy NPC per realm |
-| Monsters | 19 | 300+ | Introductory set plus one new adaptive monster per realm |
+| NPCs | 39 | 100+ | Principal cast plus recruitable, quest, merchant, healer, scout, and combat NPCs |
+| Monsters | 39 | 300+ | Adaptive monsters with skills, loot, statuses, resistances, and peaceful solutions |
 | Main Boss profiles | 10 | 10 | Complete initial boss set |
-| Items | 3 | 500 | Starter weapon, armor, and first boss relic |
-| Skills | 54 | 200 | Six families with normal, secret, hidden, and ultimate skills |
-| Quests | 0 | To be authored | Schema and run-state support exist |
+| Items | 15 | 500 | Weapons, armor, accessories, consumables, relics, quest items, and materials |
+| Skills | 59 | 200 | Six families with normal, secret, hidden, evolution, and ultimate skills |
+| Quests | 15 | More to be authored | Action objectives, failure rules, rewards, and skill progress |
+| World events | 10 | More to be authored | Triggered outcomes, memories, companion candidates, items, and achievements |
 | Active companions | 0 | Story-dependent | Created during player runs |
 | Legacy Heroes | 0 | Player-created | Created only after a completed run |
 
@@ -512,7 +513,7 @@ New characters automatically receive `Brace` and `Soul Echo`. Successful actions
 
 ### Signature Skill Families
 
-The seeded skill catalog contains 54 skills organized around six progression identities:
+The seeded skill catalog contains 59 skills organized around six progression identities:
 
 - Predator Family: Devour, Analyze, adaptation, consumption, and Evolution
 - Dragon Family: Dragon Breath, Dragon Scales, Dragon Fear, and sovereignty
@@ -527,7 +528,7 @@ Skill visibility is enforced by the database:
 - `secret`: may be hinted at through lore, trainers, discoveries, or family progression
 - `hidden`: never appears in the ordinary player catalog and has no normal unlock hint
 
-The current catalog contains 17 normal skills, 25 secret skills, and 12 hidden skills. Sixteen skills use ultimate mechanics, including mythical family conclusions and world-level authorities. The authenticated `GET /api/game/skills` endpoint excludes every hidden skill. God's Eye can inspect the complete catalog, and a player can see a hidden skill only after it belongs to their character.
+The current catalog contains 17 normal skills, 28 secret skills, and 14 hidden skills. Sixteen skills use ultimate mechanics, including mythical family conclusions and world-level authorities. The authenticated `GET /api/game/skills` endpoint excludes every hidden skill. God's Eye can inspect the complete catalog, and a player can see a hidden skill only after it belongs to their character.
 
 Examples of seeded hidden abilities include `Monarch's Authority`, `Time Fracture`, `World Rewrite`, `Absolute Predator`, `Void Dominion`, `Divine Evolution`, `Eternal Reincarnation`, `Soul Archive`, `Origin Magic`, and `Dimensional Rift`.
 
@@ -557,6 +558,10 @@ Player action
 The AI describes the result but cannot recalculate damage, grant rewards, move the player, complete quests, unlock skills, or decide victory. If the narrator service fails, a local fallback still reports the already-committed mechanical result without replaying the turn.
 
 Runtime records include Floor objective state, combat encounters, round-by-round actions, progression events, engine events, quest progress, skill evidence, Boss state, and Realm completion. `npm run simulate-journey` creates a temporary account, completes two full runs, verifies that the second run defeats the first Legacy Hero, and removes its test data afterward.
+
+Combat encounters now use participant records instead of assuming one enemy. The player can target a named enemy, companions take combat turns based on their role, and every active enemy receives a turn. Damage uses equipment bonuses, durability, damage type, resistance, weakness, defense, and action stance. Authored monster attacks can apply status effects. Consumables restore saved resources and remove configured statuses. Bosses read their named phase list and weaknesses from their database profile, gain phase bonuses at health thresholds, and report each transition to the narrator.
+
+Skill discovery rejects duplicate action evidence through a stable context hash and limits ordinary discovery progress to two eligible records per skill on one Floor. Hidden skills require stored achievements. Skills at sufficient level can offer explicit evolution choices, which the player must accept by name. Family mastery grows from use and discovery, while Ultimate skills remain locked behind family mastery and completed multi-step trials.
 
 ### Player Decisions
 
@@ -627,7 +632,7 @@ After all 10 realm bosses are recorded as defeated, completion creates a separat
 
 Companions are characters, not just stat bonuses.
 
-They should:
+They can:
 
 - Talk
 - Disagree
@@ -635,6 +640,8 @@ They should:
 - Hide secrets
 - Remember how the player treats them
 - Change how they behave based on trust, fear, loyalty, or betrayal
+
+Recruitable NPCs are marked by authored companion roles. The player can invite or reject them through natural-language actions. Recruited companions retain trust, loyalty, fear, betrayal, HP, combat statistics, role, and relationship history. They can attack, defend, or heal during multi-participant combat. Serious damage creates companion injuries, and companions can die, leave, or betray the player. Death and departure records are copied into soul-level companion memories so a later reincarnation can remember someone even when that NPC sees a new face.
 
 ### Living Dungeon
 

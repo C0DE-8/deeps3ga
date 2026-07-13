@@ -5,6 +5,7 @@ import { continueNarrative, fetchGameState } from '../../../../api/deepSagaApi'
 import { AppHeader } from '../../../shell/AppHeader/AppHeader'
 import { CharacterSheet } from '../../components/CharacterSheet/CharacterSheet'
 import { ChoiceComposer } from '../../components/ChoiceComposer/ChoiceComposer'
+import { CombatTargets } from '../../components/CombatTargets/CombatTargets'
 import { EngineResults } from '../../components/EngineResults/EngineResults'
 import { StatusBar } from '../../components/StatusBar/StatusBar'
 import { StoryPanel } from '../../components/StoryPanel/StoryPanel'
@@ -49,7 +50,14 @@ function characterFromState(state) {
     traits: [...(sheet.traits_json || []).map((trait) => trait.name || String(trait)), ...state.traits.map((trait) => trait.name)],
     statuses: state.statusEffects.map((status) => `${status.name}${status.remaining_turns === null ? '' : ` · ${status.remaining_turns} turns`}`),
     injuries: state.injuries.map((injury) => `${injury.name} · ${injury.severity}`),
-    companions: state.companions.map((companion) => companion.name),
+    companions: state.companions.map((companion) => `${companion.name} · ${companion.companion_status} · Trust ${companion.trust} · Loyalty ${companion.loyalty}`),
+    equipment: state.equipment.map((entry) => {
+      const item = state.inventory.find((candidate) => candidate.inventory_id === entry.inventory_id)
+      return `${item?.name || entry.equipped_slot} · ${entry.durability}/${entry.max_durability}`
+    }),
+    familyMastery: state.familyMastery.map((family) => `${family.name} · Mastery ${family.mastery_level} · ${family.mastery_xp} XP`),
+    evolutions: state.evolutionChoices.map((choice) => `${choice.source_name} → ${choice.option_name}`),
+    ultimateTrials: state.ultimateTrials.map((trial) => `${trial.skill_name} · ${trial.status} · ${trial.progress}/${trial.required_progress}`),
     memories: state.storyMemory.map((memory) => memory.summary),
     position: {
       dungeon: state.currentDungeon.name,
@@ -124,6 +132,7 @@ export function StorySimulation() {
         {error && <p className={styles.error} role="alert">{error}</p>}
         <div className={styles.currentChoice}>
           {busy && scenes.length === 1 && <p className={styles.loading}>The record is opening...</p>}
+          {!storyEnded && <CombatTargets participants={state?.combatParticipants} disabled={busy} onTarget={(action) => submitAction(action, 'suggested')} />}
           {storyEnded ? <Link className={styles.archiveLink} to="/library">Return to the soul archive</Link> : <ChoiceComposer choices={latest.choices || []} customAction={customAction} onCustomActionChange={setCustomAction} onSubmitAction={submitAction} disabled={busy} />}
         </div>
       </div>

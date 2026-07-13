@@ -18,6 +18,17 @@ const tableConfig = {
   choices: { table: 'choice_history', order: 'created_at' },
   companions: { table: 'companions', order: 'created_at' },
   legacyHeroes: { table: 'legacy_heroes', order: 'created_at' },
+  worldEvents: { table: 'world_events', order: 'id' },
+  cycleEvents: { table: 'cycle_events', order: 'story_cycle_id' },
+  combatEncounters: { table: 'combat_encounters', order: 'started_at' },
+  combatParticipants: { table: 'combat_participants', order: 'id' },
+  companionRelationships: { table: 'companion_relationship_events', order: 'created_at' },
+  companionSoulMemories: { table: 'companion_reincarnation_memories', order: 'created_at' },
+  companionInjuries: { table: 'companion_injuries', order: 'created_at' },
+  achievements: { table: 'character_achievements', order: 'achieved_at' },
+  familyMastery: { table: 'character_family_mastery', order: 'updated_at' },
+  evolutionChoices: { table: 'skill_evolution_choices', order: 'offered_at' },
+  ultimateTrials: { table: 'ultimate_skill_trials', order: 'id' },
 }
 
 async function getOverview() {

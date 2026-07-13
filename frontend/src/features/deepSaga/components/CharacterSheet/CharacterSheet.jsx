@@ -48,10 +48,14 @@ export function CharacterSheet({ character }) {
       <ListSection title="Skills" items={character.skills} />
       <ListSection title="Traits" items={character.traits} />
       <ListSection title="Inventory" items={character.inventory} />
+      <ListSection title="Equipment" items={character.equipment} />
       <ListSection title="Titles" items={character.titles} />
       <ListSection title="Status Effects" items={character.statuses} />
       <ListSection title="Injuries" items={character.injuries} />
       <ListSection title="Companions" items={character.companions} />
+      <ListSection title="Skill Families" items={character.familyMastery} />
+      <ListSection title="Evolution Choices" items={character.evolutions} />
+      <ListSection title="Ultimate Trials" items={character.ultimateTrials} />
       <ListSection title="Soul Memories" items={character.memories} />
       <section className={styles.section}>
         <h3>Current Position</h3>
