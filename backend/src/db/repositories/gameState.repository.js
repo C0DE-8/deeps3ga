@@ -132,7 +132,7 @@ async function getGameState(storyCycleId) {
   ])
   if (!run) return null
 
-  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, companionMemories, skills, inventory, statuses, traits, injuries, lifeHistory, adaptations, legacyHeroes] = await Promise.all([
+  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, companionMemories, skills, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, adaptations, legacyHeroes] = await Promise.all([
     query('SELECT * FROM character_sheets WHERE character_life_id = ?', [run.character_life_id]),
     query('SELECT * FROM dungeons WHERE id = ?', [run.current_dungeon_id]),
     query('SELECT * FROM dungeon_floors WHERE id = ?', [run.current_floor_id]),
@@ -207,6 +207,9 @@ async function getGameState(storyCycleId) {
     query('SELECT trait_key, name, description, source_type, effects_json, gained_at FROM character_traits WHERE character_life_id = ? ORDER BY gained_at', [run.character_life_id]),
     query('SELECT injury_key, name, description, body_location, severity, effects_json, created_at FROM character_injuries WHERE character_life_id = ? AND healed_at IS NULL ORDER BY created_at', [run.character_life_id]),
     query('SELECT soul_id, life_number, character_id, character_name, species_name, race_name, class_name, level, status, death_scene, completion_summary, life_started_at, life_ended_at FROM soul_life_history WHERE soul_id = ? ORDER BY life_number', [run.soul_profile_id]),
+    query('SELECT event_type, source_type, source_id, amount, summary, payload_json, created_at FROM character_progression_events WHERE story_cycle_id = ? ORDER BY id DESC LIMIT 30', [storyCycleId]),
+    query('SELECT event_type, event_key, event_payload_json, created_at FROM game_engine_events WHERE story_cycle_id = ? ORDER BY id DESC LIMIT 30', [storyCycleId]),
+    query("SELECT id, encounter_type, status, round_number, state_json, started_at FROM combat_encounters WHERE story_cycle_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [storyCycleId]),
     query('SELECT * FROM dungeon_adaptations WHERE soul_profile_id = ? AND active = 1', [run.soul_profile_id]),
     query(
       `SELECT id, legacy_number, hero_name, final_title, identity_snapshot_json, character_snapshot_json,
@@ -244,6 +247,9 @@ async function getGameState(storyCycleId) {
     traits: traits.map((row) => hydrate(row, [['effects_json', {}]])),
     injuries: injuries.map((row) => hydrate(row, [['effects_json', {}]])),
     lifeHistory,
+    progressionEvents: progressionEvents.map((row) => hydrate(row, [['payload_json', {}]])),
+    engineEvents: engineEvents.map((row) => hydrate(row, [['event_payload_json', {}]])),
+    activeEncounter: hydrate(activeEncounters[0], [['state_json', {}]]),
     dungeonAdaptations: adaptations.map((row) => hydrate(row, [['affected_enemy_rules_json', {}]])),
     previousLegacyHero: hydrate(legacyHeroes[0], [['identity_snapshot_json', {}], ['character_snapshot_json', {}], ['skills_snapshot_json', []], ['equipment_snapshot_json', []], ['combat_style_snapshot_json', {}], ['boss_snapshot_json', {}]]),
   }

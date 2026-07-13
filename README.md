@@ -53,36 +53,35 @@ World, Floor, NPC, monster, boss data         Working
 Skill families and hidden-skill visibility   Working
 Admin God's Eye                              Working
 
-Automatic combat resolution                  Not complete
-Validated stat and inventory updates         Not complete
-Action-based skill awarding                  Not complete
-Automatic XP and level progression           Not complete
-Quest objective resolution                   Not complete
-Automatic Floor and Realm advancement        Not complete
+Automatic combat resolution                  Working
+Authoritative HP, reward, and loot updates    Working
+Action-based skill awarding                  Working for normal and secret skills
+Automatic XP and level progression           Working
+Quest objective resolution                   Working for seeded quests
+Automatic Floor and Realm advancement        Working
 Companion recruitment workflow               Not complete
-Death triggered naturally by combat          Not complete
+Death triggered naturally by combat          Working
 Full 50-Floor authored story catalog         Not complete
 Complete 100+ NPC catalog                     Not complete
 Complete 300+ monster catalog                 Not complete
 Complete 500-item catalog                     Not complete
 Complete 200-skill catalog                    Not complete
-End-to-end Legacy Boss encounter              Not complete
+End-to-end Legacy Boss encounter              Working
 ```
 
-This means a user can play the opening and continue shaping an AI-narrated story, with their account and narrative history saved correctly. It does not yet mean the player can complete all 10 Realms through fully automated RPG rules. At the current stage, Deep Saga should be described as a playable vertical slice or narrative prototype, not a finished game.
+This means a user can now move through all 50 Floors under automatic mechanics, fight each Main Boss, earn XP and Gold, level up, progress skills and quests, die and reincarnate, complete Realm 10, become a Legacy Hero, and fight that previous hero during a later run. The world is mechanically playable end to end. It is not content-complete because many Floors still use their seeded summaries instead of full authored chapters, and the target NPC, monster, item, and skill catalogs are still being written.
 
 ### What Makes It Fully Playable
 
-The next engine work should be completed in this order:
+The remaining game work should be completed in this order:
 
-1. Validate and apply AI-requested character, status, inventory, and memory changes.
-2. Resolve combat turns using saved character, monster, and skill data.
-3. Award XP, levels, loot, skill progress, and action-discovered skills.
-4. Resolve quests, NPC relationships, companion recruitment, and permanent world consequences.
-5. Advance scenes, chapters, Floors, Boss states, and Realms from database rules.
-6. Trigger death and reincarnation naturally when HP and story conditions require it.
-7. Complete all authored Floor Stories and content targets.
-8. Test a full run through Realm 10 and create the first real Legacy Boss.
+1. Complete all authored Floor Stories and content targets.
+2. Add companion recruitment, departure, loyalty, and combat participation.
+3. Expand status effects, injuries, resistances, healing items, and equipment calculations.
+4. Add richer quest branches and permanent NPC or world consequences.
+5. Add special achievement evaluators for fully hidden and mythical skills.
+6. Expand combat targeting, multiple enemies, companion turns, and boss-specific mechanics.
+7. Balance every Realm with player testing instead of only deterministic simulation.
 
 ## What We Have
 
@@ -509,7 +508,7 @@ Skills can unlock from:
 
 Failed, impossible, or meaningless repeated actions must not unlock skills. The AI cannot create or award a permanent skill by itself.
 
-Currently, new characters automatically receive `Brace` and `Soul Echo`. The database also contains `Ember Thread` and `Predator Step`. Choice history, parsed intent, skill requirements, skill levels, and use counts are stored, but the automatic action-to-skill evaluator is not implemented yet. Until that module is added, the narrator's `newItemsOrSkills` response is recorded but does not automatically grant a skill.
+New characters automatically receive `Brace` and `Soul Echo`. Successful actions now create skill-progress evidence for matching normal or secret skills. When the rarity-based discovery threshold is reached, the engine inserts the skill into `character_skills`, records its discovery context, and begins tracking use XP, level, and last-used time. Fully hidden and mythical achievements remain protected from ordinary automatic discovery and require dedicated story-achievement rules.
 
 ### Signature Skill Families
 
@@ -534,7 +533,30 @@ Examples of seeded hidden abilities include `Monarch's Authority`, `Time Fractur
 
 Seeded mythical ultimates include `Azrael, Lord of Souls`, `Leviathan, Ocean Sovereign`, `Beelzar, King of Consumption`, `Ragnarok Drive`, `Genesis Authority`, `Celestial Throne`, `Eclipse Monarch`, `Infinite Arsenal`, `Dragon Emperor`, and `Void Genesis`.
 
-The `skill_progress_events` table is ready to record the successful action, action signature, success level, progress amount, and scene evidence used toward discovery. Skill definitions contain requirements, discovery rules, evolution rules, family tier, rarity, identity text, and unlock hints. Actual awarding must still pass the action-based evaluator; AI narration alone cannot grant one of these skills.
+The `skill_progress_events` table records the successful action, action signature, success level, progress amount, and scene evidence used toward discovery. Skill definitions contain requirements, discovery rules, evolution rules, family tier, rarity, identity text, and unlock hints. Awarding passes through the deterministic action evaluator; AI narration alone cannot grant a skill.
+
+### Automatic Gameplay Loop
+
+Every submitted action now follows one authoritative sequence:
+
+```txt
+Player action
+  -> Derive action signatures and identify an owned skill
+  -> Resolve active monster, Boss, or Legacy Boss combat
+  -> Apply HP, healing, encounter status, XP, Gold, Soul Energy, and catalog loot
+  -> Apply level-ups and skill-use mastery
+  -> Record action-based skill discovery progress and unlock eligible skills
+  -> Activate, progress, complete, or fail matching quests
+  -> Update behavior used by future Legacy Bosses
+  -> Update Floor objectives
+  -> Advance Floor or Realm when requirements are complete
+  -> Trigger death or completed-run Legacy creation when required
+  -> Give the final engine result to the AI for narration
+```
+
+The AI describes the result but cannot recalculate damage, grant rewards, move the player, complete quests, unlock skills, or decide victory. If the narrator service fails, a local fallback still reports the already-committed mechanical result without replaying the turn.
+
+Runtime records include Floor objective state, combat encounters, round-by-round actions, progression events, engine events, quest progress, skill evidence, Boss state, and Realm completion. `npm run simulate-journey` creates a temporary account, completes two full runs, verifies that the second run defeats the first Legacy Hero, and removes its test data afterward.
 
 ### Player Decisions
 

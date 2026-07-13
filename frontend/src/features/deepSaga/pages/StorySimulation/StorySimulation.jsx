@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { continueNarrative, fetchGameState } from '../../../../api/deepSagaApi'
 import { AppHeader } from '../../../shell/AppHeader/AppHeader'
 import { CharacterSheet } from '../../components/CharacterSheet/CharacterSheet'
 import { ChoiceComposer } from '../../components/ChoiceComposer/ChoiceComposer'
+import { EngineResults } from '../../components/EngineResults/EngineResults'
 import { StatusBar } from '../../components/StatusBar/StatusBar'
 import { StoryPanel } from '../../components/StoryPanel/StoryPanel'
 import { openingScenes } from '../../data/openingStory'
@@ -70,6 +71,7 @@ function sceneFromNarrator(result, index, state, action) {
     playerAction: action,
     paragraphs: story.split(/\n\s*\n/).filter(Boolean),
     choices: scene.choices || [],
+    engineResolution: result.engineResolution || null,
     status: {
       hp: state.characterSheet.hp,
       mp: state.characterSheet.mana,
@@ -100,13 +102,16 @@ export function StorySimulation() {
       const result = await continueNarrative({ storyCycleId: Number(cycleId), playerAction: action, actionKind })
       setScenes((current) => [...current, sceneFromNarrator(result, current.length, state, action)])
       setCustomAction('')
-      setState(await fetchGameState(cycleId))
+      if (!result.engineResolution?.died && !result.engineResolution?.runCompleted) {
+        setState(await fetchGameState(cycleId))
+      }
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'The narrator fell silent. Try this action again.')
     } finally { setBusy(false) }
   }
 
   const latest = scenes.at(-1)
+  const storyEnded = latest.engineResolution?.died || latest.engineResolution?.runCompleted
   const status = state ? { hp: state.characterSheet.hp, mp: state.characterSheet.mana, level: state.characterSheet.level, dungeon: state.currentDungeon.name, floor: `Floor ${state.currentFloor.floor_number}` } : latest.status
   return (
     <main className={styles.reader}>
@@ -115,11 +120,11 @@ export function StorySimulation() {
       <button className={styles.sheetToggle} type="button" onClick={() => setSheetOpen((open) => !open)} title={sheetOpen ? 'Close character sheet' : 'Open character sheet'}>{sheetOpen ? <PanelRightClose /> : <PanelRightOpen />}</button>
       <aside className={`${styles.sheetDrawer} ${sheetOpen ? styles.open : ''}`}>{state && <CharacterSheet character={characterFromState(state)} />}</aside>
       <div className={styles.storyStream}>
-        {scenes.map((scene, index) => <div className={styles.sceneWrap} key={scene.id} ref={index === scenes.length - 1 ? endRef : null}><StoryPanel scene={scene} />{index < scenes.length - 1 && <ChevronDown className={styles.pageBreak} size={20} />}</div>)}
+        {scenes.map((scene, index) => <div className={styles.sceneWrap} key={scene.id} ref={index === scenes.length - 1 ? endRef : null}><StoryPanel scene={scene} /><EngineResults resolution={scene.engineResolution} />{index < scenes.length - 1 && <ChevronDown className={styles.pageBreak} size={20} />}</div>)}
         {error && <p className={styles.error} role="alert">{error}</p>}
         <div className={styles.currentChoice}>
           {busy && scenes.length === 1 && <p className={styles.loading}>The record is opening...</p>}
-          <ChoiceComposer choices={latest.choices || []} customAction={customAction} onCustomActionChange={setCustomAction} onSubmitAction={submitAction} disabled={busy} />
+          {storyEnded ? <Link className={styles.archiveLink} to="/library">Return to the soul archive</Link> : <ChoiceComposer choices={latest.choices || []} customAction={customAction} onCustomActionChange={setCustomAction} onSubmitAction={submitAction} disabled={busy} />}
         </div>
       </div>
     </main>

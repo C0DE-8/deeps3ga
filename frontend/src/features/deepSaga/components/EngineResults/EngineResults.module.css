@@ -1,0 +1,5 @@
+.results { margin:20px 0 0;padding:16px 2px;border-top:1px solid #cfc5b3;border-bottom:1px solid #cfc5b3; }
+.heading { display:block;margin-bottom:10px;color:#8a7147;font-size:.68rem;font-weight:900;text-transform:uppercase; }
+.results>div { display:flex;flex-wrap:wrap;gap:8px 18px; }
+.results>div>span { display:inline-flex;align-items:center;gap:6px;color:#635d52;font-size:.78rem; }
+.results svg { color:#94713c; }

@@ -8,6 +8,7 @@ const {
   markCharacterDead,
   saveNarrativeTurn,
 } = require('../../db/repositories/gameState.repository')
+const { resolveTurn } = require('./turnEngine.service')
 
 function asArray(value) {
   if (value === null || value === undefined || value === '') return []
@@ -50,32 +51,73 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed' }
   if (!['typed', 'suggested'].includes(actionKind)) throw new Error('actionKind must be typed or suggested.')
 
   const state = await loadState(storyCycleId, accountId)
-  const scene = normalizeScene(await continueScene({
-    playerAction: playerAction.trim(),
-    actionKind,
-    runState: state.run,
-    playerState: {
-      characterSheet: state.characterSheet,
-      skills: state.skills,
-      inventory: state.inventory,
-    },
-    currentDungeon: state.currentDungeon,
-    currentFloor: state.currentFloor,
-    activeNpcs: state.activeNpcs,
-    activeMonsters: state.activeMonsters,
-    activeBoss: state.activeBoss,
-    activeQuest: state.activeQuests,
-    dungeonMemory: {
-      memories: state.storyMemory,
-      previousChoices: state.previousChoices,
-      adaptations: state.dungeonAdaptations,
-      companions: state.companions,
-    },
-    guardianProfile: state.previousLegacyHero,
-  }))
+  const engineResolution = await resolveTurn(state, playerAction.trim())
+  let scene
+  try {
+    scene = normalizeScene(await continueScene({
+      playerAction: playerAction.trim(),
+      actionKind,
+      runState: state.run,
+      worldState: { engineResolution },
+      playerState: {
+        characterSheet: state.characterSheet,
+        skills: state.skills,
+        inventory: state.inventory,
+      },
+      currentDungeon: state.currentDungeon,
+      currentFloor: state.currentFloor,
+      activeNpcs: state.activeNpcs,
+      activeMonsters: state.activeMonsters,
+      activeBoss: state.activeBoss,
+      activeQuest: state.activeQuests,
+      dungeonMemory: {
+        memories: state.storyMemory,
+        previousChoices: state.previousChoices,
+        adaptations: state.dungeonAdaptations,
+        companions: state.companions,
+        progression: state.progressionEvents,
+        engineEvents: state.engineEvents,
+        activeEncounter: state.activeEncounter,
+      },
+      guardianProfile: state.previousLegacyHero,
+    }))
+  } catch (error) {
+    scene = normalizeScene({
+      story: buildFallbackStory(engineResolution),
+      choices: engineResolution.died || engineResolution.runCompleted
+        ? []
+        : ['Continue forward.', 'Study the surroundings.', 'Check on your condition.'],
+      consequences: [engineResolution],
+      memorySignals: [],
+      safetyNotes: [`Narrator fallback used: ${error.message}`],
+    })
+  }
+
+  scene.consequences = [...scene.consequences, { engineResolution }]
 
   const saved = await saveNarrativeTurn({ state, playerAction: playerAction.trim(), actionKind, scene })
-  return { scene, saved }
+  let legacyHero = null
+  if (engineResolution.runCompleted) legacyHero = await createLegacyHero(Number(storyCycleId), scene.bossPresentation || {})
+  return { scene, engineResolution, saved, legacyHero }
+}
+
+function buildFallbackStory(resolution) {
+  const lines = []
+  if (resolution.combat?.playerDamage) lines.push(`Your action lands for ${resolution.combat.playerDamage} damage against ${resolution.combat.enemyName}.`)
+  if (resolution.combat?.enemyDamage) lines.push(`${resolution.combat.enemyName} answers, and the impact costs you ${resolution.combat.enemyDamage} HP.`)
+  if (resolution.combat?.status === 'victory') lines.push(`${resolution.combat.enemyName} can no longer continue. The encounter is won.`)
+  if (resolution.combat?.status === 'resolved_peacefully') lines.push('The violence ends without another life being taken.')
+  if (resolution.rewards.xp) lines.push(`Experience settles into the body: ${resolution.rewards.xp} XP.`)
+  if (resolution.rewards.gold) lines.push(`You recover ${resolution.rewards.gold} Gold.`)
+  for (const item of resolution.itemsAwarded) lines.push(`Among what remains, you find ${item.name}.`)
+  if (resolution.levelUp) lines.push(`Strength gathers through you. You have reached Level ${resolution.levelUp.newLevel}.`)
+  for (const skill of resolution.skillsUnlocked) lines.push(`${skill.identityText || 'A new instinct awakens.'} Skill unlocked: ${skill.name}.`)
+  if (resolution.advanced?.type === 'floor') lines.push(`The path opens to Floor ${resolution.advanced.floor}.`)
+  if (resolution.advanced?.type === 'realm') lines.push(`The defeated Realm releases you. Realm ${resolution.advanced.dungeon} waits ahead.`)
+  if (resolution.died) lines.push('The body falls silent. This life is over, but the soul remembers.')
+  if (resolution.runCompleted) lines.push('All ten Realms stand behind you. The Dungeon claims this victorious body as a legend.')
+  if (!lines.length) lines.push('The Dungeon receives your decision and shifts around its consequence.')
+  return lines.join('\n\n')
 }
 
 module.exports = {
@@ -87,4 +129,5 @@ module.exports = {
   loadState,
   startGame: createGame,
   normalizeScene,
+  buildFallbackStory,
 }
