@@ -74,6 +74,24 @@ async function processCompanionAction(connection, state, action, signatures, res
       result.companions.push({ name: companion.name, status: 'relationship_changed', changes })
     }
 
+    const nextTrust = Number(companion.trust) + changes.trust
+    const nextLoyalty = Number(companion.loyalty) + changes.loyalty
+    const nextFear = Number(companion.fear) + changes.fear
+    const nextBetrayal = Number(companion.betrayal) + changes.betrayal
+    if (nextBetrayal >= 75 || (nextFear >= 85 && nextLoyalty < 20)) {
+      await connection.execute("UPDATE companions SET active = 0, companion_status = 'betrayed', departed_at = CURRENT_TIMESTAMP WHERE id = ?", [companion.id])
+      await relationshipEvent(connection, companion, state, 'betrayed', {}, `${companion.name} turned against the player and disappeared into the Dungeon.`, { nextTrust, nextLoyalty, nextFear, nextBetrayal })
+      await preserveSoulMemory(connection, companion, state, 'betrayal', `${companion.name} betrayed Life ${state.run.life_number}.`, { nextTrust, nextLoyalty, nextFear, nextBetrayal })
+      result.companions.push({ name: companion.name, status: 'betrayed', dialogue: 'Whatever trust stood between us is gone.' })
+      continue
+    }
+    if (nextTrust <= -60 && nextLoyalty <= 0) {
+      await connection.execute("UPDATE companions SET active = 0, companion_status = 'departed', departed_at = CURRENT_TIMESTAMP WHERE id = ?", [companion.id])
+      await relationshipEvent(connection, companion, state, 'departed', {}, `${companion.name} left after losing all trust in the player.`, { nextTrust, nextLoyalty })
+      result.companions.push({ name: companion.name, status: 'departed', dialogue: 'I will not follow the person you have chosen to become.' })
+      continue
+    }
+
     if (text.includes('leave') && text.includes(companion.name.toLowerCase())) {
       await connection.execute("UPDATE companions SET active = 0, companion_status = 'departed', departed_at = CURRENT_TIMESTAMP WHERE id = ?", [companion.id])
       await relationshipEvent(connection, companion, state, 'departed', {}, `${companion.name} left the journey.`, { action })

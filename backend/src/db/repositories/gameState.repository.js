@@ -133,10 +133,11 @@ async function getGameState(storyCycleId) {
   ])
   if (!run) return null
 
-  const [sheets, dungeons, floors, npcs, monsters, bosses, quests, memories, choices, companions, companionMemories, companionSoulMemories, companionInjuries, skills, equipment, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, combatParticipants, cycleEvents, achievements, familyMastery, evolutionChoices, ultimateTrials, adaptations, legacyHeroes] = await Promise.all([
+  const [sheets, dungeons, floors, floorBeats, npcs, monsters, bosses, quests, memories, choices, narrativeHistory, companions, companionMemories, companionSoulMemories, companionInjuries, skills, equipment, inventory, statuses, traits, injuries, lifeHistory, progressionEvents, engineEvents, activeEncounters, combatParticipants, cycleEvents, achievements, familyMastery, evolutionChoices, ultimateTrials, adaptations, legacyHeroes] = await Promise.all([
     query('SELECT * FROM character_sheets WHERE character_life_id = ?', [run.character_life_id]),
     query('SELECT * FROM dungeons WHERE id = ?', [run.current_dungeon_id]),
     query('SELECT * FROM dungeon_floors WHERE id = ?', [run.current_floor_id]),
+    query('SELECT * FROM floor_story_beats WHERE floor_id = ? ORDER BY beat_number', [run.current_floor_id]),
     query(
       `SELECT n.*, ns.life_status AS run_life_status, ns.relationship_json AS run_relationship_json,
               ns.dialogue_state_json, ns.present, ns.recruitment_status
@@ -172,6 +173,11 @@ async function getGameState(storyCycleId) {
     query(
       `SELECT action_text, action_kind, intent_json, outcome_json, created_at
          FROM choice_history WHERE story_cycle_id = ? ORDER BY created_at DESC LIMIT 30`,
+      [storyCycleId],
+    ),
+    query(
+      `SELECT id, speaker, message_text, choices_json, consequence_json, request_key, created_at
+         FROM narrative_messages WHERE story_cycle_id = ? ORDER BY id ASC LIMIT 200`,
       [storyCycleId],
     ),
     query(
@@ -234,12 +240,14 @@ async function getGameState(storyCycleId) {
     characterSheet: hydrate(sheets[0], [['appearance_json', {}], ['personality_json', {}], ['titles_json', []], ['stats_json', {}], ['traits_json', []], ['blessings_json', []], ['curses_json', []]]),
     currentDungeon: hydrate(dungeons[0], [['unlock_requirements_json', {}], ['story_arc_json', {}]]),
     currentFloor: hydrate(floors[0], [['enemies_available_json', []], ['npcs_available_json', []], ['hidden_events_json', []], ['floor_memory_json', {}], ['boss_rules_json', {}]]),
+    floorStoryBeats: floorBeats.map((row) => hydrate(row, [['required_signatures_json', []], ['available_choices_json', []], ['consequence_keys_json', []]])),
     activeNpcs: npcs.map((row) => hydrate(row, [['personality_json', {}], ['dialogue_json', []], ['run_relationship_json', {}], ['dialogue_state_json', {}]])),
     activeMonsters: monsters.map((row) => hydrate(row, [['stats_json', {}], ['skills_json', []], ['loot_json', []], ['behavior_json', {}], ['state_json', {}]])),
     activeBoss: hydrate(bosses[0], [['personality_json', {}], ['dialogue_json', []], ['mechanics_json', {}], ['memory_of_player_json', {}], ['encounter_state_json', {}]]),
     activeQuests: quests.map((row) => hydrate(row, [['objectives_json', []], ['rewards_json', []], ['consequence_rules_json', {}], ['progress_json', {}], ['choices_json', []]])),
     storyMemory: memories.map((row) => hydrate(row, [['facts_json', {}]])),
     previousChoices: choices.map((row) => hydrate(row, [['intent_json', {}], ['outcome_json', {}]])),
+    narrativeHistory: narrativeHistory.map((row) => hydrate(row, [['choices_json', []], ['consequence_json', []]])),
     companions: companions.map((row) => ({
       ...hydrate(row, [['personality_json', {}], ['secrets_json', []], ['relationship_state_json', {}], ['combat_style_json', {}]]),
       memories: companionMemories
@@ -274,12 +282,22 @@ async function getGameState(storyCycleId) {
   }
 }
 
-async function saveNarrativeTurn({ state, playerAction, actionKind, scene }) {
+async function saveNarrativeTurn({ state, playerAction, actionKind, scene, requestKey }) {
   return withTransaction(async (connection) => {
+    if (requestKey) {
+      const [existing] = await connection.execute(
+        `SELECT p.id AS player_id, n.id AS narrator_id
+           FROM narrative_messages p
+           JOIN narrative_messages n ON n.story_cycle_id = p.story_cycle_id AND n.request_key = p.request_key AND n.speaker = 'narrator'
+          WHERE p.story_cycle_id = ? AND p.request_key = ? AND p.speaker = 'player' LIMIT 1`,
+        [state.run.id, requestKey],
+      )
+      if (existing[0]) return { playerMessageId: existing[0].player_id, narrativeMessageId: existing[0].narrator_id, replayed: true }
+    }
     const [playerMessage] = await connection.execute(
-      `INSERT INTO narrative_messages (story_cycle_id, character_life_id, speaker, message_text, parsed_intent_json)
-       VALUES (?, ?, 'player', ?, ?)`,
-      [state.run.id, state.run.character_life_id, playerAction, JSON.stringify(scene.parsedIntent || {})],
+      `INSERT INTO narrative_messages (story_cycle_id, character_life_id, speaker, message_text, parsed_intent_json, request_key)
+       VALUES (?, ?, 'player', ?, ?, ?)`,
+      [state.run.id, state.run.character_life_id, playerAction, JSON.stringify(scene.parsedIntent || {}), requestKey || null],
     )
     await connection.execute(
       `INSERT INTO choice_history (story_cycle_id, character_life_id, floor_id, action_text, action_kind, intent_json, outcome_json)
@@ -287,9 +305,9 @@ async function saveNarrativeTurn({ state, playerAction, actionKind, scene }) {
       [state.run.id, state.run.character_life_id, state.run.current_floor_id, playerAction, actionKind, JSON.stringify(scene.parsedIntent || {}), JSON.stringify(scene.consequences || [])],
     )
     const [narratorMessage] = await connection.execute(
-      `INSERT INTO narrative_messages (story_cycle_id, character_life_id, speaker, message_text, choices_json, consequence_json)
-       VALUES (?, ?, 'narrator', ?, ?, ?)`,
-      [state.run.id, state.run.character_life_id, scene.story || '', JSON.stringify(scene.choices || []), JSON.stringify(scene.consequences || [])],
+      `INSERT INTO narrative_messages (story_cycle_id, character_life_id, speaker, message_text, choices_json, consequence_json, request_key)
+       VALUES (?, ?, 'narrator', ?, ?, ?, ?)`,
+      [state.run.id, state.run.character_life_id, scene.story || '', JSON.stringify(scene.choices || []), JSON.stringify(scene.consequences || []), requestKey || null],
     )
     await connection.execute(
       `INSERT INTO response_sections (narrative_message_id, story_text, character_changes_json, new_items_or_skills_json, choices_json)
@@ -303,6 +321,13 @@ async function saveNarrativeTurn({ state, playerAction, actionKind, scene }) {
         `INSERT INTO story_memories (soul_profile_id, story_cycle_id, character_life_id, scope, memory_key, summary, facts_json, importance, remembered_across_lives)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [state.run.soul_profile_id, state.run.id, state.run.character_life_id, normalized.scope || 'run', normalized.key || `turn-${narratorMessage.insertId}`, normalized.summary || '', JSON.stringify(normalized.facts || {}), normalized.importance || 1, normalized.rememberedAcrossLives ? 1 : 0],
+      )
+    }
+    if (requestKey && scene.validationViolations?.length) {
+      await connection.execute(
+        `INSERT INTO narrative_validation_events (story_cycle_id, request_key, violations_json, original_sections_json)
+         VALUES (?, ?, ?, ?)`,
+        [state.run.id, requestKey, JSON.stringify(scene.validationViolations), JSON.stringify({ safetyNotes: scene.safetyNotes })],
       )
     }
     return { playerMessageId: playerMessage.insertId, narrativeMessageId: narratorMessage.insertId }

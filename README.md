@@ -742,6 +742,10 @@ Required backend values include:
 PORT=4000
 NODE_ENV=development
 FRONTEND_ORIGIN=http://localhost:5173
+FRONTEND_ORIGINS=http://localhost:5173
+TRUST_PROXY=false
+REQUEST_BODY_LIMIT=32kb
+SESSION_DAYS=30
 
 DB_HOST=localhost
 DB_PORT=3306
@@ -796,5 +800,28 @@ Frontend: http://localhost:5173
 
 - `node_modules` and build output are ignored.
 - Real secrets belong only in local `.env` files.
-- The current story UI has local sample scenes.
-- Story continuation is database-backed. Production authentication and authorization middleware are still future work.
+- Story continuation is database-backed and protected by account ownership checks.
+- Continuation requests use UUID idempotency keys, preventing retries from repeating combat, rewards, or progression.
+- The AI interprets and narrates; reality validation, state changes, rewards, memories, and advancement remain engine-owned.
+- Production deployments should set `FRONTEND_ORIGINS`, enable `TRUST_PROXY` only behind a trusted proxy, use a dedicated MySQL account, and keep `backend/.env` outside Git.
+- Rotate any secret that has ever appeared in Git history. Removing a file in a later commit does not remove the earlier secret.
+
+## Production Checklist
+
+1. Use Node.js 22 LTS or Node.js 20.19+.
+2. Create a least-privilege MySQL user and run `npm run migrate` before starting the API.
+3. Set a real `OPENAI_API_KEY`, production frontend origins, body limits, and session lifetime.
+4. Terminate TLS at a trusted reverse proxy and set `TRUST_PROXY=true` only there.
+5. Back up MySQL daily and test restoration. Retain encrypted daily, weekly, and monthly snapshots.
+6. Monitor `/api/health`, HTTP 5xx rates, AI failures, database latency, rejected actions, and narrative validation events.
+7. Run `npm run test:actions`, `npm run test:idempotency`, and `npm run simulate-journey` before release.
+8. Build the frontend with `npm run build` and serve `frontend/dist` through HTTPS.
+
+Example backup and restore commands:
+
+```sh
+mysqldump --single-transaction --routines --triggers deep_saga > deep_saga.sql
+mysql deep_saga < deep_saga.sql
+```
+
+Never place database passwords directly in shell history in production; use a protected MySQL option file or secret manager.

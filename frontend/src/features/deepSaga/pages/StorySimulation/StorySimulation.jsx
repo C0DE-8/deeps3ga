@@ -66,6 +66,7 @@ function characterFromState(state) {
       scene: state.run.current_scene,
     },
     lifeHistory: state.lifeHistory,
+    legacyHero: state.previousLegacyHero,
   }
 }
 
@@ -90,6 +91,30 @@ function sceneFromNarrator(result, index, state, action) {
   }
 }
 
+function scenesFromHistory(state) {
+  const scenes = []
+  let playerAction = ''
+  for (const message of state.narrativeHistory || []) {
+    if (message.speaker === 'player') {
+      playerAction = message.message_text
+      continue
+    }
+    if (message.speaker !== 'narrator') continue
+    const consequence = Array.isArray(message.consequence_json) ? message.consequence_json : []
+    scenes.push({
+      id: `saved-${message.id}`,
+      chapter: state.currentDungeon.name,
+      title: state.currentFloor.floor_name,
+      playerAction,
+      paragraphs: String(message.message_text || '').split(/\n\s*\n/).filter(Boolean),
+      choices: message.choices_json || [],
+      engineResolution: consequence.find((entry) => entry?.engineResolution)?.engineResolution || null,
+    })
+    playerAction = ''
+  }
+  return scenes
+}
+
 export function StorySimulation() {
   const { cycleId } = useParams()
   const [state, setState] = useState(null)
@@ -99,20 +124,31 @@ export function StorySimulation() {
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState('')
   const endRef = useRef(null)
+  const pendingRequestRef = useRef(null)
 
-  useEffect(() => { fetchGameState(cycleId).then(setState).catch((e) => setError(e.response?.data?.message || 'This story could not be opened.')).finally(() => setBusy(false)) }, [cycleId])
+  useEffect(() => {
+    fetchGameState(cycleId).then((loaded) => {
+      setState(loaded)
+      const history = scenesFromHistory(loaded)
+      if (history.length) setScenes(history)
+    }).catch((e) => setError(e.response?.data?.message || 'This story could not be opened.')).finally(() => setBusy(false))
+  }, [cycleId])
   useEffect(() => { if (scenes.length > 1) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [scenes.length])
 
   async function submitAction(action, actionKind = 'typed') {
     if (busy) return
     setBusy(true); setError('')
+    const samePendingAction = pendingRequestRef.current?.action === action && pendingRequestRef.current?.actionKind === actionKind
+    const requestKey = samePendingAction ? pendingRequestRef.current.requestKey : crypto.randomUUID()
+    pendingRequestRef.current = { action, actionKind, requestKey }
     try {
-      const result = await continueNarrative({ storyCycleId: Number(cycleId), playerAction: action, actionKind })
+      const result = await continueNarrative({ storyCycleId: Number(cycleId), playerAction: action, actionKind, requestKey })
       setScenes((current) => [...current, sceneFromNarrator(result, current.length, state, action)])
       setCustomAction('')
       if (!result.engineResolution?.died && !result.engineResolution?.runCompleted) {
         setState(await fetchGameState(cycleId))
       }
+      pendingRequestRef.current = null
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'The narrator fell silent. Try this action again.')
     } finally { setBusy(false) }

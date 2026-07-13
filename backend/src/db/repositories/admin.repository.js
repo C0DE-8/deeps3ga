@@ -8,6 +8,7 @@ const tableConfig = {
   cycles: { table: 'story_cycles', order: 'created_at' },
   dungeons: { table: 'dungeons', order: 'dungeon_number' },
   floors: { table: 'dungeon_floors', order: 'id' },
+  floorStoryBeats: { table: 'floor_story_beats', order: 'id' },
   bosses: { table: 'boss_profiles', order: 'id' },
   npcs: { table: 'world_npcs', order: 'id' },
   monsters: { table: 'world_monsters', order: 'id' },
@@ -29,6 +30,8 @@ const tableConfig = {
   familyMastery: { table: 'character_family_mastery', order: 'updated_at' },
   evolutionChoices: { table: 'skill_evolution_choices', order: 'offered_at' },
   ultimateTrials: { table: 'ultimate_skill_trials', order: 'id' },
+  turnRequests: { table: 'engine_turn_requests', order: 'created_at', columns: 'id, story_cycle_id, character_life_id, request_key, action_hash, status, created_at, completed_at' },
+  narrativeValidation: { table: 'narrative_validation_events', order: 'created_at' },
 }
 
 async function getOverview() {

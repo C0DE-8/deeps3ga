@@ -8,17 +8,21 @@ const {
 } = require('../db/repositories/account.repository')
 const { requireAuth } = require('../middleware/auth')
 const { hashPassword, verifyPassword } = require('../utils/password')
+const { rateLimit } = require('../middleware/rateLimit')
 
 const router = express.Router()
+const DUMMY_PASSWORD_HASH = `scrypt:00000000000000000000000000000000:${'00'.repeat(64)}`
 
 router.get('/', (req, res) => res.json({ success: true, module: 'Authentication' }))
 
-router.post('/register', async (req, res) => {
+const authLimit = rateLimit({ windowMs: 15 * 60_000, limit: 20, key: (req) => `auth:${req.ip}` })
+
+router.post('/register', authLimit, async (req, res) => {
   const username = req.body.username?.trim()
   const email = req.body.email?.trim().toLowerCase()
   const password = req.body.password || ''
-  if (username?.length < 3 || !email?.includes('@') || password.length < 8) {
-    return res.status(400).json({ success: false, message: 'Use a username of 3+ characters, a valid email, and a password of 8+ characters.' })
+  if (!/^[a-zA-Z0-9_-]{3,40}$/.test(username || '') || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 10 || password.length > 200) {
+    return res.status(400).json({ success: false, message: 'Use a 3-40 character username, a valid email, and a password of 10+ characters.' })
   }
 
   try {
@@ -31,12 +35,13 @@ router.post('/register', async (req, res) => {
   }
 })
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimit, async (req, res) => {
   const identifier = req.body.identifier?.trim()
   const password = req.body.password || ''
   try {
     const account = identifier ? await findAccountByIdentifier(identifier) : null
-    if (!account || !(await verifyPassword(password, account.password_hash))) {
+    const passwordValid = await verifyPassword(password, account?.password_hash || DUMMY_PASSWORD_HASH)
+    if (!account || !passwordValid) {
       return res.status(401).json({ success: false, message: 'The soul identifier or secret key is incorrect.' })
     }
     const token = await createSession(account.id)

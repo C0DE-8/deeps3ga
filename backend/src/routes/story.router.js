@@ -14,7 +14,8 @@ router.get('/', (req, res) => {
 
 router.post('/continue', requireAuth, async (req, res) => {
   try {
-    const scene = await continueGame(req.body, req.auth.account.id)
+    const requestKey = req.get('idempotency-key') || req.body.requestKey
+    const scene = await continueGame({ ...req.body, requestKey }, req.auth.account.id)
     res.json({
       success: true,
       data: scene,

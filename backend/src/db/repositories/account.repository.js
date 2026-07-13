@@ -30,9 +30,17 @@ async function findAccountByIdentifier(identifier) {
 async function createSession(accountId) {
   const token = crypto.randomBytes(32).toString('hex')
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+  const sessionDays = Math.max(1, Math.min(90, Number(process.env.SESSION_DAYS || 30)))
+  await query('DELETE FROM account_sessions WHERE account_id = ? AND (revoked_at IS NOT NULL OR expires_at <= CURRENT_TIMESTAMP)', [accountId])
   await query(
-    'INSERT INTO account_sessions (account_id, token_hash, expires_at) VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 30 DAY))',
-    [accountId, tokenHash],
+    `UPDATE account_sessions SET revoked_at = CURRENT_TIMESTAMP
+      WHERE account_id = ? AND revoked_at IS NULL AND id NOT IN
+        (SELECT id FROM (SELECT id FROM account_sessions WHERE account_id = ? AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 4) recent)`,
+    [accountId, accountId],
+  )
+  await query(
+    'INSERT INTO account_sessions (account_id, token_hash, expires_at) VALUES (?, ?, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? DAY))',
+    [accountId, tokenHash, sessionDays],
   )
   return token
 }

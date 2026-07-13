@@ -10,6 +10,8 @@ const {
 } = require('../../db/repositories/gameState.repository')
 const { resolveTurn } = require('./turnEngine.service')
 const { interpretAction } = require('./actionInterpreter.service')
+const { validateReality } = require('./realityValidator.service')
+const { enforceNarrativeScene } = require('../deepSaga/narrativeEnforcer.service')
 
 function asArray(value) {
   if (value === null || value === undefined || value === '') return []
@@ -47,15 +49,18 @@ async function loadState(storyCycleId, accountId) {
   return state
 }
 
-async function continueGame({ storyCycleId, playerAction, actionKind = 'typed' }, accountId) {
+async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', requestKey }, accountId) {
   if (!playerAction?.trim()) throw new Error('playerAction is required.')
+  if (playerAction.trim().length > 1000) throw new Error('playerAction must be 1000 characters or fewer.')
   if (!['typed', 'suggested'].includes(actionKind)) throw new Error('actionKind must be typed or suggested.')
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey || '')) throw new Error('A valid requestKey is required.')
 
   const state = await loadState(storyCycleId, accountId)
-  const interpretation = await interpretAction(playerAction.trim(), state)
+  const interpreted = await interpretAction(playerAction.trim(), state)
+  const interpretation = validateReality(playerAction.trim(), interpreted, state)
   let engineResolution
   if (interpretation.status === 'VALID') {
-    engineResolution = await resolveTurn(state, playerAction.trim(), interpretation)
+    engineResolution = await resolveTurn(state, playerAction.trim(), interpretation, requestKey)
   } else {
     engineResolution = {
       actionType: interpretation.intent,
@@ -69,8 +74,15 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed' }
     }
   }
   let scene
-  try {
-    scene = normalizeScene(await continueScene({
+  if (interpretation.status !== 'VALID') {
+    scene = normalizeScene({
+      story: buildFallbackStory(engineResolution),
+      choices: ['Describe a possible action.', 'Study what is actually present.', 'Check your character sheet.'],
+      safetyNotes: [`Action rejected by reality validation: ${interpretation.status}`],
+    })
+  } else {
+    try {
+      scene = normalizeScene(await continueScene({
       playerAction: playerAction.trim(),
       actionKind,
       runState: state.run,
@@ -89,6 +101,7 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed' }
       },
       currentDungeon: state.currentDungeon,
       currentFloor: state.currentFloor,
+      floorStoryBeats: state.floorStoryBeats,
       activeNpcs: state.activeNpcs,
       activeMonsters: state.activeMonsters,
       activeBoss: state.activeBoss,
@@ -107,22 +120,23 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed' }
         events: state.events,
       },
       guardianProfile: state.previousLegacyHero,
-    }))
-  } catch (error) {
-    scene = normalizeScene({
-      story: buildFallbackStory(engineResolution),
-      choices: engineResolution.died || engineResolution.runCompleted
-        ? []
-        : ['Continue forward.', 'Study the surroundings.', 'Check on your condition.'],
-      consequences: [engineResolution],
-      memorySignals: [],
-      safetyNotes: [`Narrator fallback used: ${error.message}`],
-    })
+      }))
+    } catch (error) {
+      scene = normalizeScene({
+        story: buildFallbackStory(engineResolution),
+        choices: engineResolution.died || engineResolution.runCompleted
+          ? []
+          : ['Continue forward.', 'Study the surroundings.', 'Check on your condition.'],
+        consequences: [engineResolution],
+        memorySignals: [],
+        safetyNotes: [`Narrator fallback used: ${error.message}`],
+      })
+    }
   }
 
-  scene.consequences = [...scene.consequences, { engineResolution }]
+  scene = enforceNarrativeScene(scene, engineResolution, buildFallbackStory(engineResolution))
 
-  const saved = await saveNarrativeTurn({ state, playerAction: playerAction.trim(), actionKind, scene })
+  const saved = await saveNarrativeTurn({ state, playerAction: playerAction.trim(), actionKind, scene, requestKey })
   let legacyHero = null
   if (engineResolution.runCompleted) legacyHero = await createLegacyHero(Number(storyCycleId), scene.bossPresentation || {})
   return { scene, engineResolution, saved, legacyHero }

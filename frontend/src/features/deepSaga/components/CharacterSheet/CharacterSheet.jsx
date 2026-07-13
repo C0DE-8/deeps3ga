@@ -57,6 +57,14 @@ export function CharacterSheet({ character }) {
       <ListSection title="Evolution Choices" items={character.evolutions} />
       <ListSection title="Ultimate Trials" items={character.ultimateTrials} />
       <ListSection title="Soul Memories" items={character.memories} />
+      {character.legacyHero && (
+        <section className={styles.section}>
+          <h3>Previous Legend</h3>
+          <p>{character.legacyHero.hero_name}</p>
+          <p>{character.legacyHero.final_title}</p>
+          <p>Legacy #{character.legacyHero.legacy_number}</p>
+        </section>
+      )}
       <section className={styles.section}>
         <h3>Current Position</h3>
         <dl className={styles.stats}>

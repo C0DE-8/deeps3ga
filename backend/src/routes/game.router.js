@@ -44,7 +44,8 @@ router.get('/state/:storyCycleId', async (req, res) => {
 
 router.post('/continue', async (req, res) => {
   try {
-    res.json({ success: true, data: await continueGame(req.body, req.auth.account.id) })
+    const requestKey = req.get('idempotency-key') || req.body.requestKey
+    res.json({ success: true, data: await continueGame({ ...req.body, requestKey }, req.auth.account.id) })
   } catch (error) {
     res.status(400).json({ success: false, message: error.message })
   }
