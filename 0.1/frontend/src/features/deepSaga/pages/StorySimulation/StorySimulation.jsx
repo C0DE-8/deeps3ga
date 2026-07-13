@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, PanelRightClose, PanelRightOpen } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
-import { continueNarrative, fetchGameState } from '../../../../api/deepSagaApi'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { continueNarrative, fetchGameState, startGame } from '../../../../api/deepSagaApi'
 import { AppHeader } from '../../../shell/AppHeader/AppHeader'
 import { CharacterSheet } from '../../components/CharacterSheet/CharacterSheet'
 import { ChoiceComposer } from '../../components/ChoiceComposer/ChoiceComposer'
@@ -121,6 +121,7 @@ function scenesFromHistory(state) {
 
 export function StorySimulation() {
   const { cycleId } = useParams()
+  const navigate = useNavigate()
   const [state, setState] = useState(null)
   const [scenes, setScenes] = useState([openingScenes[0]])
   const [customAction, setCustomAction] = useState('')
@@ -131,12 +132,37 @@ export function StorySimulation() {
   const pendingRequestRef = useRef(null)
 
   useEffect(() => {
-    fetchGameState(cycleId).then((loaded) => {
-      setState(loaded)
-      const history = scenesFromHistory(loaded)
-      if (history.length) setScenes(history)
-    }).catch((e) => setError(e.response?.data?.message || 'This story could not be opened.')).finally(() => setBusy(false))
-  }, [cycleId])
+    let active = true
+
+    async function openStory() {
+      setBusy(true)
+      setError('')
+      try {
+        const loaded = await fetchGameState(cycleId)
+        if (!active) return
+        setState(loaded)
+        const history = scenesFromHistory(loaded)
+        if (history.length) setScenes(history)
+      } catch (requestError) {
+        if (requestError.response?.status !== 404) {
+          if (active) setError(requestError.response?.data?.message || 'This story could not be opened.')
+          return
+        }
+
+        try {
+          const game = await startGame()
+          if (active) navigate(`/read/${game.storyCycleId}`, { replace: true })
+        } catch (startError) {
+          if (active) setError(startError.response?.data?.message || 'A new story could not be started.')
+        }
+      } finally {
+        if (active) setBusy(false)
+      }
+    }
+
+    openStory()
+    return () => { active = false }
+  }, [cycleId, navigate])
   useEffect(() => { if (scenes.length > 1) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [scenes.length])
 
   async function submitAction(action, actionKind = 'typed', targetReference = null) {
