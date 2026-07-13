@@ -26,6 +26,27 @@ function writeStory(player, messages) {
   localStorage.setItem(storyKey(player), JSON.stringify(messages.slice(-80)))
 }
 
+function choicesFromScene(scene, stamp) {
+  return (scene.choices || []).map((choice, index) => ({
+    id: `path-${stamp}-${index}`,
+    title: String(choice),
+    text: String(choice),
+    action: String(choice),
+    direction: `Path ${index + 1}`,
+  }))
+}
+
+function sceneMessages({ scene, choices, stamp, playerAction = '' }) {
+  const messages = []
+
+  if (playerAction) {
+    messages.push({ id: `player-${stamp}`, speaker: 'player', message_text: playerAction })
+  }
+
+  messages.push({ id: `narrator-${stamp}`, speaker: 'narrator', message_text: scene.narration, choices_json: choices })
+  return messages
+}
+
 async function currentPlayer() {
   const response = await fetchAuthStatus()
 
@@ -117,26 +138,42 @@ export async function fetchGameState() {
   return stateFromPlayer(await currentPlayer())
 }
 
-export async function continueNarrative(payload) {
+export async function createOpeningNarrative() {
   const player = await currentPlayer()
+  const history = readStory(player)
+
+  if (history.length) {
+    const narrator = [...history].reverse().find((message) => message.speaker === 'narrator')
+    return { story: narrator?.message_text || '', choices: narrator?.choices_json || [], stateChanges: {}, recordChanges: [] }
+  }
+
   const response = await request('/story/opening', {
     method: 'POST',
-    body: JSON.stringify({ playerAction: payload.playerAction }),
+    body: JSON.stringify({ recentMessages: [] }),
   })
   const scene = response.data
-  const history = readStory(player)
   const stamp = Date.now()
-  const choices = (scene.choices || []).map((choice, index) => ({
-    id: `path-${stamp}-${index}`,
-    title: String(choice),
-    text: String(choice),
-    action: String(choice),
-    direction: `Path ${index + 1}`,
-  }))
+  const choices = choicesFromScene(scene, stamp)
+  writeStory(player, sceneMessages({ scene, choices, stamp }))
+  return { story: scene.narration, choices, stateChanges: scene.stateChanges || {}, recordChanges: scene.recordChanges || [] }
+}
+
+export async function continueNarrative(payload) {
+  const player = await currentPlayer()
+  const history = readStory(player)
+  const response = await request('/story/opening', {
+    method: 'POST',
+    body: JSON.stringify({
+      playerAction: payload.playerAction,
+      recentMessages: history.slice(-12),
+    }),
+  })
+  const scene = response.data
+  const stamp = Date.now()
+  const choices = choicesFromScene(scene, stamp)
   writeStory(player, [
     ...history,
-    { id: `player-${stamp}`, speaker: 'player', message_text: payload.playerAction },
-    { id: `narrator-${stamp}`, speaker: 'narrator', message_text: scene.narration, choices_json: choices },
+    ...sceneMessages({ scene, choices, stamp, playerAction: payload.playerAction }),
   ])
-  return { story: scene.narration, choices, stateChanges: {}, recordChanges: [] }
+  return { story: scene.narration, choices, stateChanges: scene.stateChanges || {}, recordChanges: scene.recordChanges || [] }
 }

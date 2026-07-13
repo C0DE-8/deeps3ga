@@ -80,8 +80,24 @@ function parseScene(text) {
   };
 }
 
-function buildContext(player, playerAction) {
+function normalizeRecentMessages(recentMessages) {
+  if (!Array.isArray(recentMessages)) {
+    return [];
+  }
+
+  return recentMessages
+    .slice(-12)
+    .map((message) => ({
+      speaker: String(message.speaker || "").slice(0, 24),
+      text: String(message.message_text || message.text || "").slice(0, 1600)
+    }))
+    .filter((message) => message.speaker && message.text);
+}
+
+function buildContext(player, playerAction, recentMessages = []) {
   const body = player.currentBody || {};
+  const action = String(playerAction || "").trim();
+  const normalizedRecentMessages = normalizeRecentMessages(recentMessages);
 
   return {
     player: {
@@ -96,8 +112,13 @@ function buildContext(player, playerAction) {
       floor: Number(body.floor || 1),
       status: body.status || "newly reincarnated"
     },
+    sceneState: {
+      isOpeningScene: !action && normalizedRecentMessages.length === 0,
+      hasRecentStory: normalizedRecentMessages.length > 0
+    },
     memoryLog: Array.isArray(player.memoryLog) ? player.memoryLog.slice(-20) : [],
-    playerAction: String(playerAction || "").trim() || "Begin or continue the current scene.",
+    recentMessages: normalizedRecentMessages,
+    playerAction: action || "Begin the first scene.",
     worldRules: [
       "Deep Saga is a continuous dark fantasy reincarnation text RPG.",
       "You are the Game Master and narrator, not just a prose writer.",
@@ -142,8 +163,8 @@ async function callOpenAi(context) {
   return parseScene(extractText(payload));
 }
 
-async function createStoryScene(player, playerAction) {
-  const context = buildContext(player, playerAction);
+async function createStoryScene(player, playerAction, recentMessages) {
+  const context = buildContext(player, playerAction, recentMessages);
 
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "#") {
     if (process.env.ALLOW_STATIC_NARRATOR_FALLBACK === "true") {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp, BookOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { continueNarrative, fetchGameState, startGame } from '../../../api/deepSagaApi'
+import { continueNarrative, createOpeningNarrative, fetchGameState, startGame } from '../../../api/deepSagaApi'
 import { AppHeader } from '../../shell/AppHeader'
 import styles from './StoryPage.module.css'
 
@@ -40,8 +40,17 @@ export function StoryPage() {
       try {
         const loaded = await fetchGameState(cycleId)
         if (!active) return
-        setGame(loaded)
-        setChoices(latestChoices(loaded))
+        if (!storyEntries(loaded).length) {
+          const opening = await createOpeningNarrative()
+          if (!active) return
+          const reloaded = await fetchGameState(cycleId)
+          if (!active) return
+          setGame(reloaded)
+          setChoices(opening.choices || latestChoices(reloaded))
+        } else {
+          setGame(loaded)
+          setChoices(latestChoices(loaded))
+        }
       } catch (requestError) {
         if (requestError.status !== 404) {
           if (active) setError(requestError.message || 'This story could not be opened.')

@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.post("/opening", requireAuth, async (req, res) => {
   try {
-    const scene = await createStoryScene(req.auth.player, req.body.playerAction);
+    const scene = await createStoryScene(req.auth.player, req.body.playerAction, req.body.recentMessages);
 
     return res.json({ success: true, data: scene });
   } catch (error) {
