@@ -1,12 +1,12 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
-const { createOpeningScene } = require("../services/narrator.service");
+const { createStoryScene } = require("../services/narrator.service");
 
 const router = express.Router();
 
 router.post("/opening", requireAuth, async (req, res) => {
   try {
-    const scene = await createOpeningScene(req.auth.player);
+    const scene = await createStoryScene(req.auth.player, req.body.playerAction);
 
     return res.json({ success: true, data: scene });
   } catch (error) {
