@@ -4,7 +4,6 @@ import { AuthPage } from './features/auth/pages/AuthPage'
 import { ProtectedRoute } from './features/auth/ProtectedRoute'
 import { LibraryPage } from './features/library/pages/LibraryPage'
 import { StoryPage } from './features/story/pages/StoryPage'
-import './App.css'
 
 function App() {
   return (

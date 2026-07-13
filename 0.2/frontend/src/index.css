@@ -19,8 +19,17 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   letter-spacing: 0;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #c0a16d;
+  outline-offset: 2px;
 }
 
 p,

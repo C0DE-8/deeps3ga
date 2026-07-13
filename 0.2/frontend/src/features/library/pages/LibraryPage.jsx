@@ -1,74 +1,50 @@
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { ArrowRight, BookOpen, CirclePlus, Crown, Skull } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { fetchGameSaves, startGame } from '../../../api/deepSagaApi'
 import { AppHeader } from '../../shell/AppHeader'
-import { useAuth } from '../../auth/useAuth'
-
-const dungeonPlan = [
-  'Dungeon 1: The Buried Mouth',
-  'Dungeon 2: Root-Cage Labyrinth',
-  'Dungeon 3: Ashen Nest',
-  'Dungeon 4: Mirror Crypt',
-  'Dungeon 5: Throne Below Memory',
-]
+import styles from './LibraryPage.module.css'
 
 export function LibraryPage() {
-  const { player } = useAuth()
-  const body = player?.currentBody || {}
+  const [saves, setSaves] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const navigate = useNavigate()
 
+  useEffect(() => { fetchGameSaves().then(setSaves).catch((e) => setError(e.message || 'The archive could not be opened.')).finally(() => setLoading(false)) }, [])
+
+  async function begin() {
+    setLoading(true)
+    try { const game = await startGame(); navigate(`/read/${game.storyCycleId}`) }
+    catch (e) { setError(e.message || 'A new life could not begin.'); setLoading(false) }
+  }
+
+  const active = saves.find((save) => ['opening_death', 'awake', 'in_progress'].includes(save.status))
   return (
-    <main className="libraryPage">
+    <main className={styles.page}>
       <AppHeader />
-      <section className="libraryHero">
+      <section className={styles.hero}>
         <p>Your soul archive</p>
         <h1>Every life leaves a page behind.</h1>
-        <Link className="primaryButton linkButton" to="/read/current">Continue reading</Link>
+        <button onClick={active ? () => navigate(`/read/${active.story_cycle_id}`) : begin} disabled={loading}>
+          {active ? <BookOpen size={19} /> : <CirclePlus size={19} />}{active ? 'Continue reading' : 'Begin a new life'}
+        </button>
       </section>
-
-      <section className="libraryGrid">
-        <article className="recordPanel">
-          <header>
-            <span>Active record</span>
-            <strong>{player.playerId}</strong>
-          </header>
-          <div className="recordStats">
-            <div><span>Body</span><strong>{body.race || 'Unknown'}</strong></div>
-            <div><span>Run</span><strong>{player.currentRun}</strong></div>
-            <div><span>Dungeon</span><strong>{body.dungeon || 1}</strong></div>
-            <div><span>Floor</span><strong>{body.floor || 1}</strong></div>
-          </div>
-          <p className="recordCopy">
-            You remember being human. Everything else must be earned again through choices,
-            survival, discovery, evolution, and the bosses waiting every third floor.
-          </p>
-        </article>
-
-        <article className="recordPanel">
-          <header>
-            <span>Current body</span>
-            <strong>{body.status || 'newly reincarnated'}</strong>
-          </header>
-          <div className="traitList">
-            <p><span>Strengths</span>{body.strengths?.join(', ') || 'Unrecorded'}</p>
-            <p><span>Weaknesses</span>{body.weaknesses?.join(', ') || 'Unrecorded'}</p>
-            <p><span>Skills</span>{body.skills?.join(', ') || 'Unrecorded'}</p>
-            <p><span>Evolution</span>{body.evolutionPaths?.join(', ') || 'Unknown'}</p>
-          </div>
-        </article>
-
-        <section className="dungeonShelf">
-          <header>
-            <span>World structure</span>
-            <h2>Five dungeons, three floors each</h2>
-          </header>
-          <div className="dungeonList">
-            {dungeonPlan.map((dungeon, index) => (
-              <article key={dungeon} className={index + 1 === Number(body.dungeon || 1) ? 'current' : ''}>
-                <span>Dungeon {index + 1}</span>
-                <h3>{dungeon.split(': ')[1]}</h3>
-                <p>Floors 1-2 test survival. Floor 3 holds the boss gate.</p>
-              </article>
-            ))}
-          </div>
-        </section>
+      <section className={styles.shelf}>
+        <header><div><span>Recorded lives</span><h2>Your stories</h2></div><small>{saves.length} records</small></header>
+        {error && <p className={styles.error}>{error}</p>}
+        {!loading && !saves.length && <div className={styles.empty}><BookOpen size={30} /><h3>No story has been written yet.</h3><p>Your first page always begins with the last breath of another life.</p></div>}
+        <div className={styles.list}>
+          {saves.map((save) => (
+            <article key={save.story_cycle_id}>
+              <div className={styles.recordIcon}>{save.status === 'dead' ? <Skull /> : save.status === 'completed' ? <Crown /> : <BookOpen />}</div>
+              <div className={styles.recordTitle}><span>Life {save.cycle_number}</span><h3>{save.character_name || 'Unmanifested soul'}</h3><p>{save.race_name} {save.class_name} · Level {save.level || 1}</p></div>
+              <div className={styles.location}><span>{save.dungeon_name || 'Before awakening'}</span><p>{save.floor_name || 'The Last Breath'}</p></div>
+              <span className={`${styles.status} ${styles[save.status] || ''}`}>{save.status.replace('_', ' ')}</span>
+              {['opening_death', 'awake', 'in_progress'].includes(save.status) && <button className={styles.open} onClick={() => navigate(`/read/${save.story_cycle_id}`)} title="Open story"><ArrowRight size={19} /></button>}
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   )

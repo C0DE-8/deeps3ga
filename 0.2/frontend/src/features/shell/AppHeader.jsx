@@ -1,20 +1,20 @@
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import styles from './AppHeader.module.css'
 
 export function AppHeader() {
   const { player, logout } = useAuth()
 
   return (
-    <header className="appHeader">
-      <Link className="brand" to="/library">
+    <header className={styles.header}>
+      <Link className={styles.brand} to="/library">
         <span>Deep S3GA</span>
         <strong>Deep Saga</strong>
       </Link>
       <nav aria-label="Primary navigation">
-        <NavLink to="/library">Library</NavLink>
-        <NavLink to="/read/current">Read</NavLink>
+        <NavLink className={({ isActive }) => isActive ? `${styles.navLink} ${styles.active}` : styles.navLink} to="/library">Library</NavLink>
       </nav>
-      <div className="headerAccount">
+      <div className={styles.account}>
         <span>{player?.playerId}</span>
         <button type="button" onClick={logout}>Log out</button>
       </div>

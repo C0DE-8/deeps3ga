@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PortalLines } from '../../../components/PortalLines/PortalLines'
 import { useAuth } from '../useAuth'
+import styles from './AuthPage.module.css'
 
 export function AuthPage({ mode }) {
   const isRegister = mode === 'register'
@@ -36,9 +37,9 @@ export function AuthPage({ mode }) {
   }
 
   return (
-    <main className="authPage">
+    <main className={styles.page}>
       <PortalLines />
-      <section className="authIntro">
+      <section className={styles.intro}>
         <span>Deep Saga access</span>
         <h1>{isRegister ? 'A new soul enters the archive.' : 'The dungeon remembers you.'}</h1>
         <p>
@@ -47,13 +48,13 @@ export function AuthPage({ mode }) {
         </p>
       </section>
 
-      <form className="authForm" onSubmit={submit}>
-        <div className="authTabs">
-          <Link className={isRegister ? 'active' : ''} to="/register">Register</Link>
-          <Link className={!isRegister ? 'active' : ''} to="/login">Login</Link>
+      <form className={styles.form} onSubmit={submit}>
+        <div className={styles.tabs}>
+          <Link className={isRegister ? styles.active : ''} to="/register">Register</Link>
+          <Link className={!isRegister ? styles.active : ''} to="/login">Login</Link>
         </div>
 
-        <div className="formTitle">
+        <div className={styles.formTitle}>
           <span>{isRegister ? 'First reincarnation' : 'Soul return'}</span>
           <h2>{isRegister ? 'Create player record' : 'Resume playthrough'}</h2>
         </div>
@@ -75,13 +76,13 @@ export function AuthPage({ mode }) {
           <input name="password" type="password" minLength="8" value={form.password} onChange={update} required autoComplete={isRegister ? 'new-password' : 'current-password'} placeholder="At least 8 characters" />
         </label>
 
-        {error && <p className="formError" role="alert">{error}</p>}
+        {error && <p className={styles.error} role="alert">{error}</p>}
 
-        <button className="primaryButton" type="submit" disabled={busy}>
+        <button className={styles.submit} type="submit" disabled={busy}>
           {busy ? 'Opening archive...' : isRegister ? 'Register and reincarnate' : 'Login'}
         </button>
 
-        <p className="switchLink">
+        <p className={styles.switchLink}>
           {isRegister ? 'Already have a Player ID?' : 'No player record yet?'}{' '}
           <Link to={isRegister ? '/login' : '/register'}>{isRegister ? 'Login' : 'Register'}</Link>
         </p>
