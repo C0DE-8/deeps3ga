@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchCurrentPlayer, loginPlayer, registerPlayer } from '../../api/authApi'
-import { getStoredToken, setStoredToken } from '../../api/httpClient'
+import { consumeAuthNotice, getStoredToken, setStoredToken } from '../../api/httpClient'
 import { AuthContext } from './useAuth'
 
 export function AuthProvider({ children }) {
   const [player, setPlayer] = useState(null)
   const [loading, setLoading] = useState(() => Boolean(getStoredToken()))
+  const [sessionNotice, setSessionNotice] = useState(() => consumeAuthNotice())
 
   useEffect(() => {
     let ignore = false
@@ -32,10 +33,22 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  useEffect(() => {
+    function expireSession() {
+      setPlayer(null)
+      setLoading(false)
+      setSessionNotice(consumeAuthNotice() || 'Your session has expired. Log in again to continue your story.')
+    }
+
+    window.addEventListener('deep-saga:unauthorized', expireSession)
+    return () => window.removeEventListener('deep-saga:unauthorized', expireSession)
+  }, [])
+
   async function establish(request, payload) {
     const response = await request(payload)
     setStoredToken(response.data.token)
     setPlayer(response.data.player)
+    setSessionNotice('')
     return response.data.player
   }
 
@@ -51,7 +64,8 @@ export function AuthProvider({ children }) {
     register: (payload) => establish(registerPlayer, payload),
     logout,
     setPlayer,
-  }), [player, loading])
+    sessionNotice,
+  }), [player, loading, sessionNotice])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

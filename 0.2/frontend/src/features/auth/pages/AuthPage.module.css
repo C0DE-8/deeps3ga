@@ -53,6 +53,7 @@
 .submit { width: 100%; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; margin-top: 22px; border: 1px solid #c0a16d; border-radius: 5px; padding: 0 18px; background: #a58450; color: #06100f; font: inherit; font-weight: 900; cursor: pointer; }
 .submit:disabled { opacity: .62; cursor: wait; }
 .error { margin-top: 14px; color: #ef9b90; font-size: .9rem; line-height: 1.5; }
+.sessionNotice { margin-bottom: 18px; border-left: 3px solid #c5a365; padding: 11px 13px; color: #e4d2ad; background: #141b1b; font-size: .9rem; line-height: 1.5; }
 .switchLink { margin-top: 18px; color: #97a29e; text-align: center; font-size: .9rem; }
 .switchLink a { color: #e3c994; }
 

@@ -6,7 +6,7 @@ import styles from './AuthPage.module.css'
 
 export function AuthPage({ mode }) {
   const isRegister = mode === 'register'
-  const { player, login, register } = useAuth()
+  const { player, login, register, sessionNotice } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [form, setForm] = useState({ email: '', identifier: '', password: '' })
@@ -58,6 +58,8 @@ export function AuthPage({ mode }) {
           <span>{isRegister ? 'First reincarnation' : 'Soul return'}</span>
           <h2>{isRegister ? 'Create player record' : 'Resume playthrough'}</h2>
         </div>
+
+        {sessionNotice && <p className={styles.sessionNotice} role="status">{sessionNotice}</p>}
 
         {isRegister ? (
           <label>
