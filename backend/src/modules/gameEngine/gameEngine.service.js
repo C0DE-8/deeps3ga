@@ -66,7 +66,7 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', 
       actionType: interpretation.intent,
       interpretation,
       successLevel: 'rejected',
-      rejection: { status: interpretation.status, reason: interpretation.reason },
+      rejection: { status: interpretation.status, reason: interpretation.reason, code: interpretation.rejectionCode, sceneAnchors: interpretation.sceneAnchors || {} },
       rewards: { xp: 0, gold: 0, soulEnergy: 0 },
       skillProgress: [], skillsUnlocked: [], itemsAwarded: [], companions: [], events: [], achievements: [],
       familyMastery: [], ultimateTrials: [], evolutionChoices: [], quests: [], floorProgressGain: 0,
@@ -74,9 +74,10 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', 
     }
   }
   let scene
-  if (interpretation.status !== 'VALID') {
+  const hardRejection = ['rule_manipulation', 'reality_breaking_action'].includes(interpretation.intent)
+  if (hardRejection) {
     scene = normalizeScene({
-      story: buildFallbackStory(engineResolution),
+      story: buildFallbackStory(engineResolution, state),
       choices: ['Describe a possible action.', 'Study what is actually present.', 'Check your character sheet.'],
       safetyNotes: [`Action rejected by reality validation: ${interpretation.status}`],
     })
@@ -123,7 +124,7 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', 
       }))
     } catch (error) {
       scene = normalizeScene({
-        story: buildFallbackStory(engineResolution),
+        story: buildFallbackStory(engineResolution, state),
         choices: engineResolution.died || engineResolution.runCompleted
           ? []
           : ['Continue forward.', 'Study the surroundings.', 'Check on your condition.'],
@@ -134,7 +135,7 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', 
     }
   }
 
-  scene = enforceNarrativeScene(scene, engineResolution, buildFallbackStory(engineResolution))
+  scene = enforceNarrativeScene(scene, engineResolution, buildFallbackStory(engineResolution, state))
 
   const saved = await saveNarrativeTurn({ state, playerAction: playerAction.trim(), actionKind, scene, requestKey })
   let legacyHero = null
@@ -142,11 +143,28 @@ async function continueGame({ storyCycleId, playerAction, actionKind = 'typed', 
   return { scene, engineResolution, saved, legacyHero }
 }
 
-function buildFallbackStory(resolution) {
+function buildFallbackStory(resolution, state = {}) {
   const lines = []
-  if (resolution.rejection) lines.push(resolution.rejection.status === 'AMBIGUOUS' || resolution.rejection.status === 'UNKNOWN'
-    ? 'Your intention is unclear. The moment waits for a more precise decision.'
-    : `The world does not bend to that request. ${resolution.rejection.reason || 'That action is not possible.'}`)
+  const rejection = resolution.rejection
+  const anchors = rejection?.sceneAnchors || {}
+  if (rejection?.code === 'target_non_hostile') {
+    lines.push(`You prepare to strike, but ${anchors.target || 'the figure before you'} does not answer with aggression. It recoils, searching for distance rather than an opening to attack.`)
+    lines.push(`${anchors.atmosphere || state.currentFloor?.atmosphere || 'The surrounding path'} presses close around the unfinished movement. Whatever brought ${anchors.target || 'it'} here has not yet shown itself.`)
+  } else if (rejection?.code === 'target_absent') {
+    lines.push('Your attack cuts through empty space. The target you imagined is nowhere within reach, and the sound of the movement travels farther than you intended.')
+    const present = [...(anchors.presentNpcs || []), ...(anchors.presentCreatures || [])]
+    if (present.length) lines.push(`${present.join(', ')} ${present.length === 1 ? 'is' : 'are'} still here, watching what you do next.`)
+  } else if (rejection?.code === 'nothing_to_escape') {
+    lines.push('You gather yourself to run, but no pursuit follows. The path remains open, leaving you to choose a direction instead of fleeing blind.')
+  } else if (rejection?.code === 'ability_not_owned') {
+    lines.push('You reach for the shape of that power, but nothing answers. The instinct has no place in this body yet, and the moment passes without the world yielding to it.')
+  } else if (rejection?.code === 'item_not_available') {
+    lines.push('Your hand searches for the item and closes on empty cloth. Whatever plan depended on it must change before the danger does.')
+  } else if (rejection) {
+    lines.push(rejection.status === 'AMBIGUOUS' || rejection.status === 'UNKNOWN'
+      ? 'You hesitate between intentions, and the moment refuses to choose for you. A clearer action is needed before anything changes.'
+      : 'You attempt to force the moment beyond what this body and world permit. Nothing answers, and the scene remains exactly as it was.')
+  }
   if (resolution.combat?.escape?.escaped) lines.push('You break away before the enemy can close the distance. Its pursuit fades behind you.')
   if (resolution.combat?.escape && !resolution.combat.escape.escaped) lines.push('You turn to run, but the enemy reads the movement and cuts off your escape.')
   if (resolution.combat?.playerDamage) lines.push(`Your action lands for ${resolution.combat.playerDamage} damage against ${resolution.combat.enemyName}.`)

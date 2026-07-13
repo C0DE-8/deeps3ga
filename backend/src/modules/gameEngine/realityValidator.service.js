@@ -2,8 +2,8 @@ function normalize(value) {
   return String(value || '').trim().toLowerCase()
 }
 
-function reject(status, intent, reason, interpretation) {
-  return { ...interpretation, status, intent, reason, confidence: 1, validatedByEngine: true }
+function reject(status, intent, reason, interpretation, code = 'invalid_action', anchors = {}) {
+  return { ...interpretation, status, intent, reason, rejectionCode: code, sceneAnchors: anchors, confidence: 1, validatedByEngine: true }
 }
 
 function mentionedCatalogEntry(action, entries) {
@@ -20,20 +20,41 @@ function validateReality(action, interpretation, state) {
   const ownedItem = mentionedCatalogEntry(action, state.inventory || [])
 
   if (interpretation.intent === 'flee' && !inCombat) {
-    return reject('INVALID', 'flee', 'There is no active encounter to escape from.', interpretation)
+    return reject('INVALID', 'flee', 'No immediate threat is pursuing the character.', interpretation, 'nothing_to_escape', { floor: state.currentFloor?.floor_name })
   }
 
   if (interpretation.intent === 'attack') {
     const explicitTarget = action.match(/\b(?:attack|strike|stab|shoot|hit)\s+(?:at\s+)?(?:the\s+)?(?!with\b|using\b|my\b)([a-z][a-z '-]{1,80})/i)?.[1]?.replace(/[.!?].*$/, '').trim()
     const targetName = normalize(interpretation.target || explicitTarget)
-    const availableTargets = enemies.length ? enemies : (state.activeMonsters || []).map((entry) => ({ display_name: entry.name }))
-    if (targetName && !availableTargets.some((entry) => normalize(entry.display_name || entry.name).includes(targetName) || targetName.includes(normalize(entry.display_name || entry.name)))) {
-      return reject('IMPOSSIBLE', 'attack', `${interpretation.target || explicitTarget} is not a present target.`, interpretation)
+    const presentEntities = [
+      ...(state.activeMonsters || []).map((entry) => ({ ...entry, display_name: entry.name, entityType: 'creature' })),
+      ...(state.activeNpcs || []).map((entry) => ({ ...entry, display_name: entry.name, entityType: 'person' })),
+    ]
+    const presentTarget = targetName ? presentEntities.find((entry) => normalize(entry.display_name).includes(targetName) || targetName.includes(normalize(entry.display_name))) : null
+    const hostileTarget = targetName ? enemies.find((entry) => normalize(entry.display_name).includes(targetName) || targetName.includes(normalize(entry.display_name))) : null
+    const targetIsHostileMonster = presentTarget?.entityType === 'creature' && presentTarget.status !== 'friendly'
+    if (presentTarget && !hostileTarget && !targetIsHostileMonster) {
+      return reject('INVALID', 'attack', `${presentTarget.display_name} is present but is not acting as an enemy.`, interpretation, 'target_non_hostile', {
+        target: presentTarget.display_name,
+        entityType: presentTarget.entityType,
+        status: presentTarget.status || presentTarget.run_life_status || 'present',
+        floor: state.currentFloor?.floor_name,
+        atmosphere: state.currentFloor?.atmosphere,
+        hiddenEvents: state.currentFloor?.hidden_events_json || [],
+      })
+    }
+    if (targetName && !hostileTarget && !targetIsHostileMonster) {
+      return reject('IMPOSSIBLE', 'attack', `${interpretation.target || explicitTarget} is not present in this scene.`, interpretation, 'target_absent', {
+        floor: state.currentFloor?.floor_name,
+        atmosphere: state.currentFloor?.atmosphere,
+        presentNpcs: (state.activeNpcs || []).map((entry) => entry.name),
+        presentCreatures: (state.activeMonsters || []).map((entry) => entry.name),
+      })
     }
     const claimsNamedPower = /\b(?:cast|use|activate|invoke|channel)\s+(?:my\s+)?([a-z][a-z '-]{2,60})/i.test(action)
     const genericWeaponOrBody = /\b(sword|dagger|bow|fist|kick|punch|claw|fang|bite|staff|weapon)\b/i.test(text)
     if (claimsNamedPower && !knownSkill && !ownedItem && !genericWeaponOrBody) {
-      return reject('IMPOSSIBLE', 'attack', 'That ability or item is not present on the character sheet.', interpretation)
+      return reject('IMPOSSIBLE', 'attack', 'The character does not possess that ability or item.', interpretation, 'ability_not_owned', { knownSkills: (state.skills || []).map((entry) => entry.name) })
     }
   }
 
@@ -41,7 +62,7 @@ function validateReality(action, interpretation, state) {
     const refersToSkill = Boolean(knownSkill)
     const genericObject = /\b(dagger|sword|weapon|cloak|rope|rock|stone|door|lantern)\b/i.test(text)
     if (!ownedItem && !refersToSkill && !genericObject) {
-      return reject('IMPOSSIBLE', interpretation.intent, 'The requested item is not in the inventory or current scene.', interpretation)
+      return reject('IMPOSSIBLE', interpretation.intent, 'The requested item is not in the inventory or current scene.', interpretation, 'item_not_available', { inventory: (state.inventory || []).map((entry) => entry.name) })
     }
   }
 

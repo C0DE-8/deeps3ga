@@ -2,20 +2,29 @@
   position: sticky;
   top: 56px;
   z-index: 19;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex;
   gap: 1px;
   border: 1px solid var(--line);
   border-radius: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   background: var(--line);
   box-shadow: 0 10px 24px rgba(23, 20, 17, 0.08);
+  scrollbar-width: thin;
+  scrollbar-color: #918673 transparent;
+  overscroll-behavior-inline: contain;
 }
 
 .statusItem {
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 112px;
   background: rgba(255, 253, 248, 0.96);
   padding: 10px 12px;
+}
+
+.skillItem {
+  min-width: 155px;
+  border-left: 2px solid #7c493c;
 }
 
 .statusItem span,
@@ -38,7 +47,6 @@
 }
 
 @media (max-width: 720px) {
-  .statusBar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  .statusItem { min-width: 100px; }
+  .skillItem { min-width: 142px; }
 }

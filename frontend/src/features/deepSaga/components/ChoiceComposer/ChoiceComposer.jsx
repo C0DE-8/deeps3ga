@@ -8,10 +8,10 @@ export function ChoiceComposer({ choices, customAction, onCustomActionChange, on
   }
 
   function normalizeChoice(choice, index) {
-    if (typeof choice === 'string') return { key: `${index}-${choice}`, text: choice, action: choice }
+    if (typeof choice === 'string') return { key: `${index}-${choice}`, text: choice, action: choice, direction: '', consequence: '' }
     const text = choice?.text || choice?.label || choice?.action || `Choice ${index + 1}`
     const action = choice?.action || choice?.value || text
-    return { key: choice?.id || `${index}-${text}-${action}`, text, action }
+    return { key: choice?.id || `${index}-${text}-${action}`, text, action, direction: choice?.direction || '', consequence: choice?.consequence || '' }
   }
 
   return (
@@ -21,7 +21,9 @@ export function ChoiceComposer({ choices, customAction, onCustomActionChange, on
           const normalized = normalizeChoice(choice, index)
           return (
             <button key={normalized.key} type="button" disabled={disabled} onClick={() => onSubmitAction(normalized.action, 'suggested')}>
-              {normalized.text}
+              {normalized.direction && <small>{normalized.direction}</small>}
+              <strong>{normalized.text}</strong>
+              {normalized.consequence && <span>{normalized.consequence}</span>}
             </button>
           )
         })}

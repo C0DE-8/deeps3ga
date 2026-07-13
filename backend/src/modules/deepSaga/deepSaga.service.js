@@ -40,13 +40,7 @@ async function continueScene(payload) {
   const ai = getAiConfig()
 
   if (!ai.apiKey) {
-    return {
-      narrative: 'The Dungeon is silent because the AI key is not configured.',
-      choices: ['Check backend environment', 'Start a local mock scene', 'Review setup flow'],
-      consequences: [],
-      memorySignals: [],
-      safetyNotes: ['OPENAI_API_KEY is required on the backend.'],
-    }
+    throw new Error('Narrative AI is unavailable.')
   }
 
   const response = await fetch(ai.chatCompletionsUrl, {

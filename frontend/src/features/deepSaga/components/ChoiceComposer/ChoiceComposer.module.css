@@ -27,8 +27,29 @@
 }
 
 .choiceGrid button {
+  display: grid;
+  align-content: start;
+  gap: 5px;
   text-align: left;
   padding: 10px 12px;
+}
+
+.choiceGrid button small {
+  color: #7c493c;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.choiceGrid button strong {
+  line-height: 1.28;
+}
+
+.choiceGrid button span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .actionForm {

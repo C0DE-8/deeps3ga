@@ -156,12 +156,15 @@ export function StorySimulation() {
 
   const latest = scenes.at(-1)
   const storyEnded = latest.engineResolution?.died || latest.engineResolution?.runCompleted
-  const status = state ? { hp: state.characterSheet.hp, mp: state.characterSheet.mana, level: state.characterSheet.level, dungeon: state.currentDungeon.name, floor: `Floor ${state.currentFloor.floor_number}` } : latest.status
+  const status = state ? { hp: state.characterSheet.hp, maxHp: state.characterSheet.max_hp, mp: state.characterSheet.mana, maxMp: state.characterSheet.max_mana, level: state.characterSheet.level, dungeon: state.currentDungeon.name, floor: `Floor ${state.currentFloor.floor_number}` } : latest.status
   return (
     <main className={styles.reader}>
       <AppHeader compact />
-      <StatusBar status={status} />
-      <button className={styles.sheetToggle} type="button" onClick={() => setSheetOpen((open) => !open)} title={sheetOpen ? 'Close character sheet' : 'Open character sheet'}>{sheetOpen ? <PanelRightClose /> : <PanelRightOpen />}</button>
+      <StatusBar status={status} skills={state?.skills || []} />
+      <button className={styles.sheetToggle} type="button" onClick={() => setSheetOpen((open) => !open)} title={sheetOpen ? 'Close character sheet' : 'Open character sheet'}>
+        <span className={styles.locationText}><small>Current location</small><strong>{status.dungeon}</strong><em>{status.floor}</em></span>
+        {sheetOpen ? <PanelRightClose /> : <PanelRightOpen />}
+      </button>
       <aside className={`${styles.sheetDrawer} ${sheetOpen ? styles.open : ''}`}>{state && <CharacterSheet character={characterFromState(state)} />}</aside>
       <div className={styles.storyStream}>
         {scenes.map((scene, index) => <div className={styles.sceneWrap} key={scene.id} ref={index === scenes.length - 1 ? endRef : null}><StoryPanel scene={scene} /><EngineResults resolution={scene.engineResolution} />{index < scenes.length - 1 && <ChevronDown className={styles.pageBreak} size={20} />}</div>)}

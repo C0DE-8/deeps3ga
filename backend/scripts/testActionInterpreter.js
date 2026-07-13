@@ -3,6 +3,7 @@ const { localInterpret, validateInterpretation } = require('../src/modules/gameE
 const { validateReality } = require('../src/modules/gameEngine/realityValidator.service')
 const { enforceNarrativeScene } = require('../src/modules/deepSaga/narrativeEnforcer.service')
 const { calculateEscapeChance, damageMultiplier } = require('../src/modules/gameEngine/turnEngine.service')
+const { buildFallbackStory } = require('../src/modules/gameEngine/gameEngine.service')
 
 assert.equal(localInterpret('I run away from the wolf.').intent, 'flee')
 assert.equal(localInterpret('I attack the wolf.').intent, 'attack')
@@ -33,13 +34,29 @@ assert.equal(validateReality('I flee.', localInterpret('I flee.'), { ...state, a
 
 const enforced = enforceNarrativeScene(
   { story: 'The wolf falls and you gain a crown.', characterChanges: ['Level 99'], newItemsOrSkills: ['Divine Crown'], memorySignals: ['Became king'], choices: ['Continue.'] },
-  { rewards: { xp: 0, gold: 0 }, itemsAwarded: [], skillsUnlocked: [], rejection: { status: 'IMPOSSIBLE', reason: 'No crown exists.' }, interpretation: { status: 'IMPOSSIBLE' } },
+  { rewards: { xp: 0, gold: 0 }, itemsAwarded: [], skillsUnlocked: [], rejection: { status: 'IMPOSSIBLE', reason: 'No crown exists.' }, interpretation: { status: 'IMPOSSIBLE', intent: 'rule_manipulation' } },
   'The world refuses the impossible request.',
 )
 assert.equal(enforced.story, 'The world refuses the impossible request.')
 assert.deepEqual(enforced.characterChanges, [])
 assert.deepEqual(enforced.newItemsOrSkills, [])
 assert.deepEqual(enforced.memorySignals, [])
+
+const contextualScene = enforceNarrativeScene(
+  { story: 'The stag recoils as a heavier shape moves beyond the lantern moss.', choices: [{ id: 'track', text: 'Examine the broken reeds behind it.', action: 'I examine the broken reeds.', direction: 'investigation', consequence: 'The hidden hunter may notice you.', anchor: 'broken reeds' }] },
+  { rewards: {}, itemsAwarded: [], skillsUnlocked: [], rejection: { status: 'INVALID', code: 'target_non_hostile' }, interpretation: { status: 'INVALID', intent: 'attack' } },
+  'Fallback.',
+)
+assert.match(contextualScene.story, /stag recoils/)
+assert.equal(contextualScene.choices[0].direction, 'investigation')
+assert.equal(contextualScene.choices[0].action, 'I examine the broken reeds.')
+
+const contextualFallback = buildFallbackStory({
+  rewards: {}, itemsAwarded: [], skillsUnlocked: [],
+  rejection: { status: 'INVALID', code: 'target_non_hostile', sceneAnchors: { target: 'the wounded stag', atmosphere: 'Blue lantern moss dims beneath the trees.' } },
+})
+assert.match(contextualFallback, /wounded stag/)
+assert.doesNotMatch(contextualFallback, /active enemy|does not bend|request/i)
 
 const normalEscape = calculateEscapeChance({ agility: 10, stamina: 50, pursuit: 10 })
 assert.equal(normalEscape, 60)

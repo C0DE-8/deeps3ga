@@ -4,6 +4,20 @@ function asText(value) {
   return ''
 }
 
+function normalizeChoice(value, index) {
+  if (typeof value === 'string') return { id: `choice-${index + 1}`, text: value.trim(), action: value.trim(), direction: 'unspecified', consequence: '' }
+  const text = asText(value)
+  if (!text) return null
+  return {
+    id: String(value.id || `choice-${index + 1}`).slice(0, 80),
+    text,
+    action: String(value.action || text).trim().slice(0, 500),
+    direction: String(value.direction || 'unspecified').trim().slice(0, 120),
+    consequence: String(value.consequence || '').trim().slice(0, 240),
+    anchor: String(value.anchor || '').trim().slice(0, 120),
+  }
+}
+
 function authoritativeChanges(resolution) {
   const changes = []
   if (resolution.combat?.playerDamage) changes.push(`${resolution.combat.playerDamage} damage dealt to ${resolution.combat.enemyName}.`)
@@ -34,10 +48,11 @@ function enforceNarrativeScene(scene, resolution, fallbackStory) {
   if ((scene.memorySignals || []).length) violations.push('model_memory_writes_blocked')
   if (rejected) violations.push('rejected_action_forced_to_engine_narrative')
 
-  const choices = (scene.choices || []).map(asText).filter(Boolean).slice(0, 5)
+  const choices = (scene.choices || []).map(normalizeChoice).filter(Boolean).slice(0, 5)
+  const hardRejection = ['rule_manipulation', 'reality_breaking_action'].includes(resolution.interpretation?.intent)
   return {
     ...scene,
-    story: rejected ? fallbackStory : (asText(scene.story) || fallbackStory),
+    story: rejected && hardRejection ? fallbackStory : (asText(scene.story) || fallbackStory),
     characterChanges: authoritativeChanges(resolution),
     newItemsOrSkills: authoritativeRewards(resolution),
     choices: resolution.died || resolution.runCompleted ? [] : choices,
