@@ -18,6 +18,10 @@ export async function fetchCurrentPlayer() {
   return request('/auth/me')
 }
 
+export async function fetchAuthStatus() {
+  return request('/auth/status')
+}
+
 export async function createOpeningScene() {
   return request('/story/opening', {
     method: 'POST',

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchCurrentPlayer, loginPlayer, registerPlayer } from '../../api/authApi'
+import { fetchAuthStatus, loginPlayer, registerPlayer } from '../../api/authApi'
 import { consumeAuthNotice, getStoredToken, setStoredToken } from '../../api/httpClient'
 import { AuthContext } from './useAuth'
 
@@ -18,8 +18,13 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const payload = await fetchCurrentPlayer()
-        if (!ignore) setPlayer(payload.data.player)
+        const payload = await fetchAuthStatus()
+        if (!payload.authenticated) {
+          setStoredToken(null)
+          if (!ignore) setSessionNotice(payload.message || 'Your session has expired. Log in again to continue your story.')
+        } else if (!ignore) {
+          setPlayer(payload.data.player)
+        }
       } catch {
         setStoredToken(null)
       } finally {

@@ -1,5 +1,5 @@
 const express = require("express");
-const { requireAuth } = require("../middleware/auth");
+const { optionalAuth, requireAuth } = require("../middleware/auth");
 const { createToken } = require("../utils/token");
 const { loginPlayer, registerPlayer } = require("../services/player.service");
 
@@ -70,6 +70,23 @@ router.post("/login", async (req, res) => {
 
 router.get("/me", requireAuth, (req, res) => {
   res.json({ success: true, data: { player: req.auth.player } });
+});
+
+router.get("/status", optionalAuth, (req, res) => {
+  if (!req.auth) {
+    return res.json({
+      success: true,
+      authenticated: false,
+      message: "Your session has expired. Log in again to continue your story.",
+      data: { player: null }
+    });
+  }
+
+  return res.json({
+    success: true,
+    authenticated: true,
+    data: { player: req.auth.player }
+  });
 });
 
 module.exports = router;
