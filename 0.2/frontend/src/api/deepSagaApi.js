@@ -10,14 +10,51 @@ function writeStory(player, messages) {
   localStorage.setItem(storyKey(player), JSON.stringify(messages.slice(-80)))
 }
 
+function cleanText(value) {
+  const text = String(value || '').trim()
+  return text === '[object Object]' ? '' : text
+}
+
+function normalizeChoice(choice, index, stamp = 'saved') {
+  const fallbackDirection = `Path ${index + 1}`
+
+  if (typeof choice === 'string') {
+    const title = cleanText(choice)
+    if (!title) return null
+    return {
+      id: `path-${stamp}-${index}`,
+      title,
+      text: '',
+      action: title,
+      direction: fallbackDirection,
+    }
+  }
+
+  if (choice && typeof choice === 'object') {
+    const title = cleanText(choice.title || choice.label || choice.text || choice.action)
+    const text = cleanText(choice.text || choice.description || choice.detail)
+    const action = cleanText(choice.action || choice.text || title)
+    const direction = cleanText(choice.direction || choice.type || fallbackDirection)
+    const id = cleanText(choice.id) || `path-${stamp}-${index}`
+
+    if (!title && !text && !action) return null
+
+    return {
+      id,
+      title: title || action || text,
+      text: text && text !== title ? text : '',
+      action: action || title || text,
+      direction: direction || fallbackDirection,
+    }
+  }
+
+  return null
+}
+
 function choicesFromScene(scene, stamp) {
-  return (scene.choices || []).map((choice, index) => ({
-    id: `path-${stamp}-${index}`,
-    title: String(choice),
-    text: String(choice),
-    action: String(choice),
-    direction: `Path ${index + 1}`,
-  }))
+  return (scene.choices || [])
+    .map((choice, index) => normalizeChoice(choice, index, stamp))
+    .filter(Boolean)
 }
 
 function sceneMessages({ scene, choices, stamp, playerAction = '' }) {
@@ -68,7 +105,26 @@ function saveFromPlayer(player) {
 
 async function fetchStoryHistory() {
   const response = await request('/story/history?limit=80')
-  return response.data.messages || []
+  return (response.data.messages || []).map((message) => ({
+    ...message,
+    choices_json: Array.isArray(message.choices_json)
+      ? message.choices_json.map((choice, index) => normalizeChoice(choice, index, `sql-${message.id || index}`)).filter(Boolean)
+      : [],
+  }))
+}
+
+async function fetchPlayerSheet() {
+  const response = await request('/story/stats')
+  return response.data
+}
+
+function isStatsAction(action) {
+  return /^(stats?|status|sheet|character\s*sheet|player\s*sheet)$/i.test(String(action || '').trim())
+}
+
+function latestChoices(history) {
+  const narrator = [...history].reverse().find((message) => message.speaker === 'narrator' && Array.isArray(message.choices_json) && message.choices_json.length)
+  return narrator?.choices_json || []
 }
 
 function stateFromPlayer(player, narrativeHistory = []) {
@@ -129,7 +185,11 @@ function stateFromPlayer(player, narrativeHistory = []) {
       is_boss_floor: Boolean(runtime.isBossFloor || floorNumber === 3),
       is_final_boss_floor: Boolean(runtime.isFinalBossFloor || (dungeonNumber === 5 && floorNumber === 3)),
     },
-    skills: (body.skills || []).map((name, index) => ({ id: index + 1, name, skill_level: 1 })),
+    skills: (player.skills || body.skills || []).map((skill, index) => (
+      typeof skill === 'string'
+        ? { id: index + 1, name: skill, skill_level: 1 }
+        : { id: skill.id || index + 1, name: skill.name, skill_level: skill.level || skill.skill_level || 1, family: skill.family, type: skill.type }
+    )),
     inventory: body.inventory || [],
     narrativeHistory,
   }
@@ -175,6 +235,33 @@ export async function createOpeningNarrative() {
 export async function continueNarrative(payload) {
   const player = await currentPlayer()
   const history = await fetchStoryHistory()
+
+  if (isStatsAction(payload.playerAction)) {
+    const sheet = await fetchPlayerSheet()
+    const stamp = Date.now()
+    const messages = [
+      { id: `player-${stamp}`, speaker: 'player', message_text: payload.playerAction },
+      {
+        id: `stats-${stamp}`,
+        speaker: 'narrator',
+        message_text: 'Character Sheet',
+        message_kind: 'stats',
+        sheet_json: sheet,
+        choices_json: latestChoices(history),
+      },
+    ]
+
+    writeStory(player, [...history, ...messages])
+    return {
+      localOnly: true,
+      messages,
+      story: 'Character Sheet',
+      choices: latestChoices(history),
+      stateChanges: {},
+      recordChanges: [],
+    }
+  }
+
   const response = await request('/story/opening', {
     method: 'POST',
     body: JSON.stringify({

@@ -12,10 +12,30 @@ function buildFallbackScene(player, playerAction) {
       ? `You try to ${action}. The dungeon answers with silence first, then with pressure, as if the stone itself is judging whether your new ${race} body can survive the choice.`
       : `You wake beneath a ceiling of black stone, no longer human. Your memories arrive first: a normal life, a sudden death, then the cold certainty that this body is yours now. The dungeon air tastes like iron. Your new ${race} instincts twitch before your human thoughts can name them.`,
     choices: [
-      `Test what your ${race} body can do without making noise.`,
-      "Listen for movement before stepping deeper into the chamber.",
-      "Search the floor for remains, tools, or signs of danger.",
-      "Move toward the nearest sound and risk being seen."
+      {
+        title: `Test the limits of your ${race} body`,
+        text: "Move carefully and learn what this reincarnated form can do before the Dungeon notices too much.",
+        action: `I quietly test what my ${race} body can do without drawing attention.`,
+        direction: "survival"
+      },
+      {
+        title: "Listen before moving deeper",
+        text: "Stay low, let the chamber breathe around you, and identify the nearest sound before choosing a path.",
+        action: "I stay still and listen for movement before stepping deeper into the chamber.",
+        direction: "cautious"
+      },
+      {
+        title: "Search the floor for signs",
+        text: "Look for remains, tools, blood trails, claw marks, or anything that explains what hunts here.",
+        action: "I search the floor for remains, tools, or signs of danger.",
+        direction: "investigate"
+      },
+      {
+        title: "Move toward the nearest sound",
+        text: "Risk being seen in exchange for learning what lives beyond the dark edge of the chamber.",
+        action: "I move toward the nearest sound and prepare to react if something sees me.",
+        direction: "bold"
+      }
     ],
     aiNarrated: false,
     source: "fallback"
@@ -40,24 +60,50 @@ function extractText(payload) {
   return "";
 }
 
+function normalizeChoice(choice, index) {
+  const fallbackDirection = `Path ${index + 1}`;
+
+  if (typeof choice === "string") {
+    const text = choice.trim();
+    if (!text) return null;
+
+    return {
+      id: `choice-${index + 1}`,
+      title: text,
+      text: "",
+      action: text,
+      direction: fallbackDirection
+    };
+  }
+
+  if (choice && typeof choice === "object") {
+    const title = String(choice.title || choice.label || choice.text || choice.action || "").trim();
+    const text = String(choice.text || choice.description || choice.detail || "").trim();
+    const action = String(choice.action || choice.text || title || "").trim();
+    const direction = String(choice.direction || choice.type || fallbackDirection).trim();
+    const id = String(choice.id || `choice-${index + 1}`).trim();
+
+    if (!title && !text && !action) return null;
+
+    return {
+      id: id || `choice-${index + 1}`,
+      title: title || action || text,
+      text: text && text !== title ? text : "",
+      action: action || title || text,
+      direction: direction || fallbackDirection
+    };
+  }
+
+  return null;
+}
+
 function normalizeChoices(choices) {
   if (!Array.isArray(choices)) {
     return [];
   }
 
   return choices
-    .map((choice) => {
-      if (typeof choice === "string") {
-        return choice;
-      }
-
-      if (choice && typeof choice === "object") {
-        return choice.action || choice.text || choice.title || "";
-      }
-
-      return "";
-    })
-    .map((choice) => String(choice).trim())
+    .map((choice, index) => normalizeChoice(choice, index))
     .filter(Boolean)
     .slice(0, 5);
 }

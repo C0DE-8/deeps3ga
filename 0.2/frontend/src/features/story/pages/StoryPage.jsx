@@ -14,6 +14,81 @@ function storyEntries(state) {
   return (state?.narrativeHistory || []).filter((message) => ['player', 'narrator'].includes(message.speaker))
 }
 
+function numberValue(value, fallback = 0) {
+  return Number(value ?? fallback)
+}
+
+function StatLine({ label, value }) {
+  return (
+    <span>
+      <small>{label}</small>
+      <strong>{value}</strong>
+    </span>
+  )
+}
+
+function StatsMessage({ sheet }) {
+  const character = sheet?.character || {}
+  const runtime = sheet?.floorRuntime || {}
+  const skills = Array.isArray(sheet?.skills) ? sheet.skills : []
+  const memoryLog = Array.isArray(sheet?.memoryLog) ? sheet.memoryLog : []
+
+  return (
+    <div className={styles.statsMessage}>
+      <header>
+        <small>Character sheet</small>
+        <h2>{character.characterName || 'Unnamed Soul'}</h2>
+        <p>{character.race || 'Unknown'} · {character.className || 'Reincarnated Monster'}</p>
+      </header>
+
+      <section className={styles.statsGrid}>
+        <StatLine label="Level" value={numberValue(character.level, 1)} />
+        <StatLine label="HP" value={`${numberValue(character.hp, 0)}/${numberValue(character.maxHp, 0)}`} />
+        <StatLine label="Mana" value={`${numberValue(character.mana, 0)}/${numberValue(character.maxMana, 0)}`} />
+        <StatLine label="Stamina" value={`${numberValue(character.stamina, 0)}/${numberValue(character.maxStamina, 0)}`} />
+        <StatLine label="Gold" value={numberValue(character.gold, 0)} />
+        <StatLine label="Soul Energy" value={numberValue(character.soulEnergy, 0)} />
+      </section>
+
+      <section className={styles.abilityGrid}>
+        <StatLine label="Strength" value={numberValue(character.strength, 5)} />
+        <StatLine label="Agility" value={numberValue(character.agility, 5)} />
+        <StatLine label="Defense" value={numberValue(character.defense, 5)} />
+        <StatLine label="Thaumaturgy" value={numberValue(character.thaumaturgy, 5)} />
+        <StatLine label="Resolve" value={numberValue(character.resolve, 5)} />
+        <StatLine label="Intelligence" value={numberValue(character.intelligence, 5)} />
+        <StatLine label="Luck" value={numberValue(character.luck, 5)} />
+        <StatLine label="Charisma" value={numberValue(character.charisma, 5)} />
+      </section>
+
+      <section className={styles.sheetSection}>
+        <small>Current position</small>
+        <p>{runtime.dungeonAiName || runtime.dungeonLabel || 'Dungeon 1'} · Floor {runtime.floorNumber || character.floor || 1}</p>
+      </section>
+
+      <section className={styles.sheetSection}>
+        <small>Learned skills</small>
+        <div className={styles.skillList}>
+          {skills.length ? skills.map((skill) => (
+            <span key={skill.id || skill.key || skill.name}>
+              <strong>{skill.name}</strong>
+              <em>Lv. {skill.level || skill.skill_level || 1}</em>
+              <small>{skill.family || skill.type || 'Skill'}</small>
+            </span>
+          )) : <p>No learned skills recorded yet.</p>}
+        </div>
+      </section>
+
+      {memoryLog.length > 0 && (
+        <section className={styles.sheetSection}>
+          <small>Soul memory</small>
+          <p>{memoryLog.slice(-2).join(' ')}</p>
+        </section>
+      )}
+    </div>
+  )
+}
+
 export function StoryPage() {
   const { cycleId } = useParams()
   const navigate = useNavigate()
@@ -93,6 +168,13 @@ export function StoryPage() {
       })
       setAction('')
       setChoices(result.choices || [])
+      if (result.localOnly) {
+        setGame((current) => current ? {
+          ...current,
+          narrativeHistory: [...(current.narrativeHistory || []), ...(result.messages || [])],
+        } : current)
+        return
+      }
       await loadStory(cycleId)
     } catch (requestError) {
       setError(requestError.message || 'The narrator fell silent.')
@@ -134,6 +216,8 @@ export function StoryPage() {
           {!messages.length && !busy && <article className={styles.narration}><BookOpen /><p>{initialStory}</p></article>}
           {messages.map((message) => message.speaker === 'player' ? (
             <article className={styles.playerAction} key={message.id}><span>Player</span><p>{message.message_text}</p></article>
+          ) : message.message_kind === 'stats' ? (
+            <article className={styles.narration} key={message.id}><StatsMessage sheet={message.sheet_json} /></article>
           ) : (
             <article className={styles.narration} key={message.id}><p>{message.message_text}</p></article>
           ))}

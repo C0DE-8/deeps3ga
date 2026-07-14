@@ -104,11 +104,18 @@ DEATH, REINCARNATION, AND LEGACY:
 
 CHOICE RULES:
 - Return 3 to 5 choices during normal play.
+- Choices must be structured objects with id, title, text, action, and direction.
+- title must be short but meaningful.
+- text must explain the concrete story reason, danger, clue, enemy, route, NPC, body trait, skill, or objective behind that choice.
+- action must be the exact natural-language action the player would submit if they click it.
+- direction should be a short category such as cautious, aggressive, investigate, social, flee, survival, or arcane.
+- Never return empty choice text.
 - Choices must be specific story decisions, not generic commands.
 - Each choice should reference something real in the current scene: a present creature, route, clue, danger, skill, body trait, NPC, memory, objective, or environmental feature.
 - Do not include a generic "type your own action" choice; the frontend already allows custom typed actions.
 - Do not guarantee success inside a choice.
 - The choices should create genuinely different roads through the next scene.
+- Do not return bland choices like "look around", "wait", "attack again", "continue", or "use a skill" unless the choice names the exact target, method, and scene reason.
 `;
 
 function getPersona(persona) {
@@ -144,7 +151,7 @@ RESPONSE CONTRACT:
 - Do not wrap it in markdown.
 - Do not add explanation text outside JSON.
 - Use "narration" for the player-facing story.
-- Use "choices" for 3 to 5 next story decisions.
+- Use "choices" for 3 to 5 next story decisions as structured objects.
 - Use "stateChanges", "recordChanges", and "memoryUpdates" for confirmed changes only.
 - Use "locationNames" only when you call the current dungeon, floor, area, or boss by a story name.
 - Use "memoryUpdates" for facts worth remembering later, such as promises, discoveries, named enemies, NPC relationships, recurring tactics, quiet clues, boss weaknesses, and major decisions.
@@ -157,9 +164,27 @@ JSON SHAPE:
 {
   "narration": "Complete flowing second-person narration.",
   "choices": [
-    "Specific next action connected to the current scene.",
-    "Specific next action connected to the current scene.",
-    "Specific next action connected to the current scene."
+    {
+      "id": "approach-wounded-stag",
+      "title": "Approach the wounded stag carefully",
+      "text": "Keep your body low and watch the deeper brush where whatever wounded it may still be hiding.",
+      "action": "I approach the wounded stag carefully while watching the deeper brush for the thing that hurt it.",
+      "direction": "cautious"
+    },
+    {
+      "id": "follow-broken-reeds",
+      "title": "Follow the broken reeds",
+      "text": "Trace the damage behind the creature and learn what larger threat drove it onto your path.",
+      "action": "I follow the broken reeds behind the stag to find what drove it here.",
+      "direction": "investigate"
+    },
+    {
+      "id": "prepare-ambush-from-roots",
+      "title": "Prepare an ambush near the roots",
+      "text": "Use the exposed roots and lantern moss as cover before the heavy thing in the woods reaches you.",
+      "action": "I use the exposed roots and lantern moss as cover and prepare an ambush.",
+      "direction": "survival"
+    }
   ],
   "stateChanges": {},
   "recordChanges": [],

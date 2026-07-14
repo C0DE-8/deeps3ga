@@ -859,6 +859,60 @@ async function createLegacyHeroForPlayer(playerId, runNumber) {
   return rows[0] || null;
 }
 
+async function getPlayerSheet(playerId) {
+  await ensurePlayerSchema();
+
+  const row = await findPlayerByIdentifier(playerId);
+  if (!row) {
+    return null;
+  }
+
+  const player = serializePlayer(row);
+  const character = player.activeCharacter;
+  let skills = [];
+
+  if (character?.id) {
+    const skillRows = await db.query(
+      `SELECT s.id, s.skill_key, s.name, s.family, s.skill_type, s.description, s.rarity,
+              pcs.skill_level, pcs.xp, pcs.unlocked, pcs.equipped, pcs.last_used_at
+         FROM player_character_skills pcs
+         JOIN skills s ON s.id = pcs.skill_id
+        WHERE pcs.character_id = ? AND pcs.unlocked = 1
+        ORDER BY pcs.equipped DESC, s.family, s.name`,
+      [character.id]
+    );
+
+    skills = skillRows.map((skill) => ({
+      id: Number(skill.id),
+      key: skill.skill_key,
+      name: skill.name,
+      family: skill.family,
+      type: skill.skill_type,
+      description: skill.description,
+      rarity: skill.rarity,
+      level: Number(skill.skill_level || 1),
+      xp: Number(skill.xp || 0),
+      equipped: Boolean(Number(skill.equipped || 0)),
+      lastUsedAt: skill.last_used_at || null
+    }));
+  }
+
+  return {
+    player: {
+      playerId: player.playerId,
+      username: player.username,
+      narratorPersona: player.narratorPersona,
+      currentRun: player.currentRun,
+      cycleClears: player.cycleClears
+    },
+    character,
+    currentBody: player.currentBody,
+    floorRuntime: player.floorRuntime,
+    skills,
+    memoryLog: player.memoryLog || []
+  };
+}
+
 async function findPlayerByIdentifier(identifier) {
   const normalized = String(identifier || "").trim().toLowerCase();
 
@@ -954,6 +1008,7 @@ module.exports = {
   createLegacyHeroForPlayer,
   ensurePlayerSchema,
   getFloorRuntime,
+  getPlayerSheet,
   listNarratorPersonas,
   loginPlayer,
   monsterRaces,
