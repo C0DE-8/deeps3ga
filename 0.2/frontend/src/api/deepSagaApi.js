@@ -64,7 +64,14 @@ function sceneMessages({ scene, choices, stamp, playerAction = '' }) {
     messages.push({ id: `player-${stamp}`, speaker: 'player', message_text: playerAction })
   }
 
-  messages.push({ id: `narrator-${stamp}`, speaker: 'narrator', message_text: scene.narration, choices_json: choices })
+  messages.push({
+    id: `narrator-${stamp}`,
+    speaker: 'narrator',
+    message_text: scene.narration,
+    choices_json: choices,
+    record_changes_json: scene.recordChanges || [],
+    state_changes_json: scene.stateChanges || {},
+  })
   return messages
 }
 
@@ -294,7 +301,14 @@ export async function continueNarrative(payload) {
         sheet_json: sheet,
         choices_json: [],
       },
-      { id: `narrator-${stamp}`, speaker: 'narrator', message_text: scene.narration, choices_json: choices },
+      {
+        id: `narrator-${stamp}`,
+        speaker: 'narrator',
+        message_text: scene.narration,
+        choices_json: choices,
+        record_changes_json: scene.recordChanges || [],
+        state_changes_json: scene.stateChanges || {},
+      },
     ]
 
     writeStory(player, [...history, ...messages])

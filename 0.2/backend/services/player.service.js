@@ -979,6 +979,12 @@ async function applyCharacterResourceDeltas(characterId, deltas = {}) {
     return null;
   }
 
+  const beforeRows = await db.query(
+    "SELECT hp, max_hp, mana, max_mana, stamina, max_stamina, gold FROM player_characters WHERE id = ? LIMIT 1",
+    [characterId]
+  );
+  const before = beforeRows[0] || null;
+
   await db.execute(
     `UPDATE player_characters
         SET hp = LEAST(max_hp, GREATEST(0, hp + ?)),
@@ -994,7 +1000,16 @@ async function applyCharacterResourceDeltas(characterId, deltas = {}) {
     [characterId]
   );
 
-  return rows[0] || null;
+  return {
+    before,
+    after: rows[0] || null,
+    deltas: {
+      hp: hpDelta,
+      mana: manaDelta,
+      stamina: staminaDelta,
+      gold: goldDelta
+    }
+  };
 }
 
 async function findPlayerByIdentifier(identifier) {

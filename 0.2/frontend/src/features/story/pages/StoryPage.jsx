@@ -35,6 +35,7 @@ function storyScenes(messages, game) {
       floor: game?.currentFloor?.floor_number || 1,
       purpose: game?.currentFloor?.story_purpose || 'The story continues.',
       paragraphs: String(message.message_text || '').split(/\n\s*\n/).map((entry) => entry.trim()).filter(Boolean),
+      recordChanges: Array.isArray(message.record_changes_json) ? message.record_changes_json : [],
     })
     playerAction = null
   }
@@ -143,6 +144,28 @@ function StoryText({ paragraphs }) {
     <div className={styles.storyText}>
       {paragraphs.map((paragraph) => <StoryBlock block={paragraph} key={paragraph} />)}
     </div>
+  )
+}
+
+function RecordChanges({ changes }) {
+  const visible = (Array.isArray(changes) ? changes : [])
+    .map((change) => typeof change === 'string' ? { type: 'change', text: change } : change)
+    .filter((change) => String(change?.text || '').trim())
+
+  if (!visible.length) return null
+
+  return (
+    <section className={styles.recordChanges}>
+      <small>The record changes</small>
+      <ul>
+        {visible.map((change, index) => (
+          <li key={`${change.type || 'change'}-${change.text}-${index}`}>
+            <span>{change.type || 'change'}</span>
+            <strong>{change.text}</strong>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -363,7 +386,10 @@ export function StoryPage() {
                         {scene.narrator?.message_kind === 'stats' ? (
                           <StatsMessage sheet={scene.narrator.sheet_json} />
                         ) : (
-                          <StoryText paragraphs={scene.paragraphs} />
+                          <>
+                            <StoryText paragraphs={scene.paragraphs} />
+                            <RecordChanges changes={scene.recordChanges} />
+                          </>
                         )}
                       </div>
 

@@ -289,12 +289,72 @@ function normalizeSkillUnlocks(stateChanges) {
     .slice(0, 3);
 }
 
+function resourceRecordChanges(resourceResult) {
+  if (!resourceResult?.before || !resourceResult?.after || !resourceResult?.deltas) {
+    return [];
+  }
+
+  const before = resourceResult.before;
+  const after = resourceResult.after;
+  const deltas = resourceResult.deltas;
+  const records = [];
+  const formatDelta = (value) => value > 0 ? `+${value}` : `${value}`;
+
+  if (deltas.hp) {
+    records.push({
+      type: "resource",
+      text: `HP ${formatDelta(deltas.hp)}: ${before.hp}/${before.max_hp} -> ${after.hp}/${after.max_hp}`
+    });
+  }
+
+  if (deltas.mana) {
+    records.push({
+      type: "resource",
+      text: `Mana ${formatDelta(deltas.mana)}: ${before.mana}/${before.max_mana} -> ${after.mana}/${after.max_mana}`
+    });
+  }
+
+  if (deltas.stamina) {
+    records.push({
+      type: "resource",
+      text: `Stamina ${formatDelta(deltas.stamina)}: ${before.stamina}/${before.max_stamina} -> ${after.stamina}/${after.max_stamina}`
+    });
+  }
+
+  if (deltas.gold) {
+    records.push({
+      type: "resource",
+      text: `Gold ${formatDelta(deltas.gold)}: ${before.gold} -> ${after.gold}`
+    });
+  }
+
+  return records;
+}
+
+function actionLooksLikeAppraisal(action) {
+  return /\b(apprais(?:e|al|ing)?|analyz(?:e|e|ing)|inspect|identify|study|self-analysis|read\s+more|see\s+more\s+information)\b/i.test(String(action || ""));
+}
+
+function stateHasResourceDelta(stateChanges) {
+  return Boolean(
+    Number(stateChanges.hpDelta || stateChanges.playerHpDelta || 0) ||
+    Number(stateChanges.manaDelta || stateChanges.playerManaDelta || 0) ||
+    Number(stateChanges.staminaDelta || stateChanges.playerStaminaDelta || 0) ||
+    Number(stateChanges.goldDelta || 0)
+  );
+}
+
 async function applyAcceptedStateChanges(context, scene) {
   const characterId = context.activeCharacter?.id || null;
   const stateChanges = scene.stateChanges || {};
 
   if (!characterId) {
     return;
+  }
+
+  if (!stateHasResourceDelta(stateChanges) && actionLooksLikeAppraisal(context.playerAction)) {
+    stateChanges.playerManaDelta = -1;
+    scene.stateChanges = stateChanges;
   }
 
   const resourceResult = await applyCharacterResourceDeltas(characterId, {
@@ -306,6 +366,10 @@ async function applyAcceptedStateChanges(context, scene) {
 
   if (resourceResult) {
     scene.appliedResources = resourceResult;
+    scene.recordChanges = [
+      ...(scene.recordChanges || []),
+      ...resourceRecordChanges(resourceResult)
+    ];
   }
 
   const unlocked = [];
