@@ -68,6 +68,84 @@ function StatLine({ label, value }) {
   )
 }
 
+function cleanMarkdown(value) {
+  return String(value || '').replace(/\*\*/g, '').replace(/\*/g, '').trim()
+}
+
+function InlineText({ text }) {
+  const parts = String(text || '').split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean)
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>
+    }
+
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={`${part}-${index}`}>{part.slice(1, -1)}</em>
+    }
+
+    return <span key={`${part}-${index}`}>{part}</span>
+  })
+}
+
+function isKeyValueLine(line) {
+  return /^(\*\*)?[\w\s().'-]{2,40}:(\*\*)?\s+/.test(line)
+}
+
+function isListLine(line) {
+  return /^[-•]\s+/.test(line)
+}
+
+function StoryBlock({ block }) {
+  const lines = String(block || '').split('\n').map((line) => line.trim()).filter(Boolean)
+  if (!lines.length) return null
+
+  const first = lines[0]
+  const normalizedFirst = cleanMarkdown(first).toLowerCase()
+  const isSkillCallout = normalizedFirst.includes('new skill') || normalizedFirst.includes('skill acquired')
+  const isStructured = lines.length > 1 && lines.slice(1).some((line) => isKeyValueLine(line) || isListLine(line))
+
+  if (isSkillCallout) {
+    return (
+      <section className={styles.skillCallout}>
+        <strong><InlineText text={first} /></strong>
+        {lines.slice(1).map((line) => <p key={line}><InlineText text={line} /></p>)}
+      </section>
+    )
+  }
+
+  if (isStructured) {
+    const heading = cleanMarkdown(first)
+    const rows = lines.slice(1)
+
+    return (
+      <section className={styles.infoBlock}>
+        <h3>{heading}</h3>
+        <ul>
+          {rows.map((line) => {
+            const text = line.replace(/^[-•]\s+/, '')
+            return <li key={line}><InlineText text={text} /></li>
+          })}
+        </ul>
+      </section>
+    )
+  }
+
+  if (lines.length === 1 && cleanMarkdown(first).length <= 60 && /^(\*\*)?.+(\*\*)?$/.test(first) && !first.endsWith('.')) {
+    return <h3 className={styles.storyHeading}><InlineText text={first} /></h3>
+  }
+
+  return <p className={styles.storyParagraph}>{lines.map((line, index) => <InlineText key={`${line}-${index}`} text={index ? ` ${line}` : line} />)}</p>
+}
+
+function StoryText({ paragraphs }) {
+  return (
+    <div className={styles.storyText}>
+      {paragraphs.map((paragraph) => <StoryBlock block={paragraph} key={paragraph} />)}
+    </div>
+  )
+}
+
 function StatsMessage({ sheet }) {
   const character = sheet?.character || {}
   const runtime = sheet?.floorRuntime || {}
@@ -84,6 +162,7 @@ function StatsMessage({ sheet }) {
 
       <section className={styles.statsGrid}>
         <StatLine label="Level" value={numberValue(character.level, 1)} />
+        <StatLine label="XP" value={`${numberValue(character.xp, 0)}/${numberValue(character.xpNeeded, 100)}`} />
         <StatLine label="HP" value={`${numberValue(character.hp, 0)}/${numberValue(character.maxHp, 0)}`} />
         <StatLine label="Mana" value={`${numberValue(character.mana, 0)}/${numberValue(character.maxMana, 0)}`} />
         <StatLine label="Stamina" value={`${numberValue(character.stamina, 0)}/${numberValue(character.maxStamina, 0)}`} />
@@ -284,7 +363,7 @@ export function StoryPage() {
                         {scene.narrator?.message_kind === 'stats' ? (
                           <StatsMessage sheet={scene.narrator.sheet_json} />
                         ) : (
-                          scene.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)
+                          <StoryText paragraphs={scene.paragraphs} />
                         )}
                       </div>
 

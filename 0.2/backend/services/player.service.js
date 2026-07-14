@@ -166,6 +166,8 @@ function serializePlayer(row) {
     race: row.race,
     className: row.class_name,
     level: Number(row.character_level || 1),
+    xp: Number(row.character_xp || 0),
+    xpNeeded: Number(row.character_xp_needed || 100),
     hp: Number(row.hp || 100),
     maxHp: Number(row.max_hp || 100),
     mana: Number(row.mana || 30),
@@ -1004,7 +1006,7 @@ async function findPlayerByIdentifier(identifier) {
 
   const rows = await db.query(
     `SELECT p.player_id, p.username, p.email, p.password_hash, p.narrator_persona, p.current_run, p.cycle_clears, p.current_body, p.memory_log, p.created_at, p.last_login_at,
-            c.id AS character_id, c.character_name, c.race, c.class_name, c.level AS character_level, c.hp, c.max_hp, c.mana, c.max_mana, c.stamina, c.max_stamina,
+            c.id AS character_id, c.character_name, c.race, c.class_name, c.level AS character_level, c.xp AS character_xp, c.xp_needed AS character_xp_needed, c.hp, c.max_hp, c.mana, c.max_mana, c.stamina, c.max_stamina,
             c.strength, c.agility, c.defense, c.thaumaturgy, c.resolve_stat, c.intelligence, c.luck, c.charisma, c.gold, c.soul_energy,
             c.dungeon AS character_dungeon, c.floor AS character_floor, c.status AS character_status,
             d.dungeon_number AS runtime_dungeon_number, d.canonical_label AS dungeon_label, d.ai_name AS dungeon_ai_name,

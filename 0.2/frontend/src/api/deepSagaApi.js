@@ -118,8 +118,18 @@ async function fetchPlayerSheet() {
   return response.data
 }
 
-function isStatsAction(action) {
-  return /^(stats?|status|sheet|character\s*sheet|player\s*sheet)$/i.test(String(action || '').trim())
+function extractStatsRequest(action) {
+  const original = String(action || '').trim()
+  const statsPattern = /\b(show\s+me\s+my\s+stats?|show\s+my\s+stats?|show\s+me\s+the\s+stats?|stats?|status|character\s*sheet|player\s*sheet|sheet)\b/ig
+  const wantsStats = statsPattern.test(original)
+  statsPattern.lastIndex = 0
+  const storyAction = original
+    .replace(statsPattern, ' ')
+    .replace(/\b(and|then|also|plus)\b/ig, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return { wantsStats, storyAction }
 }
 
 function latestChoices(history) {
@@ -155,8 +165,8 @@ function stateFromPlayer(player, narrativeHistory = []) {
       stamina: Number(character.stamina ?? body.stamina ?? maxStamina),
       max_stamina: maxStamina,
       gold: Number(character.gold || body.gold || 0),
-      xp: Number(body.xp || 0),
-      xp_needed: Number(body.xpNeeded || 100),
+      xp: Number(character.xp ?? body.xp ?? 0),
+      xp_needed: Number(character.xpNeeded ?? body.xpNeeded ?? 100),
       strength: Number(character.strength || body.strength || 5),
       agility: Number(character.agility || body.agility || 5),
       defense: Number(character.defense || body.defense || 5),
@@ -235,8 +245,9 @@ export async function createOpeningNarrative() {
 export async function continueNarrative(payload) {
   const player = await currentPlayer()
   const history = await fetchStoryHistory()
+  const statsRequest = extractStatsRequest(payload.playerAction)
 
-  if (isStatsAction(payload.playerAction)) {
+  if (statsRequest.wantsStats && !statsRequest.storyAction) {
     const sheet = await fetchPlayerSheet()
     const stamp = Date.now()
     const messages = [
@@ -259,6 +270,41 @@ export async function continueNarrative(payload) {
       choices: latestChoices(history),
       stateChanges: {},
       recordChanges: [],
+    }
+  }
+
+  if (statsRequest.wantsStats && statsRequest.storyAction) {
+    const sheet = await fetchPlayerSheet()
+    const response = await request('/story/opening', {
+      method: 'POST',
+      body: JSON.stringify({
+        playerAction: statsRequest.storyAction,
+      }),
+    })
+    const scene = response.data
+    const stamp = Date.now()
+    const choices = choicesFromScene(scene, stamp)
+    const messages = [
+      { id: `player-${stamp}`, speaker: 'player', message_text: payload.playerAction },
+      {
+        id: `stats-${stamp}`,
+        speaker: 'narrator',
+        message_text: 'Character Sheet',
+        message_kind: 'stats',
+        sheet_json: sheet,
+        choices_json: [],
+      },
+      { id: `narrator-${stamp}`, speaker: 'narrator', message_text: scene.narration, choices_json: choices },
+    ]
+
+    writeStory(player, [...history, ...messages])
+    return {
+      localOnly: true,
+      messages,
+      story: scene.narration,
+      choices,
+      stateChanges: scene.stateChanges || {},
+      recordChanges: scene.recordChanges || [],
     }
   }
 

@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { createLegacyHeroForPlayer } = require("./player.service");
+const { applyCharacterResourceDeltas, awardCharacterSkill, createLegacyHeroForPlayer, getPlayerSheet } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -201,7 +201,7 @@ async function loadImportantMemories(player, limit = 12) {
   }));
 }
 
-function buildContext(player, playerAction, recentMessages = [], importantMemories = []) {
+function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = []) {
   const body = player.currentBody || {};
   const character = player.activeCharacter || {};
   const runtime = player.floorRuntime || {};
@@ -219,6 +219,16 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
     },
     currentBody: body,
     activeCharacter: character,
+    knownSkills: knownSkills.map((skill) => ({
+      id: skill.id,
+      key: skill.key,
+      name: skill.name,
+      family: skill.family,
+      type: skill.type,
+      rarity: skill.rarity,
+      level: skill.level,
+      description: skill.description
+    })),
     currentPosition: {
       dungeon: dungeonNumber,
       floor: floorNumber,
@@ -251,12 +261,71 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       "The player may attempt any action, but player statements are attempts, not facts.",
       "Do not grant godhood, infinite gold, instant boss kills, or skipped floors unless saved state already allows it.",
       "Use the saved body, dungeon, floor, skills, memories, and current position as truth.",
+      "Skills are earned from repeated actions, rare discoveries, quest conditions, survival pressure, or impossible achievements.",
+      "If a skill is earned, return it in stateChanges.skillsUnlocked and explain it in narration.",
       "The world has five dungeons with three floors each. Floor 3 is the boss floor.",
       "Every reply must resolve the player action, continue the current scene, and provide 3 to 5 meaningful choices.",
       "Choices must be specific story actions, not generic commands.",
       "Return JSON only."
     ]
   };
+}
+
+function normalizeSkillUnlocks(stateChanges) {
+  const raw = [
+    ...(Array.isArray(stateChanges.skillsUnlocked) ? stateChanges.skillsUnlocked : []),
+    ...(Array.isArray(stateChanges.skillUnlocks) ? stateChanges.skillUnlocks : []),
+    ...(Array.isArray(stateChanges.newSkills) ? stateChanges.newSkills : [])
+  ];
+
+  return raw
+    .map((skill) => {
+      if (typeof skill === "string") {
+        return { name: skill };
+      }
+      return skill && typeof skill === "object" ? skill : null;
+    })
+    .filter((skill) => String(skill?.name || skill?.skillName || "").trim())
+    .slice(0, 3);
+}
+
+async function applyAcceptedStateChanges(context, scene) {
+  const characterId = context.activeCharacter?.id || null;
+  const stateChanges = scene.stateChanges || {};
+
+  if (!characterId) {
+    return;
+  }
+
+  const resourceResult = await applyCharacterResourceDeltas(characterId, {
+    hp: stateChanges.hpDelta ?? stateChanges.playerHpDelta,
+    mana: stateChanges.manaDelta ?? stateChanges.playerManaDelta,
+    stamina: stateChanges.staminaDelta ?? stateChanges.playerStaminaDelta,
+    gold: stateChanges.goldDelta
+  });
+
+  if (resourceResult) {
+    scene.appliedResources = resourceResult;
+  }
+
+  const unlocked = [];
+  for (const skill of normalizeSkillUnlocks(stateChanges)) {
+    const awarded = await awardCharacterSkill(characterId, skill);
+    if (awarded) {
+      unlocked.push(awarded);
+    }
+  }
+
+  if (unlocked.length) {
+    scene.appliedSkills = unlocked;
+    scene.recordChanges = [
+      ...(scene.recordChanges || []),
+      ...unlocked.map((skill) => ({
+        type: "skill",
+        text: `${skill.name} awakened`
+      }))
+    ];
+  }
 }
 
 async function saveStoryTurn(context, playerAction, scene) {
@@ -402,11 +471,13 @@ async function callOpenAi(context) {
 async function createStoryScene(player, playerAction, recentMessages) {
   const sqlRecentMessages = await loadRecentStoryMessages(player);
   const importantMemories = await loadImportantMemories(player);
+  const sheet = await getPlayerSheet(player.playerId);
   const context = buildContext(
     player,
     playerAction,
     sqlRecentMessages.length ? sqlRecentMessages : recentMessages,
-    importantMemories
+    importantMemories,
+    sheet?.skills || []
   );
 
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "#") {
@@ -420,6 +491,7 @@ async function createStoryScene(player, playerAction, recentMessages) {
   }
 
   const scene = await callOpenAi(context);
+  await applyAcceptedStateChanges(context, scene);
   await saveAiLocationNames(context, scene);
   await saveStoryTurn(context, playerAction, scene);
   const legacyHero = await maybeCreateLegacyHero(context, scene);
