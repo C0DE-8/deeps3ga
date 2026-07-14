@@ -6,14 +6,6 @@ function storyKey(player) {
   return `deepSagaStory:${player.playerId}:${player.currentRun}`
 }
 
-function readStory(player) {
-  try {
-    return JSON.parse(localStorage.getItem(storyKey(player)) || '[]')
-  } catch {
-    return []
-  }
-}
-
 function writeStory(player, messages) {
   localStorage.setItem(storyKey(player), JSON.stringify(messages.slice(-80)))
 }
@@ -74,7 +66,12 @@ function saveFromPlayer(player) {
   }
 }
 
-function stateFromPlayer(player) {
+async function fetchStoryHistory() {
+  const response = await request('/story/history?limit=80')
+  return response.data.messages || []
+}
+
+function stateFromPlayer(player, narrativeHistory = []) {
   const body = player.currentBody || {}
   const character = player.activeCharacter || {}
   const runtime = player.floorRuntime || {}
@@ -134,7 +131,7 @@ function stateFromPlayer(player) {
     },
     skills: (body.skills || []).map((name, index) => ({ id: index + 1, name, skill_level: 1 })),
     inventory: body.inventory || [],
-    narrativeHistory: readStory(player),
+    narrativeHistory,
   }
 }
 
@@ -149,12 +146,15 @@ export async function startGame() {
 }
 
 export async function fetchGameState() {
-  return stateFromPlayer(await currentPlayer())
+  const player = await currentPlayer()
+  const history = await fetchStoryHistory()
+  if (history.length) writeStory(player, history)
+  return stateFromPlayer(player, history)
 }
 
 export async function createOpeningNarrative() {
   const player = await currentPlayer()
-  const history = readStory(player)
+  const history = await fetchStoryHistory()
 
   if (history.length) {
     const narrator = [...history].reverse().find((message) => message.speaker === 'narrator')
@@ -174,12 +174,11 @@ export async function createOpeningNarrative() {
 
 export async function continueNarrative(payload) {
   const player = await currentPlayer()
-  const history = readStory(player)
+  const history = await fetchStoryHistory()
   const response = await request('/story/opening', {
     method: 'POST',
     body: JSON.stringify({
       playerAction: payload.playerAction,
-      recentMessages: history.slice(-12),
     }),
   })
   const scene = response.data

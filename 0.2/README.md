@@ -45,10 +45,12 @@ For later turns:
 
 ```txt
 Player chooses a button or types an action
-  -> frontend sends playerAction and recentMessages
-  -> backend sends saved state + recent story to AI
+  -> frontend sends playerAction
+  -> backend loads recent story_messages and story_memory from SQL
+  -> backend sends saved state + recent SQL story memory to AI
   -> AI continues the scene
-  -> frontend appends the new page
+  -> backend saves the player action and narrator response to SQL
+  -> frontend reloads and displays the saved page
 ```
 
 ## AI Role
@@ -262,15 +264,18 @@ Normalized SQL tables:
 | `player_characters` | Active/current character stats such as HP, Mana, Stamina, level, RPG attributes, location, Gold, and Soul Energy |
 | `skills` | Skill catalog |
 | `player_character_skills` | Skills unlocked by each character |
+| `story_messages` | Saved player and narrator messages, choices, records, and state changes |
+| `story_memory` | Important facts the AI should remember later, including cross-life memories |
+| `legacy_heroes` | Locked copies of completed-run characters for future final boss use |
 
-Currently stored in browser `localStorage`:
+Also cached in browser `localStorage`:
 
 - recent story pages
 - narrator messages
 - player messages
 - generated choices
 
-This means the current 0.2 story history is browser-local. The backend receives recent story messages from the frontend each turn so the AI can continue the scene, but long-term story persistence should eventually move into SQL.
+SQL is the main story memory now. The browser cache is only a local convenience; the reader loads saved history from `/api/story/history`.
 
 ## Current Limitations
 
@@ -289,7 +294,6 @@ Implemented:
 
 Not fully implemented yet:
 
-- SQL-backed story message history
 - full combat math
 - floor completion persistence
 - dungeon progression persistence
@@ -297,7 +301,7 @@ Not fully implemented yet:
 - inventory changes from AI state changes
 - applying skill awards from AI state changes
 - reincarnation after death
-- legacy boss record creation
+- using saved legacy heroes as the next final boss encounter
 - admin dashboard
 
 The design direction is to keep 0.2 playable and free first, then add stronger systems from 0.1 one at a time.

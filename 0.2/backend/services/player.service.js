@@ -273,6 +273,8 @@ async function ensurePlayerSchema() {
     await ensureWorldProgressionSchema();
     await ensureCharacterSchema();
     await ensureSkillSchema();
+    await ensureStoryMemorySchema();
+    await ensureLegacyHeroSchema();
     await seedWorldProgression();
     await seedNarratorPersonas();
     await seedSkills();
@@ -461,6 +463,81 @@ async function ensureSkillSchema() {
       UNIQUE KEY uniq_character_skill (character_id, skill_id),
       INDEX idx_player_character_skills_character (character_id),
       INDEX idx_player_character_skills_skill (skill_id)
+    )
+  `);
+}
+
+async function ensureStoryMemorySchema() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS story_messages (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      player_id VARCHAR(32) NOT NULL,
+      run_number INT NOT NULL DEFAULT 1,
+      character_id BIGINT UNSIGNED NULL,
+      dungeon_number INT NOT NULL DEFAULT 1,
+      floor_number INT NOT NULL DEFAULT 1,
+      speaker VARCHAR(24) NOT NULL,
+      message_text TEXT NOT NULL,
+      choices_json JSON NULL,
+      state_changes_json JSON NULL,
+      record_changes_json JSON NULL,
+      memory_updates_json JSON NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_story_messages_player_run (player_id, run_number, id),
+      INDEX idx_story_messages_location (player_id, run_number, dungeon_number, floor_number)
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS story_memory (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      player_id VARCHAR(32) NOT NULL,
+      run_number INT NOT NULL DEFAULT 1,
+      character_id BIGINT UNSIGNED NULL,
+      memory_type VARCHAR(60) NOT NULL DEFAULT 'story',
+      memory_text TEXT NOT NULL,
+      facts_json JSON NULL,
+      importance INT NOT NULL DEFAULT 1,
+      remembered_across_lives TINYINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_story_memory_player_run (player_id, run_number),
+      INDEX idx_story_memory_across_lives (player_id, remembered_across_lives)
+    )
+  `);
+}
+
+async function ensureLegacyHeroSchema() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS legacy_heroes (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      player_id VARCHAR(32) NOT NULL,
+      source_run_number INT NOT NULL,
+      source_character_id BIGINT UNSIGNED NULL,
+      hero_name VARCHAR(120) NULL,
+      race VARCHAR(80) NULL,
+      class_name VARCHAR(100) NULL,
+      level INT NOT NULL DEFAULT 1,
+      xp INT NOT NULL DEFAULT 0,
+      hp INT NOT NULL DEFAULT 100,
+      max_hp INT NOT NULL DEFAULT 100,
+      mana INT NOT NULL DEFAULT 30,
+      max_mana INT NOT NULL DEFAULT 30,
+      stamina INT NOT NULL DEFAULT 50,
+      max_stamina INT NOT NULL DEFAULT 50,
+      stats_json JSON NULL,
+      skills_json JSON NULL,
+      inventory_json JSON NULL,
+      titles_json JSON NULL,
+      personality_json JSON NULL,
+      combat_style_json JSON NULL,
+      final_dungeon INT NOT NULL DEFAULT 5,
+      final_floor INT NOT NULL DEFAULT 3,
+      boss_intro_dialogue TEXT NULL,
+      boss_defeat_dialogue TEXT NULL,
+      locked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_legacy_player_run (player_id, source_run_number),
+      INDEX idx_legacy_heroes_player (player_id),
+      INDEX idx_legacy_heroes_source (source_run_number)
     )
   `);
 }
@@ -691,6 +768,97 @@ async function getFloorRuntime(dungeonNumber, floorNumber) {
   };
 }
 
+async function createLegacyHeroForPlayer(playerId, runNumber) {
+  await ensurePlayerSchema();
+
+  const player = await findPlayerByIdentifier(playerId);
+  if (!player) {
+    throw new Error("Player not found for legacy hero creation.");
+  }
+
+  const serialized = serializePlayer(player);
+  const character = serialized.activeCharacter;
+  const body = serialized.currentBody || {};
+
+  if (!character) {
+    throw new Error("Active character not found for legacy hero creation.");
+  }
+
+  const skillRows = await db.query(
+    `SELECT s.skill_key, s.name, s.family, s.skill_type, pcs.skill_level, pcs.xp, pcs.equipped
+       FROM player_character_skills pcs
+       JOIN skills s ON s.id = pcs.skill_id
+      WHERE pcs.character_id = ?
+      ORDER BY s.name`,
+    [character.id]
+  );
+
+  const stats = {
+    strength: character.strength,
+    agility: character.agility,
+    defense: character.defense,
+    thaumaturgy: character.thaumaturgy,
+    resolve: character.resolve,
+    intelligence: character.intelligence,
+    luck: character.luck,
+    charisma: character.charisma,
+    soulEnergy: character.soulEnergy
+  };
+
+  const skills = skillRows.map((skill) => ({
+    key: skill.skill_key,
+    name: skill.name,
+    family: skill.family,
+    type: skill.skill_type,
+    level: Number(skill.skill_level || 1),
+    xp: Number(skill.xp || 0),
+    equipped: Boolean(Number(skill.equipped || 0))
+  }));
+
+  const combatStyle = {
+    preferredSkills: skills.slice(0, 5).map((skill) => skill.name),
+    recordedFromRun: Number(runNumber || serialized.currentRun || 1),
+    note: "Detailed combat style will be expanded as more turn analytics are saved."
+  };
+
+  await db.execute(
+    `INSERT INTO legacy_heroes (player_id, source_run_number, source_character_id, hero_name, race, class_name, level, xp, hp, max_hp, mana, max_mana, stamina, max_stamina, stats_json, skills_json, inventory_json, titles_json, personality_json, combat_style_json, final_dungeon, final_floor, boss_intro_dialogue, boss_defeat_dialogue)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 5, 3, ?, ?)
+     ON DUPLICATE KEY UPDATE source_character_id = VALUES(source_character_id), hero_name = VALUES(hero_name), race = VALUES(race), class_name = VALUES(class_name), level = VALUES(level), xp = VALUES(xp), hp = VALUES(hp), max_hp = VALUES(max_hp), mana = VALUES(mana), max_mana = VALUES(max_mana), stamina = VALUES(stamina), max_stamina = VALUES(max_stamina), stats_json = VALUES(stats_json), skills_json = VALUES(skills_json), inventory_json = VALUES(inventory_json), titles_json = VALUES(titles_json), personality_json = VALUES(personality_json), combat_style_json = VALUES(combat_style_json)`,
+    [
+      playerId,
+      Number(runNumber || serialized.currentRun || 1),
+      character.id,
+      character.characterName,
+      character.race,
+      character.className,
+      character.level,
+      Number(body.xp || 0),
+      character.hp,
+      character.maxHp,
+      character.mana,
+      character.maxMana,
+      character.stamina,
+      character.maxStamina,
+      JSON.stringify(stats),
+      JSON.stringify(skills),
+      JSON.stringify(body.inventory || []),
+      JSON.stringify(body.titles || []),
+      JSON.stringify(body.personality || {}),
+      JSON.stringify(combatStyle),
+      `The Dungeon remembers ${character.characterName || "the victorious soul"}.`,
+      "The legacy breaks, but the memory remains."
+    ]
+  );
+
+  const rows = await db.query(
+    "SELECT * FROM legacy_heroes WHERE player_id = ? AND source_run_number = ? LIMIT 1",
+    [playerId, Number(runNumber || serialized.currentRun || 1)]
+  );
+
+  return rows[0] || null;
+}
+
 async function findPlayerByIdentifier(identifier) {
   const normalized = String(identifier || "").trim().toLowerCase();
 
@@ -783,7 +951,9 @@ async function loginPlayer({ identifier, password }) {
 }
 
 module.exports = {
+  createLegacyHeroForPlayer,
   ensurePlayerSchema,
+  getFloorRuntime,
   listNarratorPersonas,
   loginPlayer,
   monsterRaces,

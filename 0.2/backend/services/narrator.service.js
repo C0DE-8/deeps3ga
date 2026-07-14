@@ -1,5 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
+const { createLegacyHeroForPlayer } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -96,7 +97,65 @@ function normalizeRecentMessages(recentMessages) {
     .filter((message) => message.speaker && message.text);
 }
 
-function buildContext(player, playerAction, recentMessages = []) {
+async function loadRecentStoryMessages(player, limit = 12) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 12), 80));
+  const rows = await db.query(
+    `SELECT speaker, message_text
+       FROM story_messages
+      WHERE player_id = ? AND run_number = ?
+      ORDER BY id DESC
+      LIMIT ${safeLimit}`,
+    [player.playerId, Number(player.currentRun || 1)]
+  );
+
+  return rows.reverse().map((message) => ({
+    speaker: message.speaker,
+    text: message.message_text
+  }));
+}
+
+async function loadStoryHistory(player, limit = 80) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 80), 120));
+  const rows = await db.query(
+    `SELECT id, speaker, message_text, choices_json, state_changes_json, record_changes_json, memory_updates_json, created_at
+       FROM story_messages
+      WHERE player_id = ? AND run_number = ?
+      ORDER BY id DESC
+      LIMIT ${safeLimit}`,
+    [player.playerId, Number(player.currentRun || 1)]
+  );
+
+  return rows.reverse().map((message) => ({
+    id: `sql-${message.id}`,
+    speaker: message.speaker,
+    message_text: message.message_text,
+    choices_json: typeof message.choices_json === "string" ? JSON.parse(message.choices_json || "[]") : (message.choices_json || []),
+    state_changes_json: typeof message.state_changes_json === "string" ? JSON.parse(message.state_changes_json || "{}") : (message.state_changes_json || {}),
+    record_changes_json: typeof message.record_changes_json === "string" ? JSON.parse(message.record_changes_json || "[]") : (message.record_changes_json || []),
+    memory_updates_json: typeof message.memory_updates_json === "string" ? JSON.parse(message.memory_updates_json || "[]") : (message.memory_updates_json || []),
+    created_at: message.created_at
+  }));
+}
+
+async function loadImportantMemories(player, limit = 12) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 12), 40));
+  const rows = await db.query(
+    `SELECT memory_type, memory_text, remembered_across_lives
+       FROM story_memory
+      WHERE player_id = ? AND (run_number = ? OR remembered_across_lives = 1)
+      ORDER BY importance DESC, id DESC
+      LIMIT ${safeLimit}`,
+    [player.playerId, Number(player.currentRun || 1)]
+  );
+
+  return rows.map((memory) => ({
+    type: memory.memory_type,
+    text: memory.memory_text,
+    rememberedAcrossLives: Boolean(Number(memory.remembered_across_lives || 0))
+  }));
+}
+
+function buildContext(player, playerAction, recentMessages = [], importantMemories = []) {
   const body = player.currentBody || {};
   const character = player.activeCharacter || {};
   const runtime = player.floorRuntime || {};
@@ -132,7 +191,11 @@ function buildContext(player, playerAction, recentMessages = []) {
       isOpeningScene: !action && normalizedRecentMessages.length === 0,
       hasRecentStory: normalizedRecentMessages.length > 0
     },
-    memoryLog: Array.isArray(player.memoryLog) ? player.memoryLog.slice(-20) : [],
+    memoryLog: [
+      ...(Array.isArray(player.memoryLog) ? player.memoryLog.slice(-20) : []),
+      ...importantMemories.map((memory) => memory.text)
+    ].slice(-32),
+    importantMemories,
     recentMessages: normalizedRecentMessages,
     playerAction: action || "Begin the first scene.",
     worldRules: [
@@ -148,6 +211,80 @@ function buildContext(player, playerAction, recentMessages = []) {
       "Return JSON only."
     ]
   };
+}
+
+async function saveStoryTurn(context, playerAction, scene) {
+  const playerId = context.player?.playerId;
+  const runNumber = Number(context.player?.run || 1);
+  const characterId = context.activeCharacter?.id || null;
+  const dungeonNumber = Number(context.currentPosition?.dungeon || 1);
+  const floorNumber = Number(context.currentPosition?.floor || 1);
+  const action = String(playerAction || "").trim();
+
+  if (action) {
+    await db.execute(
+      `INSERT INTO story_messages (player_id, run_number, character_id, dungeon_number, floor_number, speaker, message_text)
+       VALUES (?, ?, ?, ?, ?, 'player', ?)`,
+      [playerId, runNumber, characterId, dungeonNumber, floorNumber, action]
+    );
+  }
+
+  await db.execute(
+    `INSERT INTO story_messages (player_id, run_number, character_id, dungeon_number, floor_number, speaker, message_text, choices_json, state_changes_json, record_changes_json, memory_updates_json)
+     VALUES (?, ?, ?, ?, ?, 'narrator', ?, ?, ?, ?, ?)`,
+    [
+      playerId,
+      runNumber,
+      characterId,
+      dungeonNumber,
+      floorNumber,
+      scene.narration,
+      JSON.stringify(scene.choices || []),
+      JSON.stringify(scene.stateChanges || {}),
+      JSON.stringify(scene.recordChanges || []),
+      JSON.stringify(scene.memoryUpdates || [])
+    ]
+  );
+
+  await saveMemoryUpdates(context, scene.memoryUpdates || []);
+}
+
+async function saveMemoryUpdates(context, memoryUpdates) {
+  const playerId = context.player?.playerId;
+  const runNumber = Number(context.player?.run || 1);
+  const characterId = context.activeCharacter?.id || null;
+
+  for (const memory of memoryUpdates.slice(0, 10)) {
+    const text = String(memory.text || memory.summary || memory).trim();
+    if (!text) continue;
+
+    await db.execute(
+      `INSERT INTO story_memory (player_id, run_number, character_id, memory_type, memory_text, facts_json, importance, remembered_across_lives)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        playerId,
+        runNumber,
+        characterId,
+        String(memory.type || "story").slice(0, 60),
+        text.slice(0, 4000),
+        JSON.stringify(memory.facts || {}),
+        Number(memory.importance || 1),
+        memory.rememberedAcrossLives ? 1 : 0
+      ]
+    );
+  }
+}
+
+async function maybeCreateLegacyHero(context, scene) {
+  const stateChanges = scene.stateChanges || {};
+  const runCompleted = Boolean(stateChanges.runCompleted || scene.runCompleted);
+  const isFinalBossFloor = Boolean(context.currentPosition?.isFinalBossFloor);
+
+  if (!runCompleted || !isFinalBossFloor) {
+    return null;
+  }
+
+  return createLegacyHeroForPlayer(context.player.playerId, Number(context.player.run || 1));
 }
 
 async function saveAiLocationNames(context, scene) {
@@ -217,11 +354,20 @@ async function callOpenAi(context) {
 }
 
 async function createStoryScene(player, playerAction, recentMessages) {
-  const context = buildContext(player, playerAction, recentMessages);
+  const sqlRecentMessages = await loadRecentStoryMessages(player);
+  const importantMemories = await loadImportantMemories(player);
+  const context = buildContext(
+    player,
+    playerAction,
+    sqlRecentMessages.length ? sqlRecentMessages : recentMessages,
+    importantMemories
+  );
 
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "#") {
     if (process.env.ALLOW_STATIC_NARRATOR_FALLBACK === "true") {
-      return buildFallbackScene(player, playerAction);
+      const fallbackScene = buildFallbackScene(player, playerAction);
+      await saveStoryTurn(context, playerAction, fallbackScene);
+      return fallbackScene;
     }
 
     throw new Error("OPENAI_API_KEY is required because Deep Saga uses AI as the narrator.");
@@ -229,6 +375,11 @@ async function createStoryScene(player, playerAction, recentMessages) {
 
   const scene = await callOpenAi(context);
   await saveAiLocationNames(context, scene);
+  await saveStoryTurn(context, playerAction, scene);
+  const legacyHero = await maybeCreateLegacyHero(context, scene);
+  if (legacyHero) {
+    scene.legacyHero = legacyHero;
+  }
   return scene;
 }
 
@@ -236,5 +387,7 @@ module.exports = {
   buildContext,
   buildFallbackScene,
   createOpeningScene: createStoryScene,
-  createStoryScene
+  createStoryScene,
+  loadRecentStoryMessages,
+  loadStoryHistory
 };
