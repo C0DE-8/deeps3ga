@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, BookOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { continueNarrative, createOpeningNarrative, fetchGameState, startGame } from '../../../api/deepSagaApi'
 import { AppHeader } from '../../shell/AppHeader'
@@ -12,6 +12,47 @@ function latestChoices(state) {
 
 function storyEntries(state) {
   return (state?.narrativeHistory || []).filter((message) => ['player', 'narrator'].includes(message.speaker))
+}
+
+function storyScenes(messages, game) {
+  const scenes = []
+  let playerAction = null
+
+  for (const message of messages) {
+    if (message.speaker === 'player') {
+      playerAction = message
+      continue
+    }
+
+    if (message.speaker !== 'narrator') continue
+
+    scenes.push({
+      id: message.id,
+      playerAction,
+      narrator: message,
+      chapter: game?.currentDungeon?.name || 'Deep Saga',
+      title: game?.currentFloor?.floor_name || 'The next page',
+      floor: game?.currentFloor?.floor_number || 1,
+      purpose: game?.currentFloor?.story_purpose || 'The story continues.',
+      paragraphs: String(message.message_text || '').split(/\n\s*\n/).map((entry) => entry.trim()).filter(Boolean),
+    })
+    playerAction = null
+  }
+
+  if (playerAction) {
+    scenes.push({
+      id: playerAction.id,
+      playerAction,
+      narrator: null,
+      chapter: game?.currentDungeon?.name || 'Deep Saga',
+      title: game?.currentFloor?.floor_name || 'The next page',
+      floor: game?.currentFloor?.floor_number || 1,
+      purpose: game?.currentFloor?.story_purpose || 'The story continues.',
+      paragraphs: [],
+    })
+  }
+
+  return scenes
 }
 
 function numberValue(value, fallback = 0) {
@@ -147,12 +188,13 @@ export function StoryPage() {
   }, [cycleId, navigate])
 
   const messages = useMemo(() => storyEntries(game), [game])
+  const scenes = useMemo(() => storyScenes(messages, game), [messages, game])
   const sheet = game?.characterSheet
   const ended = game?.run?.character_status !== 'alive' || game?.run?.status === 'completed'
 
   useEffect(() => {
-    if (messages.length) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length])
+    if (scenes.length) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [scenes.length])
 
   async function submit(playerAction, actionKind = 'typed', selectedTarget = null) {
     if (busy || !playerAction.trim()) return
@@ -206,22 +248,53 @@ export function StoryPage() {
       </aside>
 
       <section className={styles.reader}>
-        <header className={styles.chapter}>
-          <span>{game?.currentDungeon?.name || 'Deep Saga'}</span>
-          <h1>{game?.currentFloor?.floor_name || 'The Last Breath'}</h1>
-          <p>Floor {game?.currentFloor?.floor_number || 1} · {game?.currentFloor?.story_purpose || 'The story begins.'}</p>
-        </header>
-
         <div className={styles.story}>
-          {!messages.length && !busy && <article className={styles.narration}><BookOpen /><p>{initialStory}</p></article>}
-          {messages.map((message) => message.speaker === 'player' ? (
-            <article className={styles.playerAction} key={message.id}><span>Player</span><p>{message.message_text}</p></article>
-          ) : message.message_kind === 'stats' ? (
-            <article className={styles.narration} key={message.id}><StatsMessage sheet={message.sheet_json} /></article>
-          ) : (
-            <article className={styles.narration} key={message.id}><p>{message.message_text}</p></article>
-          ))}
-          <div ref={endRef} />
+          {!scenes.length && !busy && (
+            <article className={styles.bookPanel}>
+              <header className={styles.sceneChapter}>
+                <span>{game?.currentDungeon?.name || 'Deep Saga'}</span>
+                <h1>{game?.currentFloor?.floor_name || 'The Last Breath'}</h1>
+                <p>Floor {game?.currentFloor?.floor_number || 1} · {game?.currentFloor?.story_purpose || 'The story begins.'}</p>
+              </header>
+              <section className={styles.scenePage}><BookOpen /><p>{initialStory}</p></section>
+            </article>
+          )}
+
+          {scenes.length > 0 && (
+            <article className={styles.bookPanel}>
+              <header className={styles.sceneChapter}>
+                <span>{scenes[0].chapter}</span>
+                <h1>{scenes[0].title}</h1>
+                <p>Floor {scenes[0].floor} · {scenes[0].purpose}</p>
+              </header>
+
+              <div className={styles.sceneFlow}>
+                {scenes.map((scene, index) => {
+                  const latest = index === scenes.length - 1
+                  return (
+                    <section className={`${styles.sceneEntry} ${latest ? styles.sceneEntryLatest : styles.sceneEntryOld}`} key={scene.id} ref={latest ? endRef : null}>
+                      {scene.playerAction && (
+                        <div className={styles.playerAction}>
+                          <span>Player</span>
+                          <p>{scene.playerAction.message_text}</p>
+                        </div>
+                      )}
+
+                      <div className={styles.scenePage}>
+                        {scene.narrator?.message_kind === 'stats' ? (
+                          <StatsMessage sheet={scene.narrator.sheet_json} />
+                        ) : (
+                          scene.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)
+                        )}
+                      </div>
+
+                      {!latest && <ChevronDown className={styles.pageBreak} size={18} />}
+                    </section>
+                  )
+                })}
+              </div>
+            </article>
+          )}
         </div>
 
         {error && <p className={styles.error} role="alert">{error}</p>}

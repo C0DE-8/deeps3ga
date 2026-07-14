@@ -913,6 +913,88 @@ async function getPlayerSheet(playerId) {
   };
 }
 
+async function awardCharacterSkill(characterId, skillInput) {
+  await ensurePlayerSchema();
+
+  const name = String(skillInput?.name || skillInput?.skillName || "").trim().slice(0, 120);
+  if (!characterId || !name) {
+    return null;
+  }
+
+  const key = skillKey(skillInput.skillKey || name);
+  const family = String(skillInput.family || "Soul").trim().slice(0, 80);
+  const type = String(skillInput.type || skillInput.skillType || "Awakened").trim().slice(0, 80);
+  const description = String(skillInput.description || `${name} awakened through earned action and the Dungeon's judgment.`).trim().slice(0, 2000);
+  const rarity = String(skillInput.rarity || "uncommon").trim().toLowerCase().slice(0, 40);
+  const level = Math.max(1, Math.min(Number(skillInput.level || skillInput.skillLevel || 1), 10));
+  const xp = Math.max(0, Math.min(Number(skillInput.xp || 0), 999999));
+
+  await db.execute(
+    `INSERT INTO skills (skill_key, name, family, skill_type, description, rarity, active)
+     VALUES (?, ?, ?, ?, ?, ?, 1)
+     ON DUPLICATE KEY UPDATE name = VALUES(name), family = VALUES(family), skill_type = VALUES(skill_type), description = VALUES(description), rarity = VALUES(rarity), active = 1`,
+    [key, name, family, type, description, rarity]
+  );
+
+  const rows = await db.query("SELECT id, skill_key, name, family, skill_type, description, rarity FROM skills WHERE skill_key = ? LIMIT 1", [key]);
+  const skill = rows[0];
+  if (!skill) {
+    return null;
+  }
+
+  await db.execute(
+    `INSERT INTO player_character_skills (character_id, skill_id, skill_level, xp, unlocked, equipped)
+     VALUES (?, ?, ?, ?, 1, ?)
+     ON DUPLICATE KEY UPDATE unlocked = 1, skill_level = GREATEST(skill_level, VALUES(skill_level)), xp = xp + VALUES(xp)`,
+    [characterId, skill.id, level, xp, skillInput.equipped ? 1 : 0]
+  );
+
+  return {
+    id: Number(skill.id),
+    key: skill.skill_key,
+    name: skill.name,
+    family: skill.family,
+    type: skill.skill_type,
+    description: skill.description,
+    rarity: skill.rarity,
+    level
+  };
+}
+
+async function applyCharacterResourceDeltas(characterId, deltas = {}) {
+  await ensurePlayerSchema();
+
+  if (!characterId) {
+    return null;
+  }
+
+  const hpDelta = Math.max(-9999, Math.min(Number(deltas.hp || deltas.playerHpDelta || 0), 9999));
+  const manaDelta = Math.max(-9999, Math.min(Number(deltas.mana || deltas.playerManaDelta || 0), 9999));
+  const staminaDelta = Math.max(-9999, Math.min(Number(deltas.stamina || deltas.playerStaminaDelta || 0), 9999));
+  const goldDelta = Math.max(-999999, Math.min(Number(deltas.gold || deltas.goldDelta || 0), 999999));
+
+  if (!hpDelta && !manaDelta && !staminaDelta && !goldDelta) {
+    return null;
+  }
+
+  await db.execute(
+    `UPDATE player_characters
+        SET hp = LEAST(max_hp, GREATEST(0, hp + ?)),
+            mana = LEAST(max_mana, GREATEST(0, mana + ?)),
+            stamina = LEAST(max_stamina, GREATEST(0, stamina + ?)),
+            gold = GREATEST(0, gold + ?)
+      WHERE id = ?`,
+    [hpDelta, manaDelta, staminaDelta, goldDelta, characterId]
+  );
+
+  const rows = await db.query(
+    "SELECT hp, max_hp, mana, max_mana, stamina, max_stamina, gold FROM player_characters WHERE id = ? LIMIT 1",
+    [characterId]
+  );
+
+  return rows[0] || null;
+}
+
 async function findPlayerByIdentifier(identifier) {
   const normalized = String(identifier || "").trim().toLowerCase();
 
@@ -1005,6 +1087,8 @@ async function loginPlayer({ identifier, password }) {
 }
 
 module.exports = {
+  applyCharacterResourceDeltas,
+  awardCharacterSkill,
   createLegacyHeroForPlayer,
   ensurePlayerSchema,
   getFloorRuntime,

@@ -13,15 +13,23 @@
 .sheet dl { display: grid; grid-template-columns: 90px 1fr; gap: 14px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #2e3936; }
 .sheet dt { color: #8d9995; font-size: .72rem; text-transform: uppercase; }
 .sheet dd { margin: 0; line-height: 1.5; }
-.reader { width: min(820px, calc(100% - 40px)); margin: 0 auto; padding: 64px 0 100px; }
-.chapter { padding-bottom: 34px; border-bottom: 1px solid #cfc7b7; }
-.chapter > span { color: #835f36; font-size: .72rem; font-weight: 850; text-transform: uppercase; }
-.chapter h1 { margin-top: 10px; font-family: Georgia, serif; font-size: clamp(2.6rem, 7vw, 5.1rem); line-height: .98; font-weight: 500; letter-spacing: 0; }
-.chapter p { margin-top: 16px; color: #71695d; line-height: 1.5; }
-.story { padding: 34px 0; }
-.narration { padding: 24px 0; }
-.narration > svg { float: left; margin: 7px 16px 8px 0; color: #8b6a3f; }
-.narration p { white-space: pre-line; font-family: Georgia, serif; font-size: clamp(1.14rem, 2.1vw, 1.32rem); line-height: 1.85; }
+.reader { width: min(900px, calc(100% - 40px)); margin: 0 auto; padding: 58px 0 110px; }
+.story { display: grid; padding-bottom: 34px; }
+.bookPanel { min-height: 520px; overflow: hidden; border: 1px solid #c9c0af; border-radius: 8px; background: linear-gradient(180deg, rgba(255,253,248,.97), rgba(249,244,235,.97)); box-shadow: 0 22px 58px rgba(49, 39, 28, .12); animation: pageIn 240ms ease both; }
+.sceneChapter { padding: clamp(20px, 4vw, 36px); border-bottom: 1px solid #d1c7b6; background: rgba(250, 247, 239, .72); }
+.sceneChapter > span { color: #835f36; font-size: .72rem; font-weight: 850; text-transform: uppercase; }
+.sceneChapter h1 { margin-top: 8px; font-family: Georgia, serif; font-size: clamp(2.2rem, 6vw, 4.8rem); line-height: .98; font-weight: 500; letter-spacing: 0; }
+.sceneChapter p { margin-top: 14px; color: #71695d; line-height: 1.5; }
+.sceneFlow { display: grid; }
+.sceneEntry { scroll-margin-top: 150px; }
+.sceneEntryOld { opacity: .78; }
+.sceneEntryLatest { opacity: 1; }
+.sceneEntry + .sceneEntry { border-top: 1px solid #ddd3c2; }
+.pageBreak { display: block; margin: 24px auto 0; color: #a3967d; opacity: .7; }
+.scenePage { display: grid; gap: 18px; max-width: 780px; padding: clamp(22px, 5vw, 44px); }
+.scenePage > svg { float: left; margin: 7px 16px 8px 0; color: #8b6a3f; }
+.scenePage p { font-family: Georgia, serif; font-size: clamp(1.12rem, 2.1vw, 1.32rem); line-height: 1.86; }
+.sceneEntryOld .scenePage p { font-size: clamp(1.02rem, 1.8vw, 1.16rem); }
 .statsMessage { padding: 22px; border: 1px solid #c7bba7; border-radius: 6px; background: #fbf8ef; box-shadow: 0 18px 40px rgba(43, 33, 21, .08); }
 .statsMessage header { padding-bottom: 16px; border-bottom: 1px solid #d7ceb9; }
 .statsMessage header small,
@@ -43,7 +51,7 @@
 .skillList strong { font-size: .94rem; overflow-wrap: anywhere; }
 .skillList em { color: #6c4e30; font-size: .78rem; font-style: normal; font-weight: 800; }
 .skillList small { color: #756d61; font-size: .68rem; text-transform: uppercase; }
-.playerAction { margin: 18px 0; padding: 14px 18px; border-left: 3px solid #8f6841; background: #e5e1d7; }
+.playerAction { padding: 14px clamp(24px, 5vw, 48px); border-bottom: 1px solid #d1c7b6; border-left: 0; background: linear-gradient(90deg, #e5e1d7, #eee9dd); }
 .playerAction span { color: #775434; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
 .playerAction p { margin-top: 4px; color: #39352f; font-weight: 700; }
 .actions { padding-top: 28px; border-top: 1px solid #cfc7b7; }
@@ -63,12 +71,18 @@
 .loading { padding: 16px 0; color: #756d61; font-family: Georgia, serif; font-style: italic; }
 .returnLink { display: inline-flex; margin-top: 20px; border-bottom: 1px solid currentColor; color: #6f4d2d; text-decoration: none; font-weight: 800; }
 
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 760px) {
   .statusBar { top: 0; }
   .statusBar > span { min-width: 104px; }
   .statusBar .position { min-width: 210px; margin-left: 0; }
   .sheet { top: 0; }
-  .reader { width: min(100% - 28px, 820px); padding-top: 42px; }
+  .reader { width: min(100% - 28px, 900px); padding-top: 42px; }
+  .bookPanel { min-height: 420px; }
   .statsGrid,
   .abilityGrid,
   .skillList { grid-template-columns: 1fr; }
