@@ -20,6 +20,10 @@ It is a dark fantasy reincarnation text RPG where the player reads and shapes th
   - Floor 3 is the boss floor
   - Dungeon 5 Floor 3 is the final boss
 - Stores dungeon/floor progression numerically. AI-created names are story labels, not progression IDs.
+- Starts with seeded story names:
+  - Dungeon 1: `Crimson Wakewood`
+  - Dungeon 1 Floor 1: `The First Threshold`
+  - later dungeons/floors are named by the AI as discovered
 
 ## Current Game Flow
 

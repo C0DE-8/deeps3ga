@@ -131,6 +131,8 @@ const skillCatalog = [
 
 const dungeonCount = 5;
 const floorsPerDungeon = 3;
+const startingDungeonName = "Crimson Wakewood";
+const startingFloorName = "The First Threshold";
 
 function parseJson(value, fallback) {
   if (!value) return fallback;
@@ -476,11 +478,12 @@ async function seedNarratorPersonas() {
 
 async function seedWorldProgression() {
   for (let dungeon = 1; dungeon <= dungeonCount; dungeon += 1) {
+    const dungeonAiName = dungeon === 1 ? startingDungeonName : null;
     await db.execute(
-      `INSERT INTO dungeons (dungeon_number, canonical_label, is_final_dungeon, active)
-       VALUES (?, ?, ?, 1)
-       ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), is_final_dungeon = VALUES(is_final_dungeon), active = 1`,
-      [dungeon, `Dungeon ${dungeon}`, dungeon === dungeonCount ? 1 : 0]
+      `INSERT INTO dungeons (dungeon_number, canonical_label, ai_name, ai_name_note, is_final_dungeon, active)
+       VALUES (?, ?, ?, ?, ?, 1)
+       ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), ai_name = COALESCE(dungeons.ai_name, VALUES(ai_name)), ai_name_note = COALESCE(dungeons.ai_name_note, VALUES(ai_name_note)), is_final_dungeon = VALUES(is_final_dungeon), active = 1`,
+      [dungeon, `Dungeon ${dungeon}`, dungeonAiName, dungeonAiName ? "Seeded starting dungeon name." : null, dungeon === dungeonCount ? 1 : 0]
     );
 
     for (let floor = 1; floor <= floorsPerDungeon; floor += 1) {
@@ -491,14 +494,15 @@ async function seedWorldProgression() {
         : isBossFloor
           ? "boss"
           : floor === 1
-            ? "introduction"
-            : "main_danger";
+          ? "introduction"
+          : "main_danger";
+      const floorAiName = dungeon === 1 && floor === 1 ? startingFloorName : null;
 
       await db.execute(
-        `INSERT INTO dungeon_floors (dungeon_number, floor_number, canonical_label, floor_role, is_boss_floor, is_final_boss_floor, active)
-         VALUES (?, ?, ?, ?, ?, ?, 1)
-         ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), floor_role = VALUES(floor_role), is_boss_floor = VALUES(is_boss_floor), is_final_boss_floor = VALUES(is_final_boss_floor), active = 1`,
-        [dungeon, floor, `Dungeon ${dungeon} Floor ${floor}`, floorRole, isBossFloor ? 1 : 0, isFinalBossFloor ? 1 : 0]
+        `INSERT INTO dungeon_floors (dungeon_number, floor_number, canonical_label, ai_name, ai_name_note, floor_role, is_boss_floor, is_final_boss_floor, active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+         ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), ai_name = COALESCE(dungeon_floors.ai_name, VALUES(ai_name)), ai_name_note = COALESCE(dungeon_floors.ai_name_note, VALUES(ai_name_note)), floor_role = VALUES(floor_role), is_boss_floor = VALUES(is_boss_floor), is_final_boss_floor = VALUES(is_final_boss_floor), active = 1`,
+        [dungeon, floor, `Dungeon ${dungeon} Floor ${floor}`, floorAiName, floorAiName ? "Seeded starting floor name." : null, floorRole, isBossFloor ? 1 : 0, isFinalBossFloor ? 1 : 0]
       );
     }
   }

@@ -66,8 +66,10 @@ function saveFromPlayer(player) {
     race_name: character.race || body.race || 'Unknown',
     class_name: character.className || body.class || 'Reincarnated Monster',
     level: Number(character.level || body.level || 1),
-    dungeon_name: runtime.dungeonLabel || `Dungeon ${dungeon}`,
-    floor_name: runtime.floorLabel || `Dungeon ${dungeon} Floor ${floor}`,
+    dungeon_name: runtime.dungeonAiName || runtime.dungeonLabel || `Dungeon ${dungeon}`,
+    floor_name: runtime.floorAiName || runtime.floorLabel || `Dungeon ${dungeon} Floor ${floor}`,
+    canonical_dungeon_name: runtime.dungeonLabel || `Dungeon ${dungeon}`,
+    canonical_floor_name: runtime.floorLabel || `Dungeon ${dungeon} Floor ${floor}`,
     ai_floor_name: runtime.floorAiName || '',
   }
 }
@@ -115,13 +117,15 @@ function stateFromPlayer(player) {
     currentDungeon: {
       id: dungeonNumber,
       dungeon_number: dungeonNumber,
-      name: runtime.dungeonLabel || `Dungeon ${dungeonNumber}`,
+      name: runtime.dungeonAiName || runtime.dungeonLabel || `Dungeon ${dungeonNumber}`,
+      canonical_name: runtime.dungeonLabel || `Dungeon ${dungeonNumber}`,
       ai_name: runtime.dungeonAiName || '',
     },
     currentFloor: {
       id: dungeonNumber * 100 + floorNumber,
       floor_number: floorNumber,
-      floor_name: runtime.floorLabel || `Dungeon ${dungeonNumber} Floor ${floorNumber}`,
+      floor_name: runtime.floorAiName || runtime.floorLabel || `Dungeon ${dungeonNumber} Floor ${floorNumber}`,
+      canonical_name: runtime.floorLabel || `Dungeon ${dungeonNumber} Floor ${floorNumber}`,
       ai_name: runtime.floorAiName || '',
       description: `You inhabit a ${body.race || 'new'} body in a Dungeon that remembers every decision.`,
       story_purpose: runtime.isFinalBossFloor ? 'Final boss floor.' : runtime.isBossFloor ? 'Boss floor.' : runtime.floorRole === 'main_danger' ? 'Main danger, discoveries, and preparation.' : 'Introduction, exploration, and first conflict.',

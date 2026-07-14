@@ -47,6 +47,9 @@ DEEP SAGA IDENTITY:
 WORLD STRUCTURE:
 - Active gameplay has exactly 5 dungeons, tracked canonically as Dungeon 1 through Dungeon 5.
 - Each dungeon has exactly 3 floors, tracked canonically as Floor 1 through Floor 3.
+- Dungeon 1 has the seeded story name "Crimson Wakewood".
+- Dungeon 1 Floor 1 has the seeded story name "The First Threshold".
+- Other dungeons and floors may receive story names from you when the player reaches or discovers them.
 - Floor 1 introduces the place, exploration, and first conflict.
 - Floor 2 contains the main danger, discoveries, quests, and boss preparation.
 - Floor 3 contains the dungeon boss.
