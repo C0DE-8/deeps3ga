@@ -1,5 +1,5 @@
 import { fetchAuthStatus } from './authApi'
-import { expireStoredSession, SESSION_EXPIRED_MESSAGE } from './httpClient'
+import { API_BASE_URL, expireStoredSession, getStoredToken, SESSION_EXPIRED_MESSAGE } from './httpClient'
 import { request } from './httpClient'
 
 function storyKey(player) {
@@ -403,4 +403,26 @@ export async function continueNarrative(payload) {
     ...sceneMessages({ scene, choices, stamp, playerAction: payload.playerAction }),
   ])
   return { story: scene.narration, choices, stateChanges: scene.stateChanges || {}, recordChanges: scene.recordChanges || [] }
+}
+
+export async function fetchNarrationAudio({ text, voiceMode }) {
+  const token = getStoredToken()
+  const response = await fetch(`${API_BASE_URL}/story/voice`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ text, voiceMode }),
+  })
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}))
+    if (response.status === 401) {
+      expireStoredSession(payload.message || SESSION_EXPIRED_MESSAGE)
+    }
+    throw new Error(payload.message || payload.error || 'Voice narration failed.')
+  }
+
+  return response.blob()
 }

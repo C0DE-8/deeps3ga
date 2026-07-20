@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen, Square, Volume2, X } from 'lucide-react'
+import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen, Square, User, UserRound, Volume2, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { continueNarrative, createOpeningNarrative, fetchGameState, startGame } from '../../../api/deepSagaApi'
+import { continueNarrative, createOpeningNarrative, fetchGameState, fetchNarrationAudio, startGame } from '../../../api/deepSagaApi'
 import { AppHeader } from '../../shell/AppHeader'
 import styles from './StoryPage.module.css'
 
@@ -79,6 +79,24 @@ function sceneText(scene) {
 
 function chapterText(scenes) {
   return cleanMarkdown((scenes || []).map((scene) => sceneText(scene)).filter(Boolean).join('\n\n'))
+}
+
+function audioChunks(text) {
+  const paragraphs = cleanMarkdown(text).split(/\n\s*\n/).map((entry) => entry.trim()).filter(Boolean)
+  const chunks = []
+  let current = ''
+
+  for (const paragraph of paragraphs) {
+    if ((current + '\n\n' + paragraph).trim().length > 3800) {
+      if (current) chunks.push(current)
+      current = paragraph
+    } else {
+      current = [current, paragraph].filter(Boolean).join('\n\n')
+    }
+  }
+
+  if (current) chunks.push(current)
+  return chunks
 }
 
 const CHAPTERS = [
@@ -293,8 +311,11 @@ export function StoryPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [appraisalOpen, setAppraisalOpen] = useState(false)
   const [readingMode, setReadingMode] = useState('')
+  const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem('deepSagaVoiceMode') || 'male')
   const endRef = useRef(null)
-  const speechRef = useRef(null)
+  const audioRef = useRef(null)
+  const readCancelRef = useRef(false)
+  const audioUrlRef = useRef('')
 
   async function loadStory(id) {
     const loaded = await fetchGameState(id)
@@ -365,29 +386,50 @@ export function StoryPage() {
     if (scenes.length) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [scenes.length])
 
-  useEffect(() => () => {
-    window.speechSynthesis?.cancel()
-  }, [])
+  useEffect(() => {
+    localStorage.setItem('deepSagaVoiceMode', voiceMode)
+  }, [voiceMode])
+
+  useEffect(() => () => stopReading(), [])
 
   function stopReading() {
-    window.speechSynthesis?.cancel()
-    speechRef.current = null
+    readCancelRef.current = true
+    audioRef.current?.pause()
+    audioRef.current = null
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current)
+    audioUrlRef.current = ''
     setReadingMode('')
   }
 
-  function readAloud(text, mode) {
-    const cleaned = cleanMarkdown(text)
-    if (!cleaned || !('speechSynthesis' in window)) return
-
+  async function readAloud(text, mode) {
+    const chunks = audioChunks(text)
+    if (!chunks.length) return
     stopReading()
-    const utterance = new SpeechSynthesisUtterance(cleaned)
-    utterance.rate = 0.92
-    utterance.pitch = 0.95
-    utterance.onend = () => setReadingMode('')
-    utterance.onerror = () => setReadingMode('')
-    speechRef.current = utterance
+    readCancelRef.current = false
     setReadingMode(mode)
-    window.speechSynthesis.speak(utterance)
+
+    try {
+      for (const chunk of chunks) {
+        if (readCancelRef.current) break
+        const blob = await fetchNarrationAudio({ text: chunk, voiceMode })
+        if (readCancelRef.current) break
+        const url = URL.createObjectURL(blob)
+        audioUrlRef.current = url
+        const audio = new Audio(url)
+        audioRef.current = audio
+        await new Promise((resolve, reject) => {
+          audio.onended = resolve
+          audio.onerror = reject
+          audio.play().catch(reject)
+        })
+        URL.revokeObjectURL(url)
+        audioUrlRef.current = ''
+      }
+    } catch (voiceError) {
+      setError(voiceError.message || 'Voice narration failed.')
+    } finally {
+      if (!readCancelRef.current) setReadingMode('')
+    }
   }
 
   async function submit(playerAction, actionKind = 'typed', selectedTarget = null) {
@@ -430,7 +472,7 @@ export function StoryPage() {
   const latestScene = scenes[scenes.length - 1]
   const latestPageText = sceneText(latestScene)
   const fullChapterText = chapterText(scenes)
-  const canRead = Boolean(latestPageText) && 'speechSynthesis' in window
+  const canRead = Boolean(latestPageText)
 
   return (
     <main className={styles.page}>
@@ -453,7 +495,7 @@ export function StoryPage() {
         <button className={styles.sheetClose} type="button" onClick={() => setSheetOpen(false)} title="Close character sheet">
           <X size={18} />
         </button>
-        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Chapter</dt><dd>{chapter.number}: {chapter.title}</dd><dt>Boss</dt><dd>{currentBossName}</dd>{boss && <><dt>Condition</dt><dd>{bossState}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl>{canAppraise && boss && <section className={styles.appraisalPanel}><button type="button" onClick={() => setAppraisalOpen((open) => !open)} aria-expanded={appraisalOpen}><span>Appraisal</span><strong>{appraisalOpen ? 'Close enemy read' : 'Read enemy'}</strong><ChevronDown size={18} /></button>{appraisalOpen && <div className={styles.appraisalBody}><small>Observation Complete</small><h3>{currentBossName}</h3>{bossDefeated ? <p>Status: Dead</p> : <><p>{bossProfile.title || 'Boss entity'} · {bossProfile.openingAttitude || 'Unknown attitude'}</p><dl><dt>Vitality</dt><dd>{bossHpValue(boss)}</dd><dt>Threat</dt><dd>Rank {bossProfile.powerRank || bossProfile.power_rank || '?'}</dd><dt>Pattern</dt><dd>{bossProfile.combatStyle || bossProfile.combat_style || 'Still being learned.'}</dd><dt>Read</dt><dd>{bossProfile.profile || bossState}</dd></dl></>}</div>}</section>}</>}
+        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><section className={styles.voicePicker}><small>AI voice</small><div><button type="button" className={voiceMode === 'male' ? styles.voiceActive : ''} onClick={() => setVoiceMode('male')} title="Male narrator"><User size={17} /><span>Male</span></button><button type="button" className={voiceMode === 'female' ? styles.voiceActive : ''} onClick={() => setVoiceMode('female')} title="Female narrator"><UserRound size={17} /><span>Female</span></button></div></section><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Chapter</dt><dd>{chapter.number}: {chapter.title}</dd><dt>Boss</dt><dd>{currentBossName}</dd>{boss && <><dt>Condition</dt><dd>{bossState}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl>{canAppraise && boss && <section className={styles.appraisalPanel}><button type="button" onClick={() => setAppraisalOpen((open) => !open)} aria-expanded={appraisalOpen}><span>Appraisal</span><strong>{appraisalOpen ? 'Close enemy read' : 'Read enemy'}</strong><ChevronDown size={18} /></button>{appraisalOpen && <div className={styles.appraisalBody}><small>Observation Complete</small><h3>{currentBossName}</h3>{bossDefeated ? <p>Status: Dead</p> : <><p>{bossProfile.title || 'Boss entity'} · {bossProfile.openingAttitude || 'Unknown attitude'}</p><dl><dt>Vitality</dt><dd>{bossHpValue(boss)}</dd><dt>Threat</dt><dd>Rank {bossProfile.powerRank || bossProfile.power_rank || '?'}</dd><dt>Pattern</dt><dd>{bossProfile.combatStyle || bossProfile.combat_style || 'Still being learned.'}</dd><dt>Read</dt><dd>{bossProfile.profile || bossState}</dd></dl></>}</div>}</section>}</>}
       </aside>
 
       <section className={styles.reader}>
@@ -512,18 +554,15 @@ export function StoryPage() {
 
         {!busy && canRead && (
           <section className={styles.readControls} aria-label="Narrator read aloud controls">
-            <button type="button" onClick={() => readAloud(latestPageText, 'page')} disabled={readingMode === 'page'} title="Read latest page">
+            <button type="button" onClick={() => readAloud(latestPageText, 'page')} disabled={readingMode === 'page'} title="Read latest page" aria-label="Read latest page">
               <Volume2 size={18} />
-              <span>{readingMode === 'page' ? 'Reading page' : 'Read latest page'}</span>
             </button>
-            <button type="button" onClick={() => readAloud(fullChapterText, 'chapter')} disabled={readingMode === 'chapter'} title="Read full chapter">
+            <button type="button" onClick={() => readAloud(fullChapterText, 'chapter')} disabled={readingMode === 'chapter'} title="Read full chapter" aria-label="Read full chapter">
               <BookOpen size={18} />
-              <span>{readingMode === 'chapter' ? 'Reading chapter' : 'Read full chapter'}</span>
             </button>
             {readingMode && (
-              <button type="button" onClick={stopReading} title="Stop reading">
+              <button type="button" onClick={stopReading} title="Stop reading" aria-label="Stop reading">
                 <Square size={16} />
-                <span>Stop</span>
               </button>
             )}
           </section>

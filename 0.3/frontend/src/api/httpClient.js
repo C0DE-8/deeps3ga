@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://deeps3ga-b.vercel.app/api'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://deeps3ga-b.vercel.app/api'
 const TOKEN_KEY = 'deepSagaPlayerTokenV2'
 const LEGACY_TOKEN_KEY = 'deepSagaToken'
 const AUTH_NOTICE_KEY = 'deepSagaAuthNotice'

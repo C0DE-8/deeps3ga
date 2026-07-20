@@ -2,6 +2,7 @@ const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const { createStoryScene, loadStoryHistory } = require("../services/narrator.service");
 const { getPlayerSheet } = require("../services/player.service");
+const { synthesizeStoryVoice } = require("../services/voice.service");
 
 const router = express.Router();
 
@@ -42,6 +43,22 @@ router.get("/stats", requireAuth, async (req, res) => {
     return res.json({ success: true, data: sheet });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Player sheet failed.", error: error.message });
+  }
+});
+
+router.post("/voice", requireAuth, async (req, res) => {
+  try {
+    const audio = await synthesizeStoryVoice({
+      text: req.body.text,
+      personaKey: req.auth.player.narratorPersona,
+      voiceMode: req.body.voiceMode
+    });
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "no-store");
+    return res.send(audio);
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Voice narration failed.", error: error.message });
   }
 });
 
