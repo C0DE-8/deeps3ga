@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, createLegacyHeroForPlayer, getPlayerSheet } = require("./player.service");
+const { applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, createLegacyHeroForPlayer, evolutionCatalog, getPlayerSheet, skillNames } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -297,6 +297,10 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       completedBosses: Math.max(0, dungeonNumber - 1),
       remainingBosses: Math.max(0, bossGauntlet.length - dungeonNumber + 1)
     },
+    progressionCatalog: {
+      skills: skillNames,
+      evolutions: evolutionCatalog
+    },
     sceneState: {
       isOpeningScene: !action && normalizedRecentMessages.length === 0,
       hasRecentStory: normalizedRecentMessages.length > 0,
@@ -323,6 +327,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       "The world has ten boss stages. Each stage is one boss encounter with combat, survival choices, analysis, evolution chances, and consequences.",
       "Version 0.3 is a ten-boss reincarnation combat gauntlet. The current dungeon number is the current boss stage.",
       "The player must defeat Boss 1 through Boss 10 in order. The first boss is cocky and easier than later bosses, but the player can still die from bad choices.",
+      "Skills and evolutions should usually appear as choices before they are unlocked.",
       "Every reply must resolve the player action, continue the current scene, and provide 3 to 5 meaningful choices.",
       "If sceneState.bookEnded is true, do not continue combat. Return a reflective epilogue or restart-facing closure for the already-ended book.",
       combatPressure.instruction,

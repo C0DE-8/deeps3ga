@@ -10,7 +10,8 @@ const monsterRaces = [
     strengths: ["adaptive body", "absorption", "silent movement", "rapid evolution potential"],
     weaknesses: ["almost no starting strength", "vulnerable to heat", "easy to underestimate and crush early"],
     skills: ["Appraisal", "Predator", "Mana Control"],
-    evolutionPaths: ["Gel Core", "Venom Slime", "Mimic Ooze", "Demon Slime"],
+    evolutionPaths: ["Tiny Slime", "Blue Slime", "Magic Slime", "Predator Slime", "Great Slime", "King Slime", "Demon Slime", "Chaos Slime", "Primordial Slime"],
+    reincarnationEvolutionHints: ["Slime Emperor", "Chaos Lord", "Void Monarch", "Primordial Beast"],
     hp: 72,
     maxHp: 72,
     mana: 34,
@@ -33,7 +34,8 @@ const monsterRaces = [
     strengths: ["web control", "wall crawling", "ambush instincts", "venom potential"],
     weaknesses: ["fragile frame", "weak against fire", "can be killed by one careless choice early"],
     skills: ["Appraisal", "Poison Fang", "Web Trap"],
-    evolutionPaths: ["Cave Weaver", "Arachne Spawn", "Night Widow", "Queen Broodling"],
+    evolutionPaths: ["Small Spider", "Poison Spider", "Web Hunter", "Venom Taratect", "Greater Taratect", "Ancient Taratect", "Abyss Spider", "Divine Spider"],
+    reincarnationEvolutionHints: ["Time Spider", "Abyss King", "Soul Reaper", "Eternal Sage"],
     hp: 48,
     maxHp: 48,
     mana: 28,
@@ -50,6 +52,16 @@ const monsterRaces = [
     charisma: 1
   }
 ];
+
+const evolutionCatalog = {
+  slime: ["Tiny Slime", "Blue Slime", "Magic Slime", "Predator Slime", "Great Slime", "King Slime", "Demon Slime", "Chaos Slime", "Primordial Slime"],
+  spider: ["Small Spider", "Poison Spider", "Web Hunter", "Venom Taratect", "Greater Taratect", "Ancient Taratect", "Abyss Spider", "Divine Spider"],
+  dragon: ["Baby Dragon", "Young Dragon", "Wyvern", "Ancient Dragon", "Elder Dragon", "Dragon Lord", "True Dragon"],
+  demon: ["Imp", "Greater Demon", "Demon General", "Arch Demon", "Demon Lord", "Demon Emperor"],
+  angel: ["Angel Path"],
+  reincarnation: ["Void Dragon", "Time Spider", "Slime Emperor", "Soul Reaper"],
+  endgame: ["Dragon God", "Chaos Lord", "World Tree Guardian", "Void Monarch", "Abyss King", "Celestial Emperor", "Primordial Beast", "Phoenix Lord", "Titan King", "Eternal Sage"]
+};
 
 let schemaReady = null;
 const allowedPersonas = new Set(["ADMIN", "TRICKSTER", "SENSEI"]);
@@ -111,6 +123,8 @@ const skillCatalog = [
   { key: "soul_harvest", name: "Soul Harvest", family: "Legendary", type: "Legendary", description: "Gain Soul Essence from defeated foes.", rarity: "legendary" },
   { key: "void_slash", name: "Void Slash", family: "Mythic", type: "Mythic", description: "Ignores armor and cuts through dimensions.", rarity: "mythic" }
 ];
+
+const skillNames = skillCatalog.map((skill) => skill.name);
 
 const dungeonCount = 10;
 const floorsPerDungeon = 1;
@@ -1241,6 +1255,7 @@ module.exports = {
   bossGauntlet,
   createLegacyHeroForPlayer,
   ensurePlayerSchema,
+  evolutionCatalog,
   getFloorRuntime,
   getPlayerSheet,
   listNarratorPersonas,
@@ -1251,6 +1266,7 @@ module.exports = {
   randomMonsterBody,
   registerPlayer,
   serializePlayer,
+  skillNames,
   updatePlayerPersona,
   validateUsername
 };
