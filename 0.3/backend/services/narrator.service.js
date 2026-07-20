@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, createLegacyHeroForPlayer, evolutionCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
+const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, completeBossGrowthTransition, createLegacyHeroForPlayer, evolutionCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -266,6 +266,11 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
     },
     currentBody: body,
     activeCharacter: character,
+    progressionState: {
+      phase: character.storyPhase || "combat",
+      pendingNextDungeon: character.pendingNextDungeon || null,
+      lastDefeatedBoss: character.lastDefeatedBoss || null
+    },
     knownSkills: knownSkills.map((skill) => ({
       id: skill.id,
       key: skill.key,
@@ -331,6 +336,8 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       "Version 0.3 is a ten-boss reincarnation combat gauntlet. The current dungeon number is the current boss stage.",
       "The player must defeat Boss 1 through Boss 10 in order. The first boss is cocky and easier than later bosses, but the player can still die from bad choices.",
       "Skills and evolutions should usually appear as choices before they are unlocked.",
+      "If progressionState.phase is post_boss_growth, do not continue boss combat. Write reflection, earned skill choices, evolution choice, restoration, and the threshold into the pending next chapter.",
+      "Only after an evolution is selected should the story move into the pending next boss chapter.",
       "Every reply must resolve the player action, continue the current scene, and provide 3 to 5 meaningful choices.",
       "If sceneState.bookEnded is true, do not continue combat. Return a reflective epilogue or restart-facing closure for the already-ended book.",
       combatPressure.instruction,
@@ -356,6 +363,25 @@ function normalizeSkillUnlocks(stateChanges) {
     })
     .filter((skill) => String(skill?.name || skill?.skillName || "").trim())
     .slice(0, 3);
+}
+
+function normalizeEvolutionSelection(stateChanges) {
+  const raw = stateChanges.evolutionSelected || stateChanges.evolutionUnlocked || stateChanges.evolution || stateChanges.selectedEvolution;
+
+  if (!raw) {
+    return null;
+  }
+
+  if (typeof raw === "string") {
+    return { name: raw };
+  }
+
+  if (raw && typeof raw === "object") {
+    const name = String(raw.name || raw.evolution || raw.race || raw.path || "").trim();
+    return name ? { ...raw, name } : null;
+  }
+
+  return null;
 }
 
 function resourceRecordChanges(resourceResult) {
@@ -551,6 +577,42 @@ async function applyAcceptedStateChanges(context, scene) {
         text: `${skill.name} awakened`
       }))
     ];
+  }
+
+  const evolutionSelection = normalizeEvolutionSelection(stateChanges);
+  if (evolutionSelection) {
+    const evolutionResult = await completeBossGrowthTransition(characterId, evolutionSelection);
+    if (evolutionResult) {
+      scene.appliedEvolution = evolutionResult;
+      Object.assign(stateChanges, {
+        evolutionApplied: true,
+        evolutionName: evolutionResult.evolutionName,
+        restoredAfterEvolution: true,
+        advancedToStage: evolutionResult.advancedToStage
+      });
+      scene.stateChanges = stateChanges;
+      scene.recordChanges = [
+        ...(scene.recordChanges || []),
+        {
+          type: "evolution",
+          text: `${evolutionResult.evolutionName} chosen. Body restored and Chapter ${evolutionResult.advancedToStage} opened.`
+        }
+      ];
+      scene.memoryUpdates = [
+        ...(scene.memoryUpdates || []),
+        {
+          type: "evolution",
+          text: `After surviving the boss, the soul evolved into ${evolutionResult.evolutionName} and entered Chapter ${evolutionResult.advancedToStage} fully restored.`,
+          facts: {
+            evolutionName: evolutionResult.evolutionName,
+            advancedToStage: evolutionResult.advancedToStage,
+            resourceGains: evolutionResult.resourceGains
+          },
+          importance: 8,
+          rememberedAcrossLives: true
+        }
+      ];
+    }
   }
 
   const characterStatus = normalizeCharacterStatus(stateChanges);

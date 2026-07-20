@@ -296,7 +296,10 @@ function serializePlayer(row) {
     soulEnergy: Number(row.soul_energy || 0),
     dungeon: Number(row.character_dungeon || 1),
     floor: Number(row.character_floor || 1),
-    status: row.character_status || "alive"
+    status: row.character_status || "alive",
+    storyPhase: row.story_phase || "combat",
+    pendingNextDungeon: row.pending_next_dungeon ? Number(row.pending_next_dungeon) : null,
+    lastDefeatedBoss: row.last_defeated_boss ? Number(row.last_defeated_boss) : null
   } : null;
   const floorRuntime = {
     dungeonNumber: Number(row.runtime_dungeon_number || activeCharacter?.dungeon || currentBody?.dungeon || 1),
@@ -592,6 +595,9 @@ async function ensureCharacterSchema() {
       dungeon INT NOT NULL DEFAULT 1,
       floor INT NOT NULL DEFAULT 1,
       status VARCHAR(40) NOT NULL DEFAULT 'alive',
+      story_phase VARCHAR(40) NOT NULL DEFAULT 'combat',
+      pending_next_dungeon INT NULL,
+      last_defeated_boss INT NULL,
       appearance_json JSON NULL,
       traits_json JSON NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -603,6 +609,9 @@ async function ensureCharacterSchema() {
 
   await ensureCharacterColumn("xp", "INT NOT NULL DEFAULT 0");
   await ensureCharacterColumn("xp_needed", "INT NOT NULL DEFAULT 100");
+  await ensureCharacterColumn("story_phase", "VARCHAR(40) NOT NULL DEFAULT 'combat'");
+  await ensureCharacterColumn("pending_next_dungeon", "INT NULL");
+  await ensureCharacterColumn("last_defeated_boss", "INT NULL");
 }
 
 async function ensureCharacterColumn(columnName, definition) {
@@ -1237,10 +1246,9 @@ async function applyBossHpDelta({ playerId, runNumber, characterId, bossSequence
   if (defeated && characterId && Number(bossSequence) < dungeonCount) {
     advancedToStage = Number(bossSequence) + 1;
     await db.execute(
-      "UPDATE player_characters SET dungeon = ?, floor = 1 WHERE id = ?",
-      [advancedToStage, characterId]
+      "UPDATE player_characters SET story_phase = 'post_boss_growth', pending_next_dungeon = ?, last_defeated_boss = ? WHERE id = ?",
+      [advancedToStage, Number(bossSequence), characterId]
     );
-    await getBossProgress(playerId, runNumber, advancedToStage);
   }
 
   return {
@@ -1249,6 +1257,100 @@ async function applyBossHpDelta({ playerId, runNumber, characterId, bossSequence
     delta,
     defeated,
     advancedToStage
+  };
+}
+
+async function completeBossGrowthTransition(characterId, evolutionInput = {}) {
+  await ensurePlayerSchema();
+
+  if (!characterId) {
+    return null;
+  }
+
+  const rows = await db.query(
+    `SELECT id, race, class_name, level, max_hp, max_mana, max_stamina, dungeon, pending_next_dungeon, story_phase
+       FROM player_characters
+      WHERE id = ?
+      LIMIT 1`,
+    [characterId]
+  );
+  const before = rows[0];
+
+  if (!before || before.story_phase !== "post_boss_growth" || !before.pending_next_dungeon) {
+    return null;
+  }
+
+  const evolutionName = String(
+    evolutionInput.name ||
+    evolutionInput.evolution ||
+    evolutionInput.race ||
+    evolutionInput.path ||
+    before.race ||
+    "Evolved Form"
+  ).trim().slice(0, 80);
+  const className = String(evolutionInput.className || evolutionInput.class || before.class_name || "Reincarnated Monster").trim().slice(0, 100);
+  const nextLevel = Math.min(Number(before.level || 1) + 1, 999);
+  const hpGain = Math.max(12, Math.min(Number(evolutionInput.maxHpGain || evolutionInput.hpGain || 18 + nextLevel * 3), 250));
+  const manaGain = Math.max(5, Math.min(Number(evolutionInput.maxManaGain || evolutionInput.manaGain || 8 + nextLevel * 2), 160));
+  const staminaGain = Math.max(7, Math.min(Number(evolutionInput.maxStaminaGain || evolutionInput.staminaGain || 10 + nextLevel * 2), 180));
+  const nextMaxHp = Number(before.max_hp || 100) + hpGain;
+  const nextMaxMana = Number(before.max_mana || 30) + manaGain;
+  const nextMaxStamina = Number(before.max_stamina || 50) + staminaGain;
+  const nextDungeon = Number(before.pending_next_dungeon);
+
+  await db.execute(
+    `UPDATE player_characters
+        SET race = ?,
+            species = ?,
+            class_name = ?,
+            level = ?,
+            xp = 0,
+            xp_needed = xp_needed + 50,
+            max_hp = ?,
+            hp = ?,
+            max_mana = ?,
+            mana = ?,
+            max_stamina = ?,
+            stamina = ?,
+            dungeon = ?,
+            floor = 1,
+            story_phase = 'combat',
+            pending_next_dungeon = NULL
+      WHERE id = ?`,
+    [
+      evolutionName,
+      evolutionName,
+      className,
+      nextLevel,
+      nextMaxHp,
+      nextMaxHp,
+      nextMaxMana,
+      nextMaxMana,
+      nextMaxStamina,
+      nextMaxStamina,
+      nextDungeon,
+      characterId
+    ]
+  );
+
+  const afterRows = await db.query(
+    `SELECT race, class_name, level, hp, max_hp, mana, max_mana, stamina, max_stamina, dungeon, floor, story_phase
+       FROM player_characters
+      WHERE id = ?
+      LIMIT 1`,
+    [characterId]
+  );
+
+  return {
+    before,
+    after: afterRows[0] || null,
+    evolutionName,
+    resourceGains: {
+      maxHp: hpGain,
+      maxMana: manaGain,
+      maxStamina: staminaGain
+    },
+    advancedToStage: nextDungeon
   };
 }
 
@@ -1360,7 +1462,7 @@ async function findPlayerByIdentifier(identifier) {
     `SELECT p.player_id, p.username, p.email, p.password_hash, p.narrator_persona, p.current_run, p.cycle_clears, p.current_body, p.memory_log, p.created_at, p.last_login_at,
             c.id AS character_id, c.character_name, c.race, c.class_name, c.level AS character_level, c.xp AS character_xp, c.xp_needed AS character_xp_needed, c.hp, c.max_hp, c.mana, c.max_mana, c.stamina, c.max_stamina,
             c.strength, c.agility, c.defense, c.thaumaturgy, c.resolve_stat, c.intelligence, c.luck, c.charisma, c.gold, c.soul_energy,
-            c.dungeon AS character_dungeon, c.floor AS character_floor, c.status AS character_status,
+            c.dungeon AS character_dungeon, c.floor AS character_floor, c.status AS character_status, c.story_phase, c.pending_next_dungeon, c.last_defeated_boss,
             d.dungeon_number AS runtime_dungeon_number, d.canonical_label AS dungeon_label, d.ai_name AS dungeon_ai_name,
             f.floor_number AS runtime_floor_number, f.canonical_label AS floor_label, f.ai_name AS floor_ai_name, f.floor_role, f.is_boss_floor, f.is_final_boss_floor
        FROM deep_saga_players p
@@ -1445,6 +1547,7 @@ module.exports = {
   applyBossHpDelta,
   awardCharacterSkill,
   bossGauntlet,
+  completeBossGrowthTransition,
   createLegacyHeroForPlayer,
   ensurePlayerSchema,
   evolutionCatalog,
