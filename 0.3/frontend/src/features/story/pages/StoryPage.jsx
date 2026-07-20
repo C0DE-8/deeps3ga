@@ -73,6 +73,40 @@ function cleanMarkdown(value) {
   return String(value || '').replace(/\*\*/g, '').replace(/\*/g, '').trim()
 }
 
+const CHAPTERS = [
+  { number: 'One', title: 'The Rebirth Crucible', subtitle: 'The Hunter Beneath the Web' },
+  { number: 'Two', title: 'The Puppet Court', subtitle: 'The Laughing Demon Lord' },
+  { number: 'Three', title: 'The Dragon in the Stone', subtitle: 'The Trial of Araba' },
+  { number: 'Four', title: 'The Mother Nest', subtitle: 'The Queen Above All Threads' },
+  { number: 'Five', title: 'The Saint Draws Steel', subtitle: 'The Blade That Hates Monsters' },
+  { number: 'Six', title: 'The Demon Throne', subtitle: 'The Ancient Crown of Ariel' },
+  { number: 'Seven', title: 'The Nation Breaker', subtitle: 'The Child With Catastrophe in Her Fists' },
+  { number: 'Eight', title: 'The Storm Unsealed', subtitle: 'The True Dragon Laughs' },
+  { number: 'Nine', title: 'The Crimson End', subtitle: 'The Strongest Demon Lord' },
+  { number: 'Ten', title: 'The Administrator Watches', subtitle: 'The Last Page of the Game' },
+]
+
+function chapterFor(stage) {
+  return CHAPTERS[Math.max(0, Math.min(CHAPTERS.length - 1, Number(stage || 1) - 1))]
+}
+
+function bossName(boss, fallback) {
+  return boss?.bossName || boss?.boss_name || fallback || 'The boss'
+}
+
+function bossCondition(boss) {
+  if (!boss?.maxHp) return 'The enemy waits beyond the next line of ink.'
+  const current = Number(boss.currentHp ?? boss.current_hp ?? boss.maxHp)
+  const max = Number(boss.maxHp ?? boss.max_hp)
+  const ratio = max > 0 ? current / max : 1
+
+  if (current <= 0 || boss.status === 'defeated') return 'The body has fallen. The chapter is ready to turn.'
+  if (ratio <= 0.25) return 'The enemy is breaking, but the killing intent has only sharpened.'
+  if (ratio <= 0.5) return 'Fresh wounds split the enemy guard, and every movement costs more than before.'
+  if (ratio <= 0.75) return 'The enemy carries visible damage now, though confidence has not fully cracked.'
+  return 'The enemy guard remains strong, every movement steady, and pride untouched.'
+}
+
 function InlineText({ text }) {
   const parts = String(text || '').split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean)
 
@@ -330,6 +364,10 @@ export function StoryPage() {
   }
 
   const initialStory = game?.currentFloor?.description || 'Your last breath is gone. Cold earth and an unfamiliar body remain.'
+  const stage = game?.currentDungeon?.boss_stage || game?.currentDungeon?.dungeon_number || 1
+  const chapter = chapterFor(stage)
+  const currentBossName = bossName(boss, game?.currentFloor?.floor_name || game?.currentDungeon?.name)
+  const bossState = bossCondition(boss)
 
   return (
     <main className={styles.page}>
@@ -340,9 +378,8 @@ export function StoryPage() {
           <span><small>Mana</small><strong>{sheet.mana}/{sheet.max_mana}</strong></span>
           <span><small>Stamina</small><strong>{sheet.stamina}/{sheet.max_stamina}</strong></span>
           <span><small>Level</small><strong>{sheet.level}</strong></span>
-          <span><small>Boss stage</small><strong>{game.currentDungeon.boss_stage || game.currentDungeon.dungeon_number}/10</strong></span>
-          {boss && <span><small>Boss HP</small><strong>{boss.currentHp}/{boss.maxHp}</strong></span>}
-          <span className={styles.position}><small>{ended ? endingLabel : 'Current boss'}</small><strong>{game.currentFloor.floor_name || game.currentDungeon.name}</strong></span>
+          <span><small>Chapter</small><strong>{chapter.number}</strong></span>
+          <span className={styles.position}><small>{ended ? endingLabel : currentBossName}</small><strong>{chapter.title}</strong></span>
           <button type="button" onClick={() => setSheetOpen((open) => !open)} title={sheetOpen ? 'Close character sheet' : 'Open character sheet'}>
             {sheetOpen ? <PanelRightClose /> : <PanelRightOpen />}
           </button>
@@ -350,7 +387,7 @@ export function StoryPage() {
       )}
 
       <aside className={`${styles.sheet} ${sheetOpen ? styles.sheetOpen : ''}`} aria-hidden={!sheetOpen}>
-        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Boss</dt><dd>Stage {game.currentDungeon.boss_stage || game.currentDungeon.dungeon_number}/10</dd>{boss && <><dt>Boss HP</dt><dd>{boss.currentHp}/{boss.maxHp}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>XP</dt><dd>{sheet.xp}/{sheet.xp_needed}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl></>}
+        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Chapter</dt><dd>{chapter.number}: {chapter.title}</dd><dt>Boss</dt><dd>{currentBossName}</dd>{boss && <><dt>Condition</dt><dd>{bossState}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>XP</dt><dd>{sheet.xp}/{sheet.xp_needed}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl></>}
       </aside>
 
       <section className={styles.reader}>
@@ -358,9 +395,9 @@ export function StoryPage() {
           {!scenes.length && !busy && (
             <article className={styles.bookPanel}>
               <header className={styles.sceneChapter}>
-                <span>{game?.currentDungeon?.name || 'Deep Saga'}</span>
-                <h1>{game?.currentFloor?.floor_name || 'The Last Breath'}</h1>
-                <p>Boss Stage {game?.currentDungeon?.boss_stage || game?.currentDungeon?.dungeon_number || 1} of 10 · {game?.currentFloor?.story_purpose || 'The story begins.'}</p>
+                <span>Chapter {chapter.number} · {chapter.title}</span>
+                <h1>{chapter.subtitle}</h1>
+                <p><strong>{currentBossName}</strong> · {bossState}</p>
               </header>
               <section className={styles.scenePage}><BookOpen /><p>{initialStory}</p></section>
             </article>
@@ -369,9 +406,9 @@ export function StoryPage() {
           {scenes.length > 0 && (
             <article className={styles.bookPanel}>
               <header className={styles.sceneChapter}>
-                <span>{scenes[0].chapter}</span>
-                <h1>{scenes[0].title}</h1>
-                <p>Boss Stage {game?.currentDungeon?.boss_stage || game?.currentDungeon?.dungeon_number || scenes[0].floor} of 10 · {scenes[0].purpose}</p>
+                <span>Chapter {chapter.number} · {chapter.title}</span>
+                <h1>{chapter.subtitle}</h1>
+                <p><strong>{currentBossName}</strong> · {bossState}</p>
               </header>
 
               <div className={styles.sceneFlow}>
@@ -410,7 +447,7 @@ export function StoryPage() {
 
         {!busy && !ended && (
           <section className={styles.actions}>
-            {choices.length > 0 && <div className={styles.choiceList}>{choices.map((choice, index) => <button type="button" key={choice.id || `${choice.action}-${index}`} onClick={() => submit(choice.action || choice.text, 'suggested')}><small>{choice.direction || `Path ${index + 1}`}</small><strong>{choice.title || choice.text}</strong>{choice.text && choice.title && <span>{choice.text}</span>}</button>)}</div>}
+            {choices.length > 0 && <><p className={styles.choicePrompt}>The next line is yours.</p><div className={styles.choiceList}>{choices.map((choice, index) => <button type="button" key={choice.id || `${choice.action}-${index}`} onClick={() => submit(choice.action || choice.text, 'suggested')}><strong>{choice.title || choice.text}</strong>{choice.text && choice.title && <span>{choice.text}</span>}</button>)}</div></>}
             <form onSubmit={(event) => { event.preventDefault(); submit(action) }}>
               <label htmlFor="custom-action">Write your own action</label>
               <div><textarea id="custom-action" value={action} onChange={(event) => setAction(event.target.value)} placeholder="I keep my blade low and ask what wounded it..." rows="3" maxLength="1000" /><button type="submit" disabled={!action.trim()} title="Submit action"><ArrowUp /></button></div>
