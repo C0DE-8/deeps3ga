@@ -1,28 +1,28 @@
 .page { min-height: 100svh; background: #eeece4; color: #1b1b18; }
-.statusBar { position: sticky; top: 72px; z-index: 15; min-height: 58px; display: flex; align-items: stretch; overflow-x: auto; border-bottom: 1px solid #c8c1b2; background: #f7f5ee; }
+.statusBar { position: sticky; top: 72px; z-index: 15; min-height: 58px; display: flex; align-items: stretch; overflow-x: auto; border-bottom: 1px solid #c8c1b2; background: #f7f5ee; -webkit-overflow-scrolling: touch; }
 .statusBar > span { min-width: 126px; display: grid; align-content: center; gap: 2px; padding: 8px 14px; border-right: 1px solid #d5cec0; }
 .statusBar small { color: #756d61; font-size: .68rem; font-weight: 800; text-transform: uppercase; }
-.statusBar strong { font-size: .9rem; white-space: nowrap; }
+.statusBar strong { min-width: 0; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .statusBar .position { min-width: 250px; margin-left: auto; }
 .statusBar > button { width: 54px; flex: 0 0 54px; display: grid; place-items: center; border: 0; border-left: 1px solid #d5cec0; color: #312c25; background: transparent; cursor: pointer; }
-.sheet { position: fixed; top: 130px; right: 0; bottom: 0; z-index: 18; width: min(390px, 92vw); overflow-y: auto; padding: 28px; border-left: 1px solid #384440; color: #e6ebe7; background: #0c1314; transform: translateX(100%); transition: transform 220ms ease; }
+.sheet { position: fixed; top: 130px; right: 0; bottom: 0; z-index: 18; width: min(390px, 92vw); overflow-y: auto; padding: 28px; border-left: 1px solid #384440; color: #e6ebe7; background: #0c1314; transform: translateX(100%); transition: transform 220ms ease; -webkit-overflow-scrolling: touch; }
 .sheetOpen { transform: translateX(0); }
 .sheetClose { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #2e3936; border-radius: 5px; color: #e6ebe7; background: #121d1e; cursor: pointer; }
 .sheetClose:hover { border-color: #c1a36b; color: #fff7e7; background: #1a292b; }
 .sheet > span { color: #c1a36b; font-size: .7rem; font-weight: 800; text-transform: uppercase; }
-.sheet h2 { margin-top: 8px; font-family: Georgia, serif; font-size: 2rem; font-weight: 500; }
+.sheet h2 { margin-top: 8px; padding-right: 44px; font-family: Georgia, serif; font-size: 2rem; font-weight: 500; overflow-wrap: anywhere; }
 .sheet > p { margin-top: 4px; color: #9aa5a1; }
 .sheet dl { display: grid; grid-template-columns: 90px 1fr; gap: 14px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #2e3936; }
 .sheet dt { color: #8d9995; font-size: .72rem; text-transform: uppercase; }
-.sheet dd { margin: 0; line-height: 1.5; }
+.sheet dd { min-width: 0; margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
 .appraisalPanel { margin-top: 24px; padding-top: 18px; border-top: 1px solid #2e3936; }
-.appraisalPanel > button { width: 100%; min-height: 54px; display: grid; grid-template-columns: 1fr auto 18px; align-items: center; gap: 10px; border: 1px solid #4d625b; border-radius: 6px; padding: 10px 12px; color: #e9f2ee; background: linear-gradient(180deg, #172525, #10191a); text-align: left; cursor: pointer; }
+.appraisalPanel > button { width: 100%; min-height: 54px; display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; align-items: center; gap: 10px; border: 1px solid #4d625b; border-radius: 6px; padding: 10px 12px; color: #e9f2ee; background: linear-gradient(180deg, #172525, #10191a); text-align: left; cursor: pointer; }
 .appraisalPanel > button:hover { border-color: #c1a36b; background: linear-gradient(180deg, #1d3030, #132021); }
 .appraisalPanel > button span { color: #7fd2c4; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
 .appraisalPanel > button strong { color: #f4ead0; font-size: .82rem; white-space: nowrap; }
 .appraisalBody { display: grid; gap: 10px; margin-top: 10px; padding: 16px; border: 1px solid #35514b; border-radius: 6px; background: #071010; box-shadow: inset 3px 0 0 #64bbae; }
 .appraisalBody > small { color: #7fd2c4; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
-.appraisalBody h3 { color: #fff7df; font-family: Georgia, serif; font-size: 1.28rem; font-weight: 500; }
+.appraisalBody h3 { color: #fff7df; font-family: Georgia, serif; font-size: 1.28rem; font-weight: 500; overflow-wrap: anywhere; }
 .appraisalBody p { color: #aebbb7; line-height: 1.45; }
 .appraisalBody dl { grid-template-columns: 82px 1fr; gap: 10px; margin-top: 2px; padding-top: 12px; }
 .appraisalBody dt { color: #7fd2c4; }
@@ -32,7 +32,7 @@
 .bookPanel { min-height: 520px; overflow: hidden; border: 1px solid #c9c0af; border-radius: 8px; background: linear-gradient(180deg, rgba(255,253,248,.97), rgba(249,244,235,.97)); box-shadow: 0 22px 58px rgba(49, 39, 28, .12); animation: pageIn 240ms ease both; }
 .sceneChapter { padding: clamp(20px, 4vw, 36px); border-bottom: 1px solid #d1c7b6; background: rgba(250, 247, 239, .72); }
 .sceneChapter > span { color: #835f36; font-size: .72rem; font-weight: 850; text-transform: uppercase; }
-.sceneChapter h1 { margin-top: 8px; font-family: Georgia, serif; font-size: clamp(2.2rem, 6vw, 4.8rem); line-height: .98; font-weight: 500; letter-spacing: 0; }
+.sceneChapter h1 { margin-top: 8px; font-family: Georgia, serif; font-size: clamp(2.2rem, 6vw, 4.8rem); line-height: .98; font-weight: 500; letter-spacing: 0; overflow-wrap: anywhere; }
 .sceneChapter p { margin-top: 14px; color: #71695d; line-height: 1.5; }
 .sceneFlow { display: grid; }
 .sceneEntry { scroll-margin-top: 150px; }
@@ -102,7 +102,7 @@
 .choiceList { display: grid; gap: 9px; }
 .choiceList > button { min-height: 88px; display: grid; gap: 4px; padding: 14px 16px; border: 1px solid #c6bcaa; border-radius: 5px; color: #25221d; background: #f8f5ed; text-align: left; font: inherit; cursor: pointer; }
 .choiceList > button:hover { border-color: #8b6840; background: #fffdf7; }
-.choiceList strong { font-family: Georgia, serif; font-size: 1.06rem; font-weight: 600; }
+.choiceList strong { font-family: Georgia, serif; font-size: 1.06rem; font-weight: 600; overflow-wrap: anywhere; }
 .choiceList span { color: #746c61; font-size: .84rem; line-height: 1.45; }
 .actions form { margin-top: 18px; }
 .actions label { display: block; margin-bottom: 8px; color: #685f53; font-size: .72rem; font-weight: 850; text-transform: uppercase; }
@@ -125,13 +125,60 @@
 }
 
 @media (max-width: 760px) {
-  .statusBar { top: 0; }
-  .statusBar > span { min-width: 104px; }
-  .statusBar .position { min-width: 210px; margin-left: 0; }
-  .sheet { top: 0; }
-  .reader { width: min(100% - 28px, 900px); padding-top: 42px; }
-  .bookPanel { min-height: 420px; }
+  .statusBar { top: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 48px; min-height: auto; overflow-x: visible; }
+  .statusBar > span { min-width: 0; min-height: 52px; padding: 8px 9px; border-right: 1px solid #d5cec0; border-bottom: 1px solid #ded6c7; }
+  .statusBar small { font-size: .58rem; }
+  .statusBar strong { font-size: .78rem; }
+  .statusBar .position { grid-column: 1 / 5; min-width: 0; margin-left: 0; }
+  .statusBar > button { width: 48px; min-height: 52px; grid-column: 5; grid-row: 1 / 3; align-self: stretch; border-bottom: 1px solid #ded6c7; }
+  .sheet { top: 0; width: 100vw; padding: 22px 18px 34px; border-left: 0; }
+  .sheetClose { top: 12px; right: 12px; width: 42px; height: 42px; }
+  .sheet h2 { font-size: 1.55rem; line-height: 1.08; }
+  .sheet dl { grid-template-columns: 76px minmax(0, 1fr); gap: 11px; margin-top: 22px; }
+  .appraisalPanel { margin-top: 20px; }
+  .appraisalPanel > button { grid-template-columns: minmax(0, 1fr) 18px; gap: 8px; min-height: 58px; }
+  .appraisalPanel > button strong { grid-column: 1; white-space: normal; }
+  .appraisalPanel > button svg { grid-column: 2; grid-row: 1 / 3; }
+  .appraisalBody { padding: 14px; }
+  .appraisalBody dl { grid-template-columns: 72px minmax(0, 1fr); }
+  .reader { width: min(100% - 24px, 900px); padding: 28px 0 88px; }
+  .bookPanel { min-height: 0; border-radius: 6px; box-shadow: 0 16px 38px rgba(49, 39, 28, .11); }
+  .sceneChapter { padding: 22px 18px; }
+  .sceneChapter > span { font-size: .64rem; line-height: 1.35; }
+  .sceneChapter h1 { font-size: 2rem; line-height: 1.04; }
+  .sceneChapter p { margin-top: 12px; font-size: .92rem; line-height: 1.45; }
+  .scenePage { gap: 15px; padding: 22px 18px; }
+  .scenePage > svg { width: 20px; height: 20px; margin: 4px 10px 6px 0; }
+  .storyText { gap: 15px; }
+  .storyParagraph { font-size: 1.06rem; line-height: 1.72; }
+  .storyHeading { font-size: 1.08rem; }
+  .playerAction { padding: 13px 18px; }
+  .playerAction p { font-size: .94rem; line-height: 1.45; overflow-wrap: anywhere; }
+  .actions { padding-top: 22px; }
+  .choiceList > button { min-height: 76px; padding: 13px 14px; }
+  .choiceList strong { font-size: 1rem; line-height: 1.3; }
+  .choiceList span { font-size: .82rem; }
+  .actions form > div { grid-template-columns: 1fr 46px; }
+  .actions textarea { min-height: 96px; font-size: 16px; }
+  .actions form button { width: 46px; height: 46px; }
+  .statsMessage { padding: 16px; }
   .statsGrid,
   .abilityGrid,
   .skillList { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 420px) {
+  .statusBar { grid-template-columns: repeat(2, minmax(0, 1fr)) 46px; }
+  .statusBar .position { grid-column: 1 / 3; }
+  .statusBar > button { width: 46px; grid-column: 3; grid-row: 1 / 4; }
+  .reader { width: min(100% - 16px, 900px); padding-top: 20px; }
+  .sceneChapter { padding: 18px 15px; }
+  .sceneChapter h1 { font-size: 1.72rem; }
+  .scenePage { padding: 20px 15px; }
+  .storyParagraph { font-size: 1.02rem; line-height: 1.68; }
+  .sheet { padding: 20px 14px 32px; }
+  .sheet dl,
+  .appraisalBody dl { grid-template-columns: 1fr; gap: 6px; }
+  .sheet dt,
+  .appraisalBody dt { margin-top: 4px; }
 }

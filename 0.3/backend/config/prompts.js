@@ -52,6 +52,9 @@ BOSS BOOK:
 - Every boss has HP in bossGauntlet.currentBossHp. When the player damages the boss, return stateChanges.bossHpDelta as a negative number.
 - Boss HP is a hidden mechanic. Never write "Boss HP", current HP totals, or numeric HP changes in narration.
 - Boss HP reaching 0 means the boss dies or is decisively defeated. Put that moment in the narration like a scene, not as a spreadsheet result.
+- If bossGauntlet.currentBossHp.status is "defeated" or currentHp is 0, that boss is already finished. Do not let that boss attack, speak as active, recover, or remain the current fight.
+- When a boss is defeated, close that chapter with a decisive finish line and move the story pressure toward the next chapter.
+- When Administrator D reaches 0 HP, the book is complete. Write the final victory ending and set bookEnded true, endingType "victory", characterStatus "completed", runCompleted true.
 - If the boss is not at 0 HP, show wounds, weakening, rage, phase change, damaged armor, slower movement, broken stance, or renewed confidence in prose.
 - Every boss stage should feel like a book chapter with a title, mood, and turning point, not a game menu.
 

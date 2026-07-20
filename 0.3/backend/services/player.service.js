@@ -1187,6 +1187,27 @@ async function getBossProgress(playerId, runNumber, bossSequence) {
   };
 }
 
+async function getBossRunProgress(playerId, runNumber) {
+  await ensurePlayerSchema();
+
+  const rows = await db.query(
+    `SELECT boss_sequence, boss_name, current_hp, max_hp, status, defeated_at
+       FROM player_boss_progress
+      WHERE player_id = ? AND run_number = ?
+      ORDER BY boss_sequence`,
+    [playerId, Number(runNumber || 1)]
+  );
+
+  return rows.map((row) => ({
+    bossSequence: Number(row.boss_sequence),
+    bossName: row.boss_name,
+    currentHp: Number(row.current_hp || 0),
+    maxHp: Number(row.max_hp || 0),
+    status: row.status || "active",
+    defeatedAt: row.defeated_at || null
+  }));
+}
+
 async function applyBossHpDelta({ playerId, runNumber, characterId, bossSequence, hpDelta }) {
   await ensurePlayerSchema();
 
@@ -1429,6 +1450,7 @@ module.exports = {
   evolutionCatalog,
   getFloorRuntime,
   getBossProgress,
+  getBossRunProgress,
   getPlayerSheet,
   listNarratorPersonas,
   loginPlayer,

@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, createLegacyHeroForPlayer, evolutionCatalog, getBossProgress, getPlayerSheet, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
+const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, createLegacyHeroForPlayer, evolutionCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -245,7 +245,7 @@ async function loadImportantMemories(player, limit = 12) {
   }));
 }
 
-function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = [], bossProgress = null) {
+function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = [], bossProgress = null, bossRunProgress = []) {
   const body = player.currentBody || {};
   const character = player.activeCharacter || {};
   const runtime = player.floorRuntime || {};
@@ -293,6 +293,8 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
     bossGauntlet: {
       currentBoss,
       currentBossHp: bossProgress,
+      bossProgressByStage: bossRunProgress,
+      defeatedBosses: bossRunProgress.filter((boss) => boss.status === "defeated" || Number(boss.currentHp || 0) <= 0),
       bosses: bossGauntlet,
       totalBosses: bossGauntlet.length,
       completedBosses: Math.max(0, dungeonNumber - 1),
@@ -482,14 +484,25 @@ async function applyAcceptedStateChanges(context, scene) {
     });
 
     if (bossResult) {
-      scene.appliedBoss = bossResult;
-      scene.stateChanges = {
-        ...stateChanges,
+      const finalBossDefeated = bossResult.defeated && Number(context.currentPosition?.dungeon || 1) >= bossGauntlet.length;
+      Object.assign(stateChanges, {
         bossCurrentHp: bossResult.after.currentHp,
         bossMaxHp: bossResult.after.maxHp,
         bossDefeated: bossResult.defeated,
         advancedToStage: bossResult.advancedToStage
-      };
+      });
+
+      if (finalBossDefeated) {
+        Object.assign(stateChanges, {
+          bookEnded: true,
+          endingType: "victory",
+          characterStatus: "completed",
+          runCompleted: true
+        });
+      }
+
+      scene.appliedBoss = bossResult;
+      scene.stateChanges = stateChanges;
       scene.recordChanges = [
         ...(scene.recordChanges || []),
         {
@@ -499,6 +512,25 @@ async function applyAcceptedStateChanges(context, scene) {
             : `${bossResult.after.bossName} HP ${bossResult.before.currentHp}/${bossResult.before.maxHp} -> ${bossResult.after.currentHp}/${bossResult.after.maxHp}`
         }
       ];
+
+      if (bossResult.defeated) {
+        scene.memoryUpdates = [
+          ...(scene.memoryUpdates || []),
+          {
+            type: "boss_defeat",
+            text: `${bossResult.after.bossName} was defeated in Chapter ${Number(context.currentPosition?.dungeon || 1)}.`,
+            facts: {
+              bossName: bossResult.after.bossName,
+              bossSequence: Number(context.currentPosition?.dungeon || 1),
+              defeatedAtHp: 0,
+              advancedToStage: bossResult.advancedToStage,
+              finalBossDefeated
+            },
+            importance: finalBossDefeated ? 10 : 7,
+            rememberedAcrossLives: true
+          }
+        ];
+      }
     }
   }
 
@@ -731,13 +763,15 @@ async function createStoryScene(player, playerAction, recentMessages) {
     Number(player.currentRun || 1),
     Number(player.floorRuntime?.dungeonNumber || player.activeCharacter?.dungeon || player.currentBody?.dungeon || 1)
   );
+  const bossRunProgress = await getBossRunProgress(player.playerId, Number(player.currentRun || 1));
   const context = buildContext(
     player,
     playerAction,
     sqlRecentMessages.length ? sqlRecentMessages : recentMessages,
     importantMemories,
     sheet?.skills || [],
-    bossProgress
+    bossProgress,
+    bossRunProgress
   );
 
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "#") {
