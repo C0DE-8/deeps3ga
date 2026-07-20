@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen, X } from 'lucide-react'
+import { ArrowUp, BookOpen, ChevronDown, Hourglass, PanelRightClose, PanelRightOpen, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { continueNarrative, createOpeningNarrative, fetchGameState, startGame } from '../../../api/deepSagaApi'
 import { AppHeader } from '../../shell/AppHeader'
@@ -197,6 +197,19 @@ function StoryText({ paragraphs }) {
     <div className={styles.storyText}>
       {paragraphs.map((paragraph) => <StoryBlock block={paragraph} key={paragraph} />)}
     </div>
+  )
+}
+
+function PageLoader({ compact = false }) {
+  return (
+    <article className={`${styles.loadingPanel} ${compact ? styles.loadingPanelCompact : ''}`} aria-live="polite" aria-busy="true">
+      <div className={styles.loadingIcon}>
+        <BookOpen size={34} />
+        <Hourglass size={18} />
+      </div>
+      <span>The ink is gathering.</span>
+      <p>The next page is being written...</p>
+    </article>
   )
 }
 
@@ -407,6 +420,8 @@ export function StoryPage() {
 
       <section className={styles.reader}>
         <div className={styles.story}>
+          {busy && !scenes.length && <PageLoader />}
+
           {!scenes.length && !busy && (
             <article className={styles.bookPanel}>
               <header className={styles.sceneChapter}>
@@ -458,7 +473,7 @@ export function StoryPage() {
         </div>
 
         {error && <p className={styles.error} role="alert">{error}</p>}
-        {busy && <p className={styles.loading}>The next page is being written...</p>}
+        {busy && scenes.length > 0 && <PageLoader compact />}
 
         {!busy && !ended && (
           <section className={styles.actions}>
@@ -469,7 +484,7 @@ export function StoryPage() {
             </form>
           </section>
         )}
-        {ended && (
+        {!busy && ended && (
           <section className={styles.endPanel}>
             <small>{endingLabel}</small>
             <h2>{game?.run?.ending_type === 'victory' ? 'The coma breaks.' : 'The page goes dark.'}</h2>

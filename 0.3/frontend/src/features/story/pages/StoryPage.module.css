@@ -111,7 +111,13 @@
 .actions form button { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid #765531; border-radius: 5px; color: #fff; background: #765531; cursor: pointer; }
 .actions form button:disabled { opacity: .45; cursor: not-allowed; }
 .error { margin: 16px 0; color: #932f27; }
-.loading { padding: 16px 0; color: #756d61; font-family: Georgia, serif; font-style: italic; }
+.loadingPanel { min-height: 360px; display: grid; place-items: center; align-content: center; gap: 12px; padding: 42px 24px; border: 1px solid #c9c0af; border-radius: 8px; color: #2b261f; background: linear-gradient(180deg, rgba(255,253,248,.98), rgba(249,244,235,.98)); box-shadow: 0 22px 58px rgba(49, 39, 28, .12); text-align: center; animation: pageIn 240ms ease both; }
+.loadingPanelCompact { min-height: 150px; margin-top: 22px; padding: 28px 20px; }
+.loadingIcon { position: relative; width: 72px; height: 72px; display: grid; place-items: center; border: 1px solid #c8b99e; border-radius: 50%; color: #7a552f; background: #fbf7ed; box-shadow: inset 0 0 0 8px #f1eadb; }
+.loadingIcon svg:first-child { animation: bookPulse 1.7s ease-in-out infinite; }
+.loadingIcon svg:last-child { position: absolute; right: 10px; bottom: 8px; color: #0f1717; animation: hourglassTurn 1.8s ease-in-out infinite; }
+.loadingPanel span { color: #835f36; font-size: .72rem; font-weight: 850; text-transform: uppercase; }
+.loadingPanel p { color: #6d6559; font-family: Georgia, serif; font-size: 1.08rem; font-style: italic; line-height: 1.5; }
 .returnLink { display: inline-flex; margin-top: 20px; border-bottom: 1px solid currentColor; color: #6f4d2d; text-decoration: none; font-weight: 800; }
 .endPanel { display: grid; gap: 8px; margin-top: 22px; padding: 22px; border: 1px solid #b7a17a; border-radius: 6px; background: #fbf7ed; }
 .endPanel small { color: #7c5832; font-size: .7rem; font-weight: 850; text-transform: uppercase; }
@@ -122,6 +128,16 @@
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bookPulse {
+  0%, 100% { transform: scale(1); opacity: .78; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes hourglassTurn {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
 }
 
 @media (max-width: 760px) {
@@ -161,6 +177,9 @@
   .actions form > div { grid-template-columns: 1fr 46px; }
   .actions textarea { min-height: 96px; font-size: 16px; }
   .actions form button { width: 46px; height: 46px; }
+  .loadingPanel { min-height: 300px; padding: 34px 18px; }
+  .loadingPanelCompact { min-height: 130px; }
+  .loadingIcon { width: 64px; height: 64px; }
   .statsMessage { padding: 16px; }
   .statsGrid,
   .abilityGrid,
@@ -176,6 +195,7 @@
   .sceneChapter h1 { font-size: 1.72rem; }
   .scenePage { padding: 20px 15px; }
   .storyParagraph { font-size: 1.02rem; line-height: 1.68; }
+  .loadingPanel { min-height: 260px; border-radius: 6px; }
   .sheet { padding: 20px 14px 32px; }
   .sheet dl,
   .appraisalBody dl { grid-template-columns: 1fr; gap: 6px; }
