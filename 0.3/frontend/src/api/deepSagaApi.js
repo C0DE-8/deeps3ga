@@ -221,8 +221,6 @@ function stateFromPlayer(player, narrativeHistory = []) {
       stamina: Number(character.stamina ?? body.stamina ?? maxStamina),
       max_stamina: maxStamina,
       gold: Number(character.gold || body.gold || 0),
-      xp: Number(character.xp ?? body.xp ?? 0),
-      xp_needed: Number(character.xpNeeded ?? body.xpNeeded ?? 100),
       strength: Number(character.strength || body.strength || 5),
       agility: Number(character.agility || body.agility || 5),
       defense: Number(character.defense || body.defense || 5),

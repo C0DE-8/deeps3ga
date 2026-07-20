@@ -276,8 +276,6 @@ function serializePlayer(row) {
     race: row.race,
     className: row.class_name,
     level: Number(row.character_level || 1),
-    xp: Number(row.character_xp || 0),
-    xpNeeded: Number(row.character_xp_needed || 100),
     hp: Number(row.hp || 100),
     maxHp: Number(row.max_hp || 100),
     mana: Number(row.mana || 30),
@@ -574,8 +572,6 @@ async function ensureCharacterSchema() {
       race VARCHAR(80) NULL,
       class_name VARCHAR(100) NULL,
       level INT NOT NULL DEFAULT 1,
-      xp INT NOT NULL DEFAULT 0,
-      xp_needed INT NOT NULL DEFAULT 100,
       hp INT NOT NULL DEFAULT 100,
       max_hp INT NOT NULL DEFAULT 100,
       mana INT NOT NULL DEFAULT 30,
@@ -607,8 +603,6 @@ async function ensureCharacterSchema() {
     )
   `);
 
-  await ensureCharacterColumn("xp", "INT NOT NULL DEFAULT 0");
-  await ensureCharacterColumn("xp_needed", "INT NOT NULL DEFAULT 100");
   await ensureCharacterColumn("story_phase", "VARCHAR(40) NOT NULL DEFAULT 'combat'");
   await ensureCharacterColumn("pending_next_dungeon", "INT NULL");
   await ensureCharacterColumn("last_defeated_boss", "INT NULL");
@@ -649,7 +643,6 @@ async function ensureSkillSchema() {
       character_id BIGINT UNSIGNED NOT NULL,
       skill_id BIGINT UNSIGNED NOT NULL,
       skill_level INT NOT NULL DEFAULT 1,
-      xp INT NOT NULL DEFAULT 0,
       unlocked TINYINT NOT NULL DEFAULT 1,
       equipped TINYINT NOT NULL DEFAULT 0,
       last_used_at TIMESTAMP NULL,
@@ -712,7 +705,6 @@ async function ensureLegacyHeroSchema() {
       race VARCHAR(80) NULL,
       class_name VARCHAR(100) NULL,
       level INT NOT NULL DEFAULT 1,
-      xp INT NOT NULL DEFAULT 0,
       hp INT NOT NULL DEFAULT 100,
       max_hp INT NOT NULL DEFAULT 100,
       mana INT NOT NULL DEFAULT 30,
@@ -829,8 +821,8 @@ async function createCharacterForPlayer(playerId, runNumber, body) {
   const stats = characterStatsFromBody(body || {});
   await db.execute("UPDATE player_characters SET active_character = 0 WHERE player_id = ?", [playerId]);
   await db.execute(
-    `INSERT INTO player_characters (player_id, run_number, active_character, character_name, species, race, class_name, level, xp, xp_needed, hp, max_hp, mana, max_mana, stamina, max_stamina, strength, agility, defense, thaumaturgy, resolve_stat, intelligence, luck, charisma, gold, soul_energy, dungeon, floor, status, appearance_json, traits_json)
-     VALUES (?, ?, 1, ?, ?, ?, ?, ?, 0, 100, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO player_characters (player_id, run_number, active_character, character_name, species, race, class_name, level, hp, max_hp, mana, max_mana, stamina, max_stamina, strength, agility, defense, thaumaturgy, resolve_stat, intelligence, luck, charisma, gold, soul_energy, dungeon, floor, status, appearance_json, traits_json)
+     VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       playerId,
       Number(runNumber || 1),
@@ -892,7 +884,7 @@ async function assignStartingSkills(characterId, skillNames) {
 
     if (rows[0]) {
       await db.execute(
-        "INSERT INTO player_character_skills (character_id, skill_id, skill_level, xp, unlocked, equipped) VALUES (?, ?, 1, 0, 1, 0) ON DUPLICATE KEY UPDATE unlocked = 1",
+        "INSERT INTO player_character_skills (character_id, skill_id, skill_level, unlocked, equipped) VALUES (?, ?, 1, 1, 0) ON DUPLICATE KEY UPDATE unlocked = 1",
         [characterId, rows[0].id]
       );
     }
@@ -986,7 +978,7 @@ async function createLegacyHeroForPlayer(playerId, runNumber) {
   }
 
   const skillRows = await db.query(
-    `SELECT s.skill_key, s.name, s.family, s.skill_type, pcs.skill_level, pcs.xp, pcs.equipped
+    `SELECT s.skill_key, s.name, s.family, s.skill_type, pcs.skill_level, pcs.equipped
        FROM player_character_skills pcs
        JOIN skills s ON s.id = pcs.skill_id
       WHERE pcs.character_id = ?
@@ -1012,7 +1004,6 @@ async function createLegacyHeroForPlayer(playerId, runNumber) {
     family: skill.family,
     type: skill.skill_type,
     level: Number(skill.skill_level || 1),
-    xp: Number(skill.xp || 0),
     equipped: Boolean(Number(skill.equipped || 0))
   }));
 
@@ -1023,9 +1014,9 @@ async function createLegacyHeroForPlayer(playerId, runNumber) {
   };
 
   await db.execute(
-    `INSERT INTO legacy_heroes (player_id, source_run_number, source_character_id, hero_name, race, class_name, level, xp, hp, max_hp, mana, max_mana, stamina, max_stamina, stats_json, skills_json, inventory_json, titles_json, personality_json, combat_style_json, final_dungeon, final_floor, boss_intro_dialogue, boss_defeat_dialogue)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 10, 1, ?, ?)
-     ON DUPLICATE KEY UPDATE source_character_id = VALUES(source_character_id), hero_name = VALUES(hero_name), race = VALUES(race), class_name = VALUES(class_name), level = VALUES(level), xp = VALUES(xp), hp = VALUES(hp), max_hp = VALUES(max_hp), mana = VALUES(mana), max_mana = VALUES(max_mana), stamina = VALUES(stamina), max_stamina = VALUES(max_stamina), stats_json = VALUES(stats_json), skills_json = VALUES(skills_json), inventory_json = VALUES(inventory_json), titles_json = VALUES(titles_json), personality_json = VALUES(personality_json), combat_style_json = VALUES(combat_style_json)`,
+    `INSERT INTO legacy_heroes (player_id, source_run_number, source_character_id, hero_name, race, class_name, level, hp, max_hp, mana, max_mana, stamina, max_stamina, stats_json, skills_json, inventory_json, titles_json, personality_json, combat_style_json, final_dungeon, final_floor, boss_intro_dialogue, boss_defeat_dialogue)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 10, 1, ?, ?)
+     ON DUPLICATE KEY UPDATE source_character_id = VALUES(source_character_id), hero_name = VALUES(hero_name), race = VALUES(race), class_name = VALUES(class_name), level = VALUES(level), hp = VALUES(hp), max_hp = VALUES(max_hp), mana = VALUES(mana), max_mana = VALUES(max_mana), stamina = VALUES(stamina), max_stamina = VALUES(max_stamina), stats_json = VALUES(stats_json), skills_json = VALUES(skills_json), inventory_json = VALUES(inventory_json), titles_json = VALUES(titles_json), personality_json = VALUES(personality_json), combat_style_json = VALUES(combat_style_json)`,
     [
       playerId,
       Number(runNumber || serialized.currentRun || 1),
@@ -1034,7 +1025,6 @@ async function createLegacyHeroForPlayer(playerId, runNumber) {
       character.race,
       character.className,
       character.level,
-      Number(body.xp || 0),
       character.hp,
       character.maxHp,
       character.mana,
@@ -1121,7 +1111,7 @@ async function getPlayerSheet(playerId) {
   if (character?.id) {
     const skillRows = await db.query(
       `SELECT s.id, s.skill_key, s.name, s.family, s.skill_type, s.description, s.rarity,
-              pcs.skill_level, pcs.xp, pcs.unlocked, pcs.equipped, pcs.last_used_at
+              pcs.skill_level, pcs.unlocked, pcs.equipped, pcs.last_used_at
          FROM player_character_skills pcs
          JOIN skills s ON s.id = pcs.skill_id
         WHERE pcs.character_id = ? AND pcs.unlocked = 1
@@ -1138,7 +1128,6 @@ async function getPlayerSheet(playerId) {
       description: skill.description,
       rarity: skill.rarity,
       level: Number(skill.skill_level || 1),
-      xp: Number(skill.xp || 0),
       equipped: Boolean(Number(skill.equipped || 0)),
       lastUsedAt: skill.last_used_at || null
     }));
@@ -1358,8 +1347,6 @@ async function completeBossGrowthTransition(characterId, evolutionInput = {}) {
             species = ?,
             class_name = ?,
             level = ?,
-            xp = 0,
-            xp_needed = xp_needed + 50,
             max_hp = ?,
             hp = ?,
             max_mana = ?,
@@ -1422,7 +1409,6 @@ async function awardCharacterSkill(characterId, skillInput) {
   const description = String(skillInput.description || `${name} awakened through earned action and the Dungeon's judgment.`).trim().slice(0, 2000);
   const rarity = String(skillInput.rarity || "uncommon").trim().toLowerCase().slice(0, 40);
   const level = Math.max(1, Math.min(Number(skillInput.level || skillInput.skillLevel || 1), 10));
-  const xp = Math.max(0, Math.min(Number(skillInput.xp || 0), 999999));
 
   await db.execute(
     `INSERT INTO skills (skill_key, name, family, skill_type, description, rarity, active)
@@ -1438,10 +1424,10 @@ async function awardCharacterSkill(characterId, skillInput) {
   }
 
   await db.execute(
-    `INSERT INTO player_character_skills (character_id, skill_id, skill_level, xp, unlocked, equipped)
-     VALUES (?, ?, ?, ?, 1, ?)
-     ON DUPLICATE KEY UPDATE unlocked = 1, skill_level = GREATEST(skill_level, VALUES(skill_level)), xp = xp + VALUES(xp)`,
-    [characterId, skill.id, level, xp, skillInput.equipped ? 1 : 0]
+    `INSERT INTO player_character_skills (character_id, skill_id, skill_level, unlocked, equipped)
+     VALUES (?, ?, ?, 1, ?)
+     ON DUPLICATE KEY UPDATE unlocked = 1, skill_level = GREATEST(skill_level, VALUES(skill_level))`,
+    [characterId, skill.id, level, skillInput.equipped ? 1 : 0]
   );
 
   return {
@@ -1514,7 +1500,7 @@ async function findPlayerByIdentifier(identifier) {
 
   const rows = await db.query(
     `SELECT p.player_id, p.username, p.email, p.password_hash, p.narrator_persona, p.current_run, p.cycle_clears, p.current_body, p.memory_log, p.created_at, p.last_login_at,
-            c.id AS character_id, c.character_name, c.race, c.class_name, c.level AS character_level, c.xp AS character_xp, c.xp_needed AS character_xp_needed, c.hp, c.max_hp, c.mana, c.max_mana, c.stamina, c.max_stamina,
+            c.id AS character_id, c.character_name, c.race, c.class_name, c.level AS character_level, c.hp, c.max_hp, c.mana, c.max_mana, c.stamina, c.max_stamina,
             c.strength, c.agility, c.defense, c.thaumaturgy, c.resolve_stat, c.intelligence, c.luck, c.charisma, c.gold, c.soul_energy,
             c.dungeon AS character_dungeon, c.floor AS character_floor, c.status AS character_status, c.story_phase, c.pending_next_dungeon, c.last_defeated_boss,
             d.dungeon_number AS runtime_dungeon_number, d.canonical_label AS dungeon_label, d.ai_name AS dungeon_ai_name,
