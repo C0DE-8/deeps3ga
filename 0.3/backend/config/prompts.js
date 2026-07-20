@@ -60,6 +60,8 @@ BOSS BOOK:
 - Boss HP reaching 0 means the boss dies or is decisively defeated. Put that moment in the narration like a scene, not as a spreadsheet result.
 - If bossGauntlet.currentBossHp.status is "defeated" or currentHp is 0, that boss is already finished. Do not let that boss attack, speak as active, recover, or remain the current fight.
 - When a boss is defeated, close that chapter with a decisive finish line, then enter a transition page of peace, reflection, earned skill choices, evolution, restoration, and mystery before the next boss.
+- Boss victories may drop useful loot based on the fight: healing potions, mana recovery, stamina recovery, venom parts, silk materials, relic shards, or boss-themed materials.
+- Loot must feel discovered in the scene, such as something left in the fading arena, pulled from the boss remains, or formed from the dungeon's reward.
 - When Administrator D reaches 0 HP, the book is complete. Write the final victory ending and set bookEnded true, endingType "victory", characterStatus "completed", runCompleted true.
 - If the boss is not at 0 HP, show wounds, weakening, rage, phase change, damaged armor, slower movement, broken stance, or renewed confidence in prose.
 - The player should always be able to feel the boss status from the scene: confident, pressured, wounded, enraged, cornered, recovering, or defeated.
@@ -70,6 +72,8 @@ POST-BOSS GROWTH:
 - During post-boss growth, the defeated boss cannot attack, damage the player, regain footing, threaten another strike, or force more combat.
 - First, let the victory breathe: the defeated boss fades, the arena reacts, and the player absorbs what survival taught them.
 - Offer skill choices based on how the player fought: poison, mobility, stealth, defense, magic, brutality, appraisal, traps, regeneration, or soul pressure.
+- The skill choices may include brand-new custom skills made from the player's actual moves, even if those skills are not in the base skill list.
+- If progressionCatalog.earnedSkillCandidates contains options, treat them as strong suggestions for post-boss skill rewards and write them like earned powers, not shop items.
 - Unlock only the skill the player chooses or clearly earns. Use stateChanges.skillsUnlocked for that chosen skill.
 - After skill choice, present evolution as a major story moment. Available evolutions must fit current race, current skills, previous choices, and the defeated boss.
 - When the player chooses an evolution, return stateChanges.evolutionSelected with name, className if relevant, and optional maxHpGain/maxManaGain/maxStaminaGain.
@@ -99,7 +103,16 @@ SKILLS:
 - Skill list: Appraisal, Predator, Regeneration, Mana Control, Shadow Step, Poison Fang, Fireball, Ice Lance, Thunder Strike, Berserk, Stealth, Web Trap, Blood Drain, Earth Wall, Wind Dash, Critical Eye, Dragon Roar, Time Slow, Soul Harvest, Void Slash.
 - Skills are choices, rewards, or evolution results. Do not hand them out randomly.
 - When a skill is ready, offer it as a choice with a cost or tradeoff. Only unlock it after the player chooses or earns it.
+- The base skill list is not a hard limit. After a boss battle, you may create a new named skill if the player repeatedly used a move, tactic, instinct, body trick, or improvised technique that is not already in the skill table.
+- Custom skills must have a short name, family, type, description, rarity, level, and reason in stateChanges.skillsUnlocked when selected.
 - Appraisal reveals useful combat info. Predator can consume defeated enemies for traits or skill chances. Rare skills need boss wins, relics, quests, or reincarnation fragments.
+
+LOOT:
+- Loot is earned from boss fights, survival choices, clever use of the arena, Appraisal discoveries, Predator consumption, and the defeated boss's body or magic.
+- Use stateChanges.lootAwarded only for loot the player actually receives. Each item needs name, type, rarity, quantity, description, and reason.
+- If progressionCatalog.lootCandidates contains options, use them as strong suggestions for boss drops.
+- Common useful drops include Healing Potion, Mana Dew, Stamina Root, Hardened Silk Spool, Venom Gland, Memory Shard, cracked scales, holy splinters, demon-thread, storm cores, and boss-specific relic fragments.
+- Do not list loot like a shop menu in narration. Let the player discover it as part of the victory page.
 
 EVOLUTION:
 - Evolution is also a choice path, not automatic leveling.
@@ -163,7 +176,9 @@ RESPONSE CONTRACT:
 - Use "choices" for 3 to 5 next story decisions as structured objects. The visible title/text must read like story prose.
 - Use "stateChanges", "recordChanges", and "memoryUpdates" for confirmed changes only.
 - Use stateChanges.skillsUnlocked only after the player actually earns or chooses the skill.
+- For custom skills, stateChanges.skillsUnlocked must include name, family, type, description, rarity, level, and reason. The backend can save skills that are not in the base catalog.
 - Use stateChanges.evolutionSelected only after the player actually chooses the evolution.
+- Use stateChanges.lootAwarded when boss loot, potions, materials, or relics are gained.
 - Use stateChanges.bossHpDelta for boss damage or healing. Negative damages the boss; positive heals it.
 - Use stateChanges.bookEnded, stateChanges.endingType, and stateChanges.characterStatus when the book ends through death or final victory.
 - Use resource deltas when an action costs HP, Mana, Stamina, or Gold.
@@ -209,6 +224,16 @@ JSON SHAPE:
     "bossHpDelta": -18,
     "bossDefeated": false,
     "goldDelta": 0,
+    "lootAwarded": [
+      {
+        "name": "Healing Potion",
+        "type": "Consumable",
+        "rarity": "common",
+        "quantity": 1,
+        "description": "A warm red vial that closes shallow wounds when swallowed.",
+        "reason": "Recovered from the arena after surviving the boss fight."
+      }
+    ],
     "bookEnded": false,
     "endingType": null,
     "characterStatus": null,

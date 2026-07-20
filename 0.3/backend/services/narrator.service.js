@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, completeBossGrowthTransition, createLegacyHeroForPlayer, evolutionCatalog, getBossCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, getSkillCatalog, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
+const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterLoot, awardCharacterSkill, bossGauntlet, completeBossGrowthTransition, createLegacyHeroForPlayer, evolutionCatalog, getBossCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, getSkillCatalog, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -187,6 +187,259 @@ function inferCombatPressure(playerAction, recentMessages) {
   };
 }
 
+const earnedSkillThemes = [
+  {
+    key: "poison",
+    pattern: /\b(poison|venom|toxin|fang|bite|corrode|acid)\b/i,
+    skill: {
+      name: "Venom Thread",
+      family: "Attack",
+      type: "Attack",
+      description: "Threads venom through a bite, web, or wound so the damage keeps spreading after contact.",
+      rarity: "uncommon",
+      reason: "The player survived by relying on venom, fangs, or poison pressure."
+    }
+  },
+  {
+    key: "mobility",
+    pattern: /\b(dodge|dash|leap|jump|climb|wall|speed|evade|slip|roll|sprint)\b/i,
+    skill: {
+      name: "Blink Skitter",
+      family: "Mobility",
+      type: "Mobility",
+      description: "A short burst of impossible movement that lets the body slip through a killing angle.",
+      rarity: "uncommon",
+      reason: "The player survived by movement, climbing, dodging, or changing angles."
+    }
+  },
+  {
+    key: "trap",
+    pattern: /\b(web|trap|bind|snare|silk|thread|anchor|immobilize|tangle)\b/i,
+    skill: {
+      name: "Anchor Silk",
+      family: "Utility",
+      type: "Utility",
+      description: "Hardens silk into sudden anchor points that bind limbs, weapons, or collapsing terrain.",
+      rarity: "uncommon",
+      reason: "The player survived through webs, traps, restraint, or arena control."
+    }
+  },
+  {
+    key: "defense",
+    pattern: /\b(block|guard|shield|armor|brace|shell|protect|endure|survive|wall)\b/i,
+    skill: {
+      name: "Pain Carapace",
+      family: "Defense",
+      type: "Passive",
+      description: "Turns remembered pain into a brief hardening of the body before the next impact lands.",
+      rarity: "uncommon",
+      reason: "The player survived by guarding, enduring damage, or using the body as a shield."
+    }
+  },
+  {
+    key: "magic",
+    pattern: /\b(mana|magic|spell|fire|ice|thunder|lightning|wind|earth|blast|lance)\b/i,
+    skill: {
+      name: "Mana Scar",
+      family: "Magic",
+      type: "Passive",
+      description: "Stores spell strain inside the body and releases it as cleaner, sharper casting under pressure.",
+      rarity: "rare",
+      reason: "The player survived through mana strain, spellcasting, or elemental pressure."
+    }
+  },
+  {
+    key: "stealth",
+    pattern: /\b(hide|stealth|shadow|silent|ambush|wait|listen|still|conceal)\b/i,
+    skill: {
+      name: "Hushed Pulse",
+      family: "Utility",
+      type: "Passive",
+      description: "Quietens breath, heartbeat, and hostile intent until the next sudden movement.",
+      rarity: "uncommon",
+      reason: "The player survived through silence, patience, ambush, or hiding."
+    }
+  },
+  {
+    key: "appraisal",
+    pattern: /\b(appraisal|appraise|inspect|study|read|observe|analyze|weakness|pattern)\b/i,
+    skill: {
+      name: "Weakpoint Sense",
+      family: "Support",
+      type: "Passive",
+      description: "Lets repeated observation become instinct, revealing the moment a guard begins to fail.",
+      rarity: "rare",
+      reason: "The player survived by reading the enemy rather than trusting raw power."
+    }
+  },
+  {
+    key: "brutality",
+    pattern: /\b(rage|berserk|crush|maul|tear|slam|brutal|force|break|charge)\b/i,
+    skill: {
+      name: "Last Beast Surge",
+      family: "Buff",
+      type: "Active",
+      description: "Burns stamina into a desperate burst of power when the body is cornered.",
+      rarity: "rare",
+      reason: "The player survived through brutal pressure, rage, or close-range force."
+    }
+  }
+];
+
+const lootThemes = [
+  {
+    key: "recovery",
+    pattern: /\b(hurt|wound|blood|bleed|pain|low hp|injured|cracked|torn)\b/i,
+    item: {
+      name: "Healing Potion",
+      type: "Consumable",
+      rarity: "common",
+      quantity: 1,
+      description: "A warm red vial that closes shallow wounds when swallowed."
+    }
+  },
+  {
+    key: "mana",
+    pattern: /\b(mana|magic|spell|cast|fire|ice|thunder|arcane)\b/i,
+    item: {
+      name: "Mana Dew",
+      type: "Consumable",
+      rarity: "common",
+      quantity: 1,
+      description: "Blue droplets gathered from the arena air, useful when the core runs dry."
+    }
+  },
+  {
+    key: "stamina",
+    pattern: /\b(tired|stamina|breath|exhaust|dash|climb|run|muscle)\b/i,
+    item: {
+      name: "Stamina Root",
+      type: "Consumable",
+      rarity: "common",
+      quantity: 1,
+      description: "A bitter root that steadies shaking limbs and restores fighting breath."
+    }
+  },
+  {
+    key: "poison",
+    pattern: /\b(poison|venom|fang|toxin|bite)\b/i,
+    item: {
+      name: "Venom Gland",
+      type: "Material",
+      rarity: "uncommon",
+      quantity: 1,
+      description: "A preserved gland that can strengthen poison skills or coat a desperate strike."
+    }
+  },
+  {
+    key: "trap",
+    pattern: /\b(web|silk|trap|thread|bind|snare)\b/i,
+    item: {
+      name: "Hardened Silk Spool",
+      type: "Material",
+      rarity: "uncommon",
+      quantity: 1,
+      description: "A coil of battle-tested silk that can reinforce traps or bind wounds."
+    }
+  },
+  {
+    key: "appraisal",
+    pattern: /\b(appraisal|appraise|inspect|study|observe|weakness|pattern)\b/i,
+    item: {
+      name: "Memory Shard",
+      type: "Relic",
+      rarity: "rare",
+      quantity: 1,
+      description: "A small crystal of remembered combat that hums when an enemy reveals a weakness."
+    }
+  }
+];
+
+function knownSkillKeys(context) {
+  return new Set((context.knownSkills || []).map((skill) => skillKeyLike(skill.key || skill.name)));
+}
+
+function skillKeyLike(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function battleStyleText(context) {
+  return [
+    context.playerAction,
+    ...(context.recentMessages || []).map((message) => message.text),
+    ...(context.memoryLog || [])
+  ].join("\n");
+}
+
+function earnedSkillCandidates(context) {
+  const text = battleStyleText(context);
+  const known = knownSkillKeys(context);
+  const scored = earnedSkillThemes
+    .map((theme, index) => {
+      const matches = text.match(new RegExp(theme.pattern.source, "gi")) || [];
+      return { ...theme.skill, score: matches.length, order: index };
+    })
+    .filter((skill) => !known.has(skillKeyLike(skill.name)))
+    .sort((a, b) => (b.score - a.score) || (a.order - b.order));
+
+  const picked = scored.filter((skill) => skill.score > 0).slice(0, 3);
+  const fallback = scored.filter((skill) => skill.score <= 0).slice(0, Math.max(0, 3 - picked.length));
+  return [...picked, ...fallback].map(({ score, order, ...skill }) => skill);
+}
+
+function normalizeLootAwards(stateChanges) {
+  const raw = [
+    ...(Array.isArray(stateChanges.lootAwarded) ? stateChanges.lootAwarded : []),
+    ...(Array.isArray(stateChanges.lootDropped) ? stateChanges.lootDropped : []),
+    ...(Array.isArray(stateChanges.itemsAwarded) ? stateChanges.itemsAwarded : [])
+  ];
+
+  return raw
+    .map((item) => {
+      if (typeof item === "string") {
+        return { name: item };
+      }
+      return item && typeof item === "object" ? item : null;
+    })
+    .filter((item) => String(item?.name || item?.itemName || "").trim())
+    .slice(0, 5);
+}
+
+function bossLootFallback(context, bossName = "the defeated boss") {
+  const text = battleStyleText(context);
+  const scored = lootThemes
+    .map((theme, index) => {
+      const matches = text.match(new RegExp(theme.pattern.source, "gi")) || [];
+      return { ...theme.item, score: matches.length, order: index };
+    })
+    .sort((a, b) => (b.score - a.score) || (a.order - b.order));
+
+  const primary = scored[0] || lootThemes[0].item;
+  const loot = [
+    {
+      ...primary,
+      reason: `Recovered after defeating ${bossName}.`
+    }
+  ];
+
+  if (Number(context.activeCharacter?.hp || 0) < Number(context.activeCharacter?.maxHp || 1) * 0.45 && primary.name !== "Healing Potion") {
+    loot.push({
+      name: "Healing Potion",
+      type: "Consumable",
+      rarity: "common",
+      quantity: 1,
+      description: "A warm red vial that closes shallow wounds when swallowed.",
+      reason: `Recovered after surviving ${bossName} while badly wounded.`
+    });
+  }
+
+  return loot.slice(0, 2).map(({ score, order, ...item }) => item);
+}
+
 async function loadRecentStoryMessages(player, limit = 12) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 12), 80));
   const rows = await db.query(
@@ -260,7 +513,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
   const characterStatus = String(character.status || body.status || "newly reincarnated").toLowerCase();
   const currentBossDefeated = bossProgress?.status === "defeated" || Number(bossProgress?.currentHp ?? 1) <= 0;
 
-  return {
+  const context = {
     player: {
       playerId: player.playerId,
       narratorPersona: player.narratorPersona || "ADMIN",
@@ -310,7 +563,9 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
     },
     progressionCatalog: {
       skills,
-      evolutions: evolutionCatalog
+      evolutions: evolutionCatalog,
+      earnedSkillCandidates: [],
+      lootCandidates: []
     },
     sceneState: {
       isOpeningScene: !action && normalizedRecentMessages.length === 0,
@@ -352,6 +607,10 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       "Return JSON only."
     ]
   };
+
+  context.progressionCatalog.earnedSkillCandidates = earnedSkillCandidates(context);
+  context.progressionCatalog.lootCandidates = bossLootFallback(context, context.bossGauntlet?.currentBoss?.name);
+  return context;
 }
 
 function normalizeSkillUnlocks(stateChanges) {
@@ -370,6 +629,57 @@ function normalizeSkillUnlocks(stateChanges) {
     })
     .filter((skill) => String(skill?.name || skill?.skillName || "").trim())
     .slice(0, 3);
+}
+
+function actionLooksLikeSkillClaim(action) {
+  return /\b(skill|awaken|claim|choose|earned power|battle carved)\b/i.test(String(action || ""));
+}
+
+function selectedEarnedSkill(context) {
+  if (context.progressionState?.phase !== "post_boss_growth") {
+    return null;
+  }
+
+  const action = String(context.playerAction || "");
+  if (!actionLooksLikeSkillClaim(action)) {
+    return null;
+  }
+
+  const candidates = earnedSkillCandidates(context);
+  const normalizedAction = action.toLowerCase();
+  const named = candidates.find((skill) => normalizedAction.includes(String(skill.name || "").toLowerCase()));
+  return named || candidates[0] || null;
+}
+
+function ensureSelectedSkillUnlock(context, scene) {
+  const stateChanges = scene.stateChanges || {};
+  if (normalizeSkillUnlocks(stateChanges).length) {
+    return;
+  }
+
+  const selected = selectedEarnedSkill(context);
+  if (!selected) {
+    return;
+  }
+
+  stateChanges.skillsUnlocked = [selected];
+  scene.stateChanges = stateChanges;
+  scene.memoryUpdates = [
+    ...(scene.memoryUpdates || []),
+    {
+      type: "skill",
+      text: `${selected.name} awakened from the way the player survived the last boss.`,
+      facts: {
+        skillName: selected.name,
+        family: selected.family,
+        type: selected.type,
+        rarity: selected.rarity,
+        reason: selected.reason
+      },
+      importance: 7,
+      rememberedAcrossLives: true
+    }
+  ];
 }
 
 function normalizeEvolutionSelection(stateChanges) {
@@ -524,6 +834,13 @@ function removeDefeatedBossCombatChanges(stateChanges) {
 
 function postBossGrowthChoices(context, defeatedBossName = "the fallen boss") {
   const body = context.activeCharacter?.race || context.currentBody?.race || "new body";
+  const skillChoices = earnedSkillCandidates(context).slice(0, 3).map((skill) => ({
+    id: `claim-${skillKeyLike(skill.name)}`,
+    title: `Claim ${skill.name}`,
+    text: skill.description,
+    action: `I choose the earned skill "${skill.name}" and let it become part of my ${body} body. ${skill.reason}`,
+    direction: "skill"
+  }));
 
   return [
     {
@@ -533,13 +850,7 @@ function postBossGrowthChoices(context, defeatedBossName = "the fallen boss") {
       action: `I stand where ${defeatedBossName} fell and listen to what survival has changed inside me.`,
       direction: "growth"
     },
-    {
-      id: "claim-earned-skill",
-      title: "Reach for the skill this fight awakened",
-      text: "Follow the instinct that carried you through the battle and choose the power that feels earned.",
-      action: "I focus on the way I survived and choose the skill this battle awakened in me.",
-      direction: "skill"
-    },
+    ...skillChoices,
     {
       id: "accept-next-evolution",
       title: "Answer the evolution beneath your skin",
@@ -631,6 +942,11 @@ async function applyAcceptedStateChanges(context, scene) {
       ];
 
       if (bossResult.defeated) {
+        if (!normalizeLootAwards(stateChanges).length) {
+          stateChanges.lootAwarded = bossLootFallback(context, bossResult.after.bossName);
+          scene.stateChanges = stateChanges;
+        }
+
         scene.choices = finalBossDefeated
           ? scene.choices
           : postBossGrowthChoices(context, bossResult.after.bossName);
@@ -654,6 +970,8 @@ async function applyAcceptedStateChanges(context, scene) {
     }
   }
 
+  ensureSelectedSkillUnlock(context, scene);
+
   const unlocked = [];
   for (const skill of normalizeSkillUnlocks(stateChanges)) {
     const awarded = await awardCharacterSkill(characterId, skill);
@@ -671,6 +989,36 @@ async function applyAcceptedStateChanges(context, scene) {
         text: `${skill.name} awakened`
       }))
     ];
+  }
+
+  const lootAwards = normalizeLootAwards(stateChanges);
+  if (lootAwards.length) {
+    const awardedLoot = await awardCharacterLoot(characterId, lootAwards);
+    if (awardedLoot.length) {
+      scene.appliedLoot = awardedLoot;
+      scene.recordChanges = [
+        ...(scene.recordChanges || []),
+        ...awardedLoot.map((item) => ({
+          type: "loot",
+          text: `${item.quantity || 1}x ${item.name} recovered`
+        }))
+      ];
+      scene.memoryUpdates = [
+        ...(scene.memoryUpdates || []),
+        ...awardedLoot.map((item) => ({
+          type: "loot",
+          text: `${item.name} was recovered after the boss fight.`,
+          facts: {
+            itemName: item.name,
+            itemType: item.type,
+            rarity: item.rarity,
+            quantity: item.quantity || 1
+          },
+          importance: item.rarity === "rare" || item.rarity === "epic" || item.rarity === "legendary" ? 6 : 3,
+          rememberedAcrossLives: false
+        }))
+      ];
+    }
   }
 
   const evolutionSelection = normalizeEvolutionSelection(stateChanges);

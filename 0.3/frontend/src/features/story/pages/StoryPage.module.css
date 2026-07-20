@@ -18,6 +18,15 @@
 .voicePicker button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #2e3936; border-radius: 5px; color: #cbd5d0; background: #10191a; font: inherit; cursor: pointer; }
 .voicePicker button:hover { border-color: #8ea59d; color: #f7fbf8; }
 .voicePicker .voiceActive { border-color: #c1a36b; color: #fff7e7; background: #1a292b; }
+.conditionPanel { display: grid; gap: 9px; margin-top: 18px; padding-top: 18px; border-top: 1px solid #2e3936; }
+.conditionPanel > small { color: #c1a36b; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
+.conditionPanel h3 { color: #fff7df; font-family: Georgia, serif; font-size: 1.12rem; font-weight: 500; overflow-wrap: anywhere; }
+.conditionList { display: grid; gap: 1px; overflow: hidden; border: 1px solid #263331; border-radius: 6px; background: #263331; }
+.conditionList span { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 10px; padding: 11px 12px; background: #10191a; }
+.conditionList span small { color: #7fd2c4; font-size: .66rem; font-weight: 850; text-transform: uppercase; }
+.conditionList span strong,
+.conditionList p { color: #dbe5df; font-size: .9rem; line-height: 1.45; font-weight: 600; }
+.conditionList p { margin: 0; padding: 12px; background: #10191a; }
 .sheet dl { display: grid; grid-template-columns: 90px 1fr; gap: 14px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #2e3936; }
 .sheet dt { color: #8d9995; font-size: .72rem; text-transform: uppercase; }
 .sheet dd { min-width: 0; margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
@@ -54,10 +63,6 @@
 .storyParagraph strong { font-weight: 850; }
 .storyParagraph em { font-style: italic; color: #4e4437; }
 .storyHeading { margin-top: 4px; color: #2a251e; font-family: Georgia, serif; font-size: clamp(1.1rem, 2vw, 1.34rem); line-height: 1.4; }
-.combatPulse { display: grid; gap: 1px; margin-top: 10px; border: 1px solid #cfc2ad; border-radius: 6px; overflow: hidden; background: #cfc2ad; }
-.combatPulse span { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 11px 13px; background: #f8f3e8; }
-.combatPulse small { color: #7f5932; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
-.combatPulse strong { color: #2f2922; font-family: Georgia, serif; font-size: .98rem; line-height: 1.45; font-weight: 600; }
 .infoBlock,
 .skillCallout,
 .endingCallout { display: grid; gap: 10px; margin: 4px 0; padding: 15px 18px; border: 1px solid #d2c7b5; border-radius: 6px; background: #f8f4eb; }
@@ -160,6 +165,7 @@
   .sheetClose { top: 12px; right: 12px; width: 42px; height: 42px; }
   .sheet h2 { font-size: 1.55rem; line-height: 1.08; }
   .sheet dl { grid-template-columns: 76px minmax(0, 1fr); gap: 11px; margin-top: 22px; }
+  .conditionList span { grid-template-columns: 72px minmax(0, 1fr); gap: 9px; padding: 10px 11px; }
   .appraisalPanel { margin-top: 20px; }
   .appraisalPanel > button { grid-template-columns: minmax(0, 1fr) 18px; gap: 8px; min-height: 58px; }
   .appraisalPanel > button strong { grid-column: 1; white-space: normal; }
@@ -177,8 +183,6 @@
   .storyText { gap: 15px; }
   .storyParagraph { font-size: 1.06rem; line-height: 1.72; }
   .storyHeading { font-size: 1.08rem; }
-  .combatPulse span { grid-template-columns: 76px 1fr; gap: 9px; padding: 10px 11px; }
-  .combatPulse strong { font-size: .92rem; }
   .playerAction { padding: 13px 18px; }
   .playerAction p { font-size: .94rem; line-height: 1.45; overflow-wrap: anywhere; }
   .readControls { margin-top: 16px; padding-top: 16px; }
@@ -208,7 +212,7 @@
   .sceneChapter h1 { font-size: 1.72rem; }
   .scenePage { padding: 20px 15px; }
   .storyParagraph { font-size: 1.02rem; line-height: 1.68; }
-  .combatPulse span { grid-template-columns: 1fr; gap: 4px; }
+  .conditionList span { grid-template-columns: 1fr; gap: 4px; }
   .loadingPanel { min-height: 260px; border-radius: 6px; }
   .sheet { padding: 20px 14px 32px; }
   .sheet dl,

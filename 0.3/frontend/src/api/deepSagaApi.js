@@ -160,10 +160,17 @@ function postBossGrowthChoices(state) {
       direction: 'growth',
     },
     {
-      id: 'post-boss-choose-skill',
-      title: 'Claim the skill the battle carved into you',
-      text: 'Reach for the power that matches how you survived: venom, motion, traps, defense, magic, or instinct.',
-      action: 'I focus on the way I survived this battle and choose the skill that feels earned by my actions.',
+      id: 'post-boss-venom-thread',
+      title: 'Claim Venom Thread',
+      text: 'Let bite, silk, and wound remember the same poison.',
+      action: `I choose the earned skill "Venom Thread" and let it become part of my ${race} body.`,
+      direction: 'skill',
+    },
+    {
+      id: 'post-boss-blink-skitter',
+      title: 'Claim Blink Skitter',
+      text: 'Turn panic movement into a short impossible burst through danger.',
+      action: `I choose the earned skill "Blink Skitter" and let it become part of my ${race} body.`,
       direction: 'skill',
     },
     {
@@ -179,12 +186,14 @@ function postBossGrowthChoices(state) {
 function choicesForState(state) {
   const defeated = state?.currentBoss?.status === 'defeated' || Number(state?.currentBoss?.currentHp ?? 1) <= 0
   const phase = state?.characterSheet?.story_phase || state?.characterSheet?.storyPhase
+  const savedChoices = latestChoices(state?.narrativeHistory || [])
 
   if (phase === 'post_boss_growth' || defeated) {
+    if (savedChoices.length) return savedChoices
     return postBossGrowthChoices(state)
   }
 
-  return latestChoices(state?.narrativeHistory || [])
+  return savedChoices
 }
 
 function stateFromPlayer(player, narrativeHistory = []) {

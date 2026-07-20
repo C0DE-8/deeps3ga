@@ -349,6 +349,10 @@ function skillKey(name) {
     .replace(/^_+|_+$/g, "");
 }
 
+function itemKey(name) {
+  return skillKey(name);
+}
+
 function createPlayerId() {
   return `DS-${crypto.randomBytes(5).toString("hex").toUpperCase()}`;
 }
@@ -387,6 +391,7 @@ async function ensurePlayerSchema() {
     await ensureBossSchema();
     await ensureCharacterSchema();
     await ensureSkillSchema();
+    await ensureCombatStatusEffectSchema();
     await ensureStoryMemorySchema();
     await ensureLegacyHeroSchema();
     await seedWorldProgression();
@@ -651,6 +656,32 @@ async function ensureSkillSchema() {
       UNIQUE KEY uniq_character_skill (character_id, skill_id),
       INDEX idx_player_character_skills_character (character_id),
       INDEX idx_player_character_skills_skill (skill_id)
+    )
+  `);
+}
+
+async function ensureCombatStatusEffectSchema() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS combat_status_effects (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      player_id VARCHAR(32) NOT NULL,
+      run_number INT NOT NULL,
+      character_id BIGINT UNSIGNED NULL,
+      boss_sequence INT NOT NULL,
+      target_type VARCHAR(24) NOT NULL,
+      effect_key VARCHAR(80) NOT NULL,
+      effect_name VARCHAR(120) NOT NULL,
+      effect_type VARCHAR(60) NOT NULL,
+      potency INT NOT NULL DEFAULT 1,
+      remaining_turns INT NOT NULL DEFAULT 1,
+      source VARCHAR(160) NULL,
+      metadata_json JSON NULL,
+      active TINYINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_combat_effects_actor (player_id, run_number, boss_sequence, active),
+      INDEX idx_combat_effects_character (character_id, active),
+      INDEX idx_combat_effects_target (target_type, active)
     )
   `);
 }
@@ -1303,6 +1334,152 @@ async function applyBossHpDelta({ playerId, runNumber, characterId, bossSequence
   };
 }
 
+function normalizeStatusEffect(effectInput) {
+  if (!effectInput) {
+    return null;
+  }
+
+  const raw = typeof effectInput === "string" ? { name: effectInput } : effectInput;
+  const name = String(raw.name || raw.effectName || raw.status || "").trim().slice(0, 120);
+  if (!name) {
+    return null;
+  }
+
+  const targetType = String(raw.target || raw.targetType || "boss").trim().toLowerCase() === "player" ? "player" : "boss";
+  const effectType = String(raw.type || raw.effectType || name).trim().slice(0, 60);
+  const potency = Math.max(1, Math.min(Number(raw.potency || raw.damagePerTurn || raw.hpDeltaPerTurn || 1), 999));
+  const remainingTurns = Math.max(1, Math.min(Number(raw.duration || raw.remainingTurns || raw.turns || 2), 10));
+
+  return {
+    targetType,
+    key: itemKey(raw.effectKey || name),
+    name,
+    type: effectType,
+    potency,
+    remainingTurns,
+    source: String(raw.source || raw.reason || "").trim().slice(0, 160),
+    metadata: raw.metadata || raw.facts || {}
+  };
+}
+
+async function addCombatStatusEffects({ playerId, runNumber, characterId, bossSequence, effects = [] }) {
+  await ensurePlayerSchema();
+
+  const normalized = (Array.isArray(effects) ? effects : [effects])
+    .map(normalizeStatusEffect)
+    .filter(Boolean)
+    .slice(0, 5);
+
+  if (!playerId || !runNumber || !bossSequence || !normalized.length) {
+    return [];
+  }
+
+  const saved = [];
+  for (const effect of normalized) {
+    await db.execute(
+      `INSERT INTO combat_status_effects (player_id, run_number, character_id, boss_sequence, target_type, effect_key, effect_name, effect_type, potency, remaining_turns, source, metadata_json, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      [
+        playerId,
+        Number(runNumber || 1),
+        characterId || null,
+        Number(bossSequence || 1),
+        effect.targetType,
+        effect.key,
+        effect.name,
+        effect.type,
+        effect.potency,
+        effect.remainingTurns,
+        effect.source || null,
+        JSON.stringify(effect.metadata || {})
+      ]
+    );
+    saved.push(effect);
+  }
+
+  return saved;
+}
+
+async function getActiveCombatStatusEffects({ playerId, runNumber, characterId, bossSequence }) {
+  await ensurePlayerSchema();
+
+  if (!playerId || !runNumber || !bossSequence) {
+    return [];
+  }
+
+  const rows = await db.query(
+    `SELECT id, target_type, effect_key, effect_name, effect_type, potency, remaining_turns, source, metadata_json
+       FROM combat_status_effects
+      WHERE player_id = ?
+        AND run_number = ?
+        AND boss_sequence = ?
+        AND active = 1
+        AND remaining_turns > 0
+        AND (character_id = ? OR character_id IS NULL)
+      ORDER BY id`,
+    [playerId, Number(runNumber || 1), Number(bossSequence || 1), characterId || null]
+  );
+
+  return rows.map((row) => ({
+    id: Number(row.id),
+    targetType: row.target_type,
+    key: row.effect_key,
+    name: row.effect_name,
+    type: row.effect_type,
+    potency: Number(row.potency || 0),
+    remainingTurns: Number(row.remaining_turns || 0),
+    source: row.source || "",
+    metadata: parseJson(row.metadata_json, {})
+  }));
+}
+
+async function tickCombatStatusEffects({ playerId, runNumber, characterId, bossSequence }) {
+  await ensurePlayerSchema();
+
+  const effects = await getActiveCombatStatusEffects({ playerId, runNumber, characterId, bossSequence });
+  const ticks = [];
+
+  for (const effect of effects) {
+    let resourceResult = null;
+    let bossResult = null;
+
+    if (effect.targetType === "player") {
+      resourceResult = await applyCharacterResourceDeltas(characterId, { hp: -effect.potency });
+    } else {
+      bossResult = await applyBossHpDelta({
+        playerId,
+        runNumber,
+        characterId,
+        bossSequence,
+        hpDelta: -effect.potency
+      });
+    }
+
+    const remainingTurns = Math.max(0, Number(effect.remainingTurns || 1) - 1);
+    const targetDefeated = effect.targetType === "boss"
+      ? Boolean(bossResult?.defeated)
+      : Number(resourceResult?.after?.hp ?? 1) <= 0;
+
+    await db.execute(
+      `UPDATE combat_status_effects
+          SET remaining_turns = ?, active = ?
+        WHERE id = ?`,
+      [remainingTurns, remainingTurns > 0 && !targetDefeated ? 1 : 0, effect.id]
+    );
+
+    ticks.push({
+      ...effect,
+      remainingTurns,
+      damage: effect.potency,
+      targetDefeated,
+      bossResult,
+      resourceResult
+    });
+  }
+
+  return ticks;
+}
+
 async function completeBossGrowthTransition(characterId, evolutionInput = {}) {
   await ensurePlayerSchema();
 
@@ -1440,6 +1617,86 @@ async function awardCharacterSkill(characterId, skillInput) {
     rarity: skill.rarity,
     level
   };
+}
+
+function normalizeLootItem(itemInput) {
+  if (!itemInput) {
+    return null;
+  }
+
+  const raw = typeof itemInput === "string" ? { name: itemInput } : itemInput;
+  const name = String(raw.name || raw.itemName || "").trim().slice(0, 120);
+  if (!name) {
+    return null;
+  }
+
+  const quantity = Math.max(1, Math.min(Number(raw.quantity || raw.qty || 1), 99));
+  const type = String(raw.type || raw.itemType || "Consumable").trim().slice(0, 80);
+  const rarity = String(raw.rarity || "common").trim().toLowerCase().slice(0, 40);
+  const description = String(raw.description || `${name} was recovered from the boss arena.`).trim().slice(0, 1000);
+
+  return {
+    key: itemKey(raw.itemKey || name),
+    name,
+    type,
+    rarity,
+    quantity,
+    description
+  };
+}
+
+async function awardCharacterLoot(characterId, lootInput = []) {
+  await ensurePlayerSchema();
+
+  if (!characterId) {
+    return [];
+  }
+
+  const loot = (Array.isArray(lootInput) ? lootInput : [lootInput])
+    .map(normalizeLootItem)
+    .filter(Boolean)
+    .slice(0, 5);
+
+  if (!loot.length) {
+    return [];
+  }
+
+  const rows = await db.query(
+    `SELECT p.player_id, p.current_body
+       FROM player_characters c
+       JOIN deep_saga_players p ON p.player_id = c.player_id
+      WHERE c.id = ?
+      LIMIT 1`,
+    [characterId]
+  );
+  const row = rows[0];
+  if (!row) {
+    return [];
+  }
+
+  const body = parseJson(row.current_body, {}) || {};
+  const inventory = Array.isArray(body.inventory) ? [...body.inventory] : [];
+
+  for (const item of loot) {
+    const existing = inventory.find((entry) => itemKey(entry.key || entry.name) === item.key);
+    if (existing) {
+      existing.quantity = Math.max(1, Math.min(Number(existing.quantity || 1) + item.quantity, 999));
+      existing.type = existing.type || item.type;
+      existing.rarity = existing.rarity || item.rarity;
+      existing.description = existing.description || item.description;
+    } else {
+      inventory.push(item);
+    }
+  }
+
+  body.inventory = inventory.slice(-50);
+
+  await db.execute(
+    "UPDATE deep_saga_players SET current_body = ? WHERE player_id = ?",
+    [JSON.stringify(body), row.player_id]
+  );
+
+  return loot;
 }
 
 async function applyCharacterResourceDeltas(characterId, deltas = {}) {
