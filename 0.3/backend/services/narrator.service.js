@@ -258,6 +258,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
   const skills = Array.isArray(skillCatalog) && skillCatalog.length ? skillCatalog : skillNames;
   const currentBoss = bosses.find((boss) => boss.sequence === dungeonNumber) || bosses[0] || bossGauntlet[0];
   const characterStatus = String(character.status || body.status || "newly reincarnated").toLowerCase();
+  const currentBossDefeated = bossProgress?.status === "defeated" || Number(bossProgress?.currentHp ?? 1) <= 0;
 
   return {
     player: {
@@ -316,6 +317,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       hasRecentStory: normalizedRecentMessages.length > 0,
       bookEnded: characterStatus === "dead" || characterStatus === "completed",
       endingType: characterStatus === "dead" ? "death" : characterStatus === "completed" ? "victory" : null,
+      currentBossDefeated,
       combatPressure
     },
     memoryLog: [
@@ -341,6 +343,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       "If the player damages a living boss, also consider the boss counterattack or reaction. Use playerHpDelta, playerManaDelta, or playerStaminaDelta when that response has a real cost.",
       "Skills and evolutions should usually appear as choices before they are unlocked.",
       "If progressionState.phase is post_boss_growth, do not continue boss combat. Write reflection, earned skill choices, evolution choice, restoration, and the threshold into the pending next chapter.",
+      "If sceneState.currentBossDefeated is true, the current boss is dead or finished. Do not make that boss attack, damage the player, speak as active, or continue the fight.",
       "Only after an evolution is selected should the story move into the pending next boss chapter.",
       "Every reply must resolve the player action, continue the current scene, and provide 3 to 5 meaningful choices.",
       "If sceneState.bookEnded is true, do not continue combat. Return a reflective epilogue or restart-facing closure for the already-ended book.",
@@ -475,12 +478,96 @@ function isDeathEnding(scene) {
   return endingType === "death" || status === "dead";
 }
 
+function currentBossIsFinished(context) {
+  const bossHp = context.bossGauntlet?.currentBossHp;
+
+  return (
+    context.progressionState?.phase === "post_boss_growth" ||
+    bossHp?.status === "defeated" ||
+    Number(bossHp?.currentHp ?? 1) <= 0
+  );
+}
+
+function removeDefeatedBossCombatChanges(stateChanges) {
+  const blockedKeys = [
+    "hpDelta",
+    "playerHpDelta",
+    "manaDelta",
+    "playerManaDelta",
+    "staminaDelta",
+    "playerStaminaDelta",
+    "bossHpDelta",
+    "enemyHpDelta",
+    "currentBossHpDelta"
+  ];
+  let changed = false;
+
+  for (const key of blockedKeys) {
+    if (Number(stateChanges[key] || 0)) {
+      changed = true;
+    }
+    delete stateChanges[key];
+  }
+
+  const endingType = String(stateChanges.endingType || "").trim().toLowerCase();
+  const status = String(stateChanges.characterStatus || stateChanges.playerStatus || "").trim().toLowerCase();
+  if (endingType === "death" || status === "dead") {
+    delete stateChanges.endingType;
+    delete stateChanges.characterStatus;
+    delete stateChanges.playerStatus;
+    stateChanges.bookEnded = false;
+    changed = true;
+  }
+
+  return changed;
+}
+
+function postBossGrowthChoices(context, defeatedBossName = "the fallen boss") {
+  const body = context.activeCharacter?.race || context.currentBody?.race || "new body";
+
+  return [
+    {
+      id: "absorb-victory-memory",
+      title: "Let the silence after victory speak",
+      text: `Stand where ${defeatedBossName} fell and feel what the battle carved into your ${body} soul.`,
+      action: `I stand where ${defeatedBossName} fell and listen to what survival has changed inside me.`,
+      direction: "growth"
+    },
+    {
+      id: "claim-earned-skill",
+      title: "Reach for the skill this fight awakened",
+      text: "Follow the instinct that carried you through the battle and choose the power that feels earned.",
+      action: "I focus on the way I survived and choose the skill this battle awakened in me.",
+      direction: "skill"
+    },
+    {
+      id: "accept-next-evolution",
+      title: "Answer the evolution beneath your skin",
+      text: "Let the victory reshape your body before the next chapter opens.",
+      action: "I accept the evolution born from this victory and let my body transform before the next chapter begins.",
+      direction: "evolution"
+    }
+  ];
+}
+
 async function applyAcceptedStateChanges(context, scene) {
   const characterId = context.activeCharacter?.id || null;
   const stateChanges = scene.stateChanges || {};
 
   if (!characterId) {
     return;
+  }
+
+  if (currentBossIsFinished(context) && removeDefeatedBossCombatChanges(stateChanges)) {
+    scene.stateChanges = stateChanges;
+    scene.choices = postBossGrowthChoices(context, context.bossGauntlet?.currentBossHp?.bossName);
+    scene.recordChanges = [
+      ...(scene.recordChanges || []),
+      {
+        type: "combat_guard",
+        text: "Ignored combat deltas because the current boss is already defeated."
+      }
+    ];
   }
 
   if (!stateHasResourceDelta(stateChanges) && actionLooksLikeAppraisal(context.playerAction)) {
@@ -544,6 +631,9 @@ async function applyAcceptedStateChanges(context, scene) {
       ];
 
       if (bossResult.defeated) {
+        scene.choices = finalBossDefeated
+          ? scene.choices
+          : postBossGrowthChoices(context, bossResult.after.bossName);
         scene.memoryUpdates = [
           ...(scene.memoryUpdates || []),
           {

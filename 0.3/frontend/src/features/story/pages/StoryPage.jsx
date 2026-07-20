@@ -293,12 +293,12 @@ export function StoryPage() {
       const opening = await createOpeningNarrative()
       const reloaded = await fetchGameState(id)
       setGame(reloaded)
-      setChoices(opening.choices || latestChoices(reloaded))
+      setChoices(reloaded.activeChoices || opening.choices || latestChoices(reloaded))
       return
     }
 
     setGame(loaded)
-    setChoices(latestChoices(loaded))
+    setChoices(loaded.activeChoices || latestChoices(loaded))
   }
 
   useEffect(() => {
@@ -316,10 +316,10 @@ export function StoryPage() {
           const reloaded = await fetchGameState(cycleId)
           if (!active) return
           setGame(reloaded)
-          setChoices(opening.choices || latestChoices(reloaded))
+          setChoices(reloaded.activeChoices || opening.choices || latestChoices(reloaded))
         } else {
           setGame(loaded)
-          setChoices(latestChoices(loaded))
+          setChoices(loaded.activeChoices || latestChoices(loaded))
         }
       } catch (requestError) {
         if (requestError.status !== 404) {

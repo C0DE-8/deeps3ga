@@ -147,6 +147,46 @@ function latestChoices(history) {
   return narrator?.choices_json || []
 }
 
+function postBossGrowthChoices(state) {
+  const bossName = state?.currentBoss?.bossName || 'the fallen boss'
+  const race = state?.characterSheet?.race_name || 'new body'
+
+  return [
+    {
+      id: 'post-boss-absorb-lesson',
+      title: 'Listen to what survival changed',
+      text: `Let the silence after ${bossName} settle and feel which instinct in your ${race} body answers first.`,
+      action: `I stand in the quiet after ${bossName} falls and listen to what survival has changed inside me.`,
+      direction: 'growth',
+    },
+    {
+      id: 'post-boss-choose-skill',
+      title: 'Claim the skill the battle carved into you',
+      text: 'Reach for the power that matches how you survived: venom, motion, traps, defense, magic, or instinct.',
+      action: 'I focus on the way I survived this battle and choose the skill that feels earned by my actions.',
+      direction: 'skill',
+    },
+    {
+      id: 'post-boss-evolve',
+      title: 'Step into the next shape of your soul',
+      text: 'Accept the evolution pressing beneath your skin and let this body become something the next chapter must respect.',
+      action: 'I accept the evolution born from this victory and let my body transform before the next chapter begins.',
+      direction: 'evolution',
+    },
+  ]
+}
+
+function choicesForState(state) {
+  const defeated = state?.currentBoss?.status === 'defeated' || Number(state?.currentBoss?.currentHp ?? 1) <= 0
+  const phase = state?.characterSheet?.story_phase || state?.characterSheet?.storyPhase
+
+  if (phase === 'post_boss_growth' || defeated) {
+    return postBossGrowthChoices(state)
+  }
+
+  return latestChoices(state?.narrativeHistory || [])
+}
+
 function stateFromPlayer(player, narrativeHistory = []) {
   const body = player.currentBody || {}
   const character = player.activeCharacter || {}
@@ -192,6 +232,9 @@ function stateFromPlayer(player, narrativeHistory = []) {
       luck: Number(character.luck || body.luck || 5),
       charisma: Number(character.charisma || body.charisma || 5),
       soul_energy: Number(character.soulEnergy || body.soulEnergy || 0),
+      story_phase: character.storyPhase || body.storyPhase || 'combat',
+      pending_next_dungeon: character.pendingNextDungeon || null,
+      last_defeated_boss: character.lastDefeatedBoss || null,
     },
     currentDungeon: {
       id: dungeonNumber,
@@ -250,7 +293,9 @@ export async function fetchGameState() {
     memoryLog: sheet.memoryLog || player.memoryLog,
   } : player
   if (history.length) writeStory(mergedPlayer, history)
-  return stateFromPlayer(mergedPlayer, history)
+  const state = stateFromPlayer(mergedPlayer, history)
+  state.activeChoices = choicesForState(state)
+  return state
 }
 
 export async function createOpeningNarrative() {

@@ -63,7 +63,8 @@ BOSS BOOK:
 - Every boss stage should feel like a book chapter with a title, mood, and turning point, not a game menu.
 
 POST-BOSS GROWTH:
-- If progressionState.phase is "post_boss_growth", the fight is over. Do not restart combat with the defeated boss.
+- If progressionState.phase is "post_boss_growth" or sceneState.currentBossDefeated is true, the fight is over. Do not restart combat with the defeated boss.
+- During post-boss growth, the defeated boss cannot attack, damage the player, regain footing, threaten another strike, or force more combat.
 - First, let the victory breathe: the defeated boss fades, the arena reacts, and the player absorbs what survival taught them.
 - Offer skill choices based on how the player fought: poison, mobility, stealth, defense, magic, brutality, appraisal, traps, regeneration, or soul pressure.
 - Unlock only the skill the player chooses or clearly earns. Use stateChanges.skillsUnlocked for that chosen skill.
