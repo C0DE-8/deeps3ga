@@ -7,6 +7,8 @@
 .statusBar > button { width: 54px; flex: 0 0 54px; display: grid; place-items: center; border: 0; border-left: 1px solid #d5cec0; color: #312c25; background: transparent; cursor: pointer; }
 .sheet { position: fixed; top: 130px; right: 0; bottom: 0; z-index: 18; width: min(390px, 92vw); overflow-y: auto; padding: 28px; border-left: 1px solid #384440; color: #e6ebe7; background: #0c1314; transform: translateX(100%); transition: transform 220ms ease; }
 .sheetOpen { transform: translateX(0); }
+.sheetClose { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #2e3936; border-radius: 5px; color: #e6ebe7; background: #121d1e; cursor: pointer; }
+.sheetClose:hover { border-color: #c1a36b; color: #fff7e7; background: #1a292b; }
 .sheet > span { color: #c1a36b; font-size: .7rem; font-weight: 800; text-transform: uppercase; }
 .sheet h2 { margin-top: 8px; font-family: Georgia, serif; font-size: 2rem; font-weight: 500; }
 .sheet > p { margin-top: 4px; color: #9aa5a1; }

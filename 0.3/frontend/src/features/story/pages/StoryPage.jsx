@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { continueNarrative, createOpeningNarrative, fetchGameState, startGame } from '../../../api/deepSagaApi'
 import { AppHeader } from '../../shell/AppHeader'
@@ -387,6 +387,9 @@ export function StoryPage() {
       )}
 
       <aside className={`${styles.sheet} ${sheetOpen ? styles.sheetOpen : ''}`} aria-hidden={!sheetOpen}>
+        <button className={styles.sheetClose} type="button" onClick={() => setSheetOpen(false)} title="Close character sheet">
+          <X size={18} />
+        </button>
         {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Chapter</dt><dd>{chapter.number}: {chapter.title}</dd><dt>Boss</dt><dd>{currentBossName}</dd>{boss && <><dt>Condition</dt><dd>{bossState}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>XP</dt><dd>{sheet.xp}/{sheet.xp_needed}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl></>}
       </aside>
 
