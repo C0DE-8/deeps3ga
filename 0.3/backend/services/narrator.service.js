@@ -337,6 +337,8 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       "The world has ten boss stages. Each stage is one boss encounter with combat, survival choices, analysis, evolution chances, and consequences.",
       "Version 0.3 is a ten-boss reincarnation combat gauntlet. The current dungeon number is the current boss stage.",
       "The player must defeat Boss 1 through Boss 10 in order. The first boss is cocky and easier than later bosses, but the player can still die from bad choices.",
+      "Combat is not one-sided. If the current boss is alive, every combat reply must include a boss response and real pressure through damage, resource cost, positioning, traps, manipulation, or a forced defensive problem.",
+      "If the player damages a living boss, also consider the boss counterattack or reaction. Use playerHpDelta, playerManaDelta, or playerStaminaDelta when that response has a real cost.",
       "Skills and evolutions should usually appear as choices before they are unlocked.",
       "If progressionState.phase is post_boss_growth, do not continue boss combat. Write reflection, earned skill choices, evolution choice, restoration, and the threshold into the pending next chapter.",
       "Only after an evolution is selected should the story move into the pending next boss chapter.",
