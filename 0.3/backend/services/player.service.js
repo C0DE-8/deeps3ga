@@ -1217,6 +1217,60 @@ async function getBossRunProgress(playerId, runNumber) {
   }));
 }
 
+async function getBossCatalog() {
+  await ensurePlayerSchema();
+
+  const rows = await db.query(
+    `SELECT boss_sequence, boss_name, boss_title, source_world, power_rank, max_hp, dungeon_number, floor_number, profile, combat_style, opening_attitude
+       FROM story_bosses
+      WHERE active = 1
+      ORDER BY boss_sequence`
+  );
+
+  if (!rows.length) {
+    return bossGauntlet;
+  }
+
+  return rows.map((row) => ({
+    sequence: Number(row.boss_sequence),
+    name: row.boss_name,
+    title: row.boss_title,
+    sourceWorld: row.source_world,
+    powerRank: Number(row.power_rank),
+    maxHp: Number(row.max_hp || 100),
+    dungeonNumber: Number(row.dungeon_number),
+    floorNumber: Number(row.floor_number || 1),
+    profile: row.profile,
+    combatStyle: row.combat_style,
+    openingAttitude: row.opening_attitude
+  }));
+}
+
+async function getSkillCatalog() {
+  await ensurePlayerSchema();
+
+  const rows = await db.query(
+    `SELECT skill_key, name, family, skill_type, description, rarity, unlock_rule
+       FROM skills
+      WHERE active = 1
+      ORDER BY id`
+  );
+
+  if (!rows.length) {
+    return skillNames;
+  }
+
+  return rows.map((row) => ({
+    key: row.skill_key,
+    name: row.name,
+    family: row.family,
+    type: row.skill_type,
+    description: row.description,
+    rarity: row.rarity,
+    unlockRule: row.unlock_rule || null
+  }));
+}
+
 async function applyBossHpDelta({ playerId, runNumber, characterId, bossSequence, hpDelta }) {
   await ensurePlayerSchema();
 
@@ -1551,10 +1605,12 @@ module.exports = {
   createLegacyHeroForPlayer,
   ensurePlayerSchema,
   evolutionCatalog,
+  getBossCatalog,
   getFloorRuntime,
   getBossProgress,
   getBossRunProgress,
   getPlayerSheet,
+  getSkillCatalog,
   listNarratorPersonas,
   loginPlayer,
   monsterRaces,

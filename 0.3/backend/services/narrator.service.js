@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, completeBossGrowthTransition, createLegacyHeroForPlayer, evolutionCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
+const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, completeBossGrowthTransition, createLegacyHeroForPlayer, evolutionCatalog, getBossCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, getSkillCatalog, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -245,7 +245,7 @@ async function loadImportantMemories(player, limit = 12) {
   }));
 }
 
-function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = [], bossProgress = null, bossRunProgress = []) {
+function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = [], bossProgress = null, bossRunProgress = [], bossCatalog = bossGauntlet, skillCatalog = skillNames) {
   const body = player.currentBody || {};
   const character = player.activeCharacter || {};
   const runtime = player.floorRuntime || {};
@@ -254,7 +254,9 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
   const combatPressure = inferCombatPressure(action, normalizedRecentMessages);
   const dungeonNumber = Number(runtime.dungeonNumber || character.dungeon || body.dungeon || 1);
   const floorNumber = Number(runtime.floorNumber || character.floor || body.floor || 1);
-  const currentBoss = bossGauntlet.find((boss) => boss.sequence === dungeonNumber) || bossGauntlet[0];
+  const bosses = Array.isArray(bossCatalog) && bossCatalog.length ? bossCatalog : bossGauntlet;
+  const skills = Array.isArray(skillCatalog) && skillCatalog.length ? skillCatalog : skillNames;
+  const currentBoss = bosses.find((boss) => boss.sequence === dungeonNumber) || bosses[0] || bossGauntlet[0];
   const characterStatus = String(character.status || body.status || "newly reincarnated").toLowerCase();
 
   return {
@@ -288,10 +290,10 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       canonicalFloorLabel: runtime.floorLabel || `Boss Stage ${dungeonNumber}`,
       aiDungeonName: runtime.dungeonAiName || null,
       aiFloorName: runtime.floorAiName || null,
-      floorRole: runtime.floorRole || (dungeonNumber === bossGauntlet.length ? "final_boss" : dungeonNumber === 1 ? "opening_boss" : "boss"),
+      floorRole: runtime.floorRole || (dungeonNumber === bosses.length ? "final_boss" : dungeonNumber === 1 ? "opening_boss" : "boss"),
       isBossFloor: Boolean(runtime.isBossFloor || floorNumber === 1),
-      isFinalBossFloor: Boolean(runtime.isFinalBossFloor || (dungeonNumber === bossGauntlet.length && floorNumber === 1)),
-      totalDungeons: bossGauntlet.length,
+      isFinalBossFloor: Boolean(runtime.isFinalBossFloor || (dungeonNumber === bosses.length && floorNumber === 1)),
+      totalDungeons: bosses.length,
       floorsPerDungeon: 1,
       status: characterStatus
     },
@@ -300,13 +302,13 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       currentBossHp: bossProgress,
       bossProgressByStage: bossRunProgress,
       defeatedBosses: bossRunProgress.filter((boss) => boss.status === "defeated" || Number(boss.currentHp || 0) <= 0),
-      bosses: bossGauntlet,
-      totalBosses: bossGauntlet.length,
+      bosses,
+      totalBosses: bosses.length,
       completedBosses: Math.max(0, dungeonNumber - 1),
-      remainingBosses: Math.max(0, bossGauntlet.length - dungeonNumber + 1)
+      remainingBosses: Math.max(0, bosses.length - dungeonNumber + 1)
     },
     progressionCatalog: {
-      skills: skillNames,
+      skills,
       evolutions: evolutionCatalog
     },
     sceneState: {
@@ -826,6 +828,8 @@ async function createStoryScene(player, playerAction, recentMessages) {
     Number(player.floorRuntime?.dungeonNumber || player.activeCharacter?.dungeon || player.currentBody?.dungeon || 1)
   );
   const bossRunProgress = await getBossRunProgress(player.playerId, Number(player.currentRun || 1));
+  const bossCatalog = await getBossCatalog();
+  const skillCatalog = await getSkillCatalog();
   const context = buildContext(
     player,
     playerAction,
@@ -833,7 +837,9 @@ async function createStoryScene(player, playerAction, recentMessages) {
     importantMemories,
     sheet?.skills || [],
     bossProgress,
-    bossRunProgress
+    bossRunProgress,
+    bossCatalog,
+    skillCatalog
   );
 
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "#") {

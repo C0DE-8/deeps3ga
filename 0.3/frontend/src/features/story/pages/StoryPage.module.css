@@ -114,8 +114,7 @@
 .loadingPanel { min-height: 360px; display: grid; place-items: center; align-content: center; gap: 12px; padding: 42px 24px; border: 1px solid #c9c0af; border-radius: 8px; color: #2b261f; background: linear-gradient(180deg, rgba(255,253,248,.98), rgba(249,244,235,.98)); box-shadow: 0 22px 58px rgba(49, 39, 28, .12); text-align: center; animation: pageIn 240ms ease both; }
 .loadingPanelCompact { min-height: 150px; margin-top: 22px; padding: 28px 20px; }
 .loadingIcon { position: relative; width: 72px; height: 72px; display: grid; place-items: center; border: 1px solid #c8b99e; border-radius: 50%; color: #7a552f; background: #fbf7ed; box-shadow: inset 0 0 0 8px #f1eadb; }
-.loadingIcon svg:first-child { animation: bookPulse 1.7s ease-in-out infinite; }
-.loadingIcon svg:last-child { position: absolute; right: 10px; bottom: 8px; color: #0f1717; animation: hourglassTurn 1.8s ease-in-out infinite; }
+.loadingIcon svg { animation: bookPulse 1.7s ease-in-out infinite; }
 .loadingPanel span { color: #835f36; font-size: .72rem; font-weight: 850; text-transform: uppercase; }
 .loadingPanel p { color: #6d6559; font-family: Georgia, serif; font-size: 1.08rem; font-style: italic; line-height: 1.5; }
 .returnLink { display: inline-flex; margin-top: 20px; border-bottom: 1px solid currentColor; color: #6f4d2d; text-decoration: none; font-weight: 800; }
@@ -135,18 +134,13 @@
   50% { transform: scale(1.08); opacity: 1; }
 }
 
-@keyframes hourglassTurn {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(180deg); }
-}
-
 @media (max-width: 760px) {
-  .statusBar { top: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) 48px; min-height: auto; overflow-x: visible; }
-  .statusBar > span { min-width: 0; min-height: 52px; padding: 8px 9px; border-right: 1px solid #d5cec0; border-bottom: 1px solid #ded6c7; }
+  .statusBar { top: 0; display: flex; min-height: 54px; overflow-x: auto; overflow-y: hidden; }
+  .statusBar > span { min-width: 104px; min-height: 54px; flex: 0 0 auto; padding: 8px 10px; border-right: 1px solid #d5cec0; border-bottom: 0; }
   .statusBar small { font-size: .58rem; }
   .statusBar strong { font-size: .78rem; }
-  .statusBar .position { grid-column: 1 / 5; min-width: 0; margin-left: 0; }
-  .statusBar > button { width: 48px; min-height: 52px; grid-column: 5; grid-row: 1 / 3; align-self: stretch; border-bottom: 1px solid #ded6c7; }
+  .statusBar .position { min-width: 210px; margin-left: 0; }
+  .statusBar > button { position: sticky; right: 0; width: 48px; min-height: 54px; flex: 0 0 48px; align-self: stretch; border-bottom: 0; background: #f7f5ee; box-shadow: -8px 0 14px rgba(247, 245, 238, .92); }
   .sheet { top: 0; width: 100vw; padding: 22px 18px 34px; border-left: 0; }
   .sheetClose { top: 12px; right: 12px; width: 42px; height: 42px; }
   .sheet h2 { font-size: 1.55rem; line-height: 1.08; }
@@ -187,9 +181,9 @@
 }
 
 @media (max-width: 420px) {
-  .statusBar { grid-template-columns: repeat(2, minmax(0, 1fr)) 46px; }
-  .statusBar .position { grid-column: 1 / 3; }
-  .statusBar > button { width: 46px; grid-column: 3; grid-row: 1 / 4; }
+  .statusBar > span { min-width: 96px; }
+  .statusBar .position { min-width: 190px; }
+  .statusBar > button { width: 46px; flex-basis: 46px; }
   .reader { width: min(100% - 16px, 900px); padding-top: 20px; }
   .sceneChapter { padding: 18px 15px; }
   .sceneChapter h1 { font-size: 1.72rem; }

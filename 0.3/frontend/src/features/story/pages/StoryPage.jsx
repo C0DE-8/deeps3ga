@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, BookOpen, ChevronDown, Hourglass, PanelRightClose, PanelRightOpen, X } from 'lucide-react'
+import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { continueNarrative, createOpeningNarrative, fetchGameState, startGame } from '../../../api/deepSagaApi'
 import { AppHeader } from '../../shell/AppHeader'
@@ -205,7 +205,6 @@ function PageLoader({ compact = false }) {
     <article className={`${styles.loadingPanel} ${compact ? styles.loadingPanelCompact : ''}`} aria-live="polite" aria-busy="true">
       <div className={styles.loadingIcon}>
         <BookOpen size={34} />
-        <Hourglass size={18} />
       </div>
       <span>The ink is gathering.</span>
       <p>The next page is being written...</p>
