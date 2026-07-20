@@ -142,6 +142,52 @@ function bossHpValue(boss) {
   return `${Number(boss.currentHp ?? boss.current_hp ?? boss.maxHp)}/${Number(boss.maxHp ?? boss.max_hp)}`
 }
 
+function deltaValue(changes, ...keys) {
+  for (const key of keys) {
+    const value = Number(changes?.[key] || 0)
+    if (value) return value
+  }
+
+  return 0
+}
+
+function resourceFeeling(type, delta) {
+  if (!delta) return ''
+  if (type === 'hp') return delta < 0 ? 'Pain cuts through your body.' : 'Your wounds begin to close.'
+  if (type === 'mana') return delta < 0 ? 'Mana drains from your core.' : 'Mana gathers beneath your skin.'
+  if (type === 'stamina') return delta < 0 ? 'Your muscles burn from the effort.' : 'Breath returns to your limbs.'
+  return ''
+}
+
+function bossDeltaFeeling(delta, defeated) {
+  if (defeated) return 'The enemy has fallen.'
+  if (delta < 0) return 'The enemy shows the cost of your strike.'
+  if (delta > 0) return 'The enemy steadies and recovers ground.'
+  return ''
+}
+
+function combatPulse(scene, boss) {
+  const changes = scene?.narrator?.state_changes_json || {}
+  const entries = []
+  const hp = deltaValue(changes, 'playerHpDelta', 'hpDelta')
+  const mana = deltaValue(changes, 'playerManaDelta', 'manaDelta')
+  const stamina = deltaValue(changes, 'playerStaminaDelta', 'staminaDelta')
+  const bossDelta = deltaValue(changes, 'bossHpDelta', 'enemyHpDelta', 'currentBossHpDelta')
+  const bossDefeated = Boolean(changes.bossDefeated || boss?.status === 'defeated' || Number(boss?.currentHp ?? 1) <= 0)
+
+  for (const [label, value, text] of [
+    ['Body', hp, resourceFeeling('hp', hp)],
+    ['Mana', mana, resourceFeeling('mana', mana)],
+    ['Stamina', stamina, resourceFeeling('stamina', stamina)],
+    ['Enemy', bossDelta, bossDeltaFeeling(bossDelta, bossDefeated)],
+  ]) {
+    if (text) entries.push({ label, value, text })
+  }
+
+  if (!entries.length && boss) entries.push({ label: 'Enemy', value: 0, text: bossCondition(boss) })
+  return entries
+}
+
 function InlineText({ text }) {
   const parts = String(text || '').split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean)
 
@@ -223,6 +269,22 @@ function StoryText({ paragraphs }) {
     <div className={styles.storyText}>
       {paragraphs.map((paragraph) => <StoryBlock block={paragraph} key={paragraph} />)}
     </div>
+  )
+}
+
+function CombatPulse({ scene, boss }) {
+  const entries = combatPulse(scene, boss)
+  if (!entries.length) return null
+
+  return (
+    <aside className={styles.combatPulse} aria-label="Combat condition">
+      {entries.map((entry) => (
+        <span key={`${entry.label}-${entry.text}`}>
+          <small>{entry.label}</small>
+          <strong>{entry.text}</strong>
+        </span>
+      ))}
+    </aside>
   )
 }
 
@@ -539,6 +601,7 @@ export function StoryPage() {
                         ) : (
                           <>
                             <StoryText paragraphs={scene.paragraphs} />
+                            {latest && <CombatPulse scene={scene} boss={boss} />}
                           </>
                         )}
                       </div>

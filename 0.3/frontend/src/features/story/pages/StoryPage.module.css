@@ -54,6 +54,10 @@
 .storyParagraph strong { font-weight: 850; }
 .storyParagraph em { font-style: italic; color: #4e4437; }
 .storyHeading { margin-top: 4px; color: #2a251e; font-family: Georgia, serif; font-size: clamp(1.1rem, 2vw, 1.34rem); line-height: 1.4; }
+.combatPulse { display: grid; gap: 1px; margin-top: 10px; border: 1px solid #cfc2ad; border-radius: 6px; overflow: hidden; background: #cfc2ad; }
+.combatPulse span { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 11px 13px; background: #f8f3e8; }
+.combatPulse small { color: #7f5932; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
+.combatPulse strong { color: #2f2922; font-family: Georgia, serif; font-size: .98rem; line-height: 1.45; font-weight: 600; }
 .infoBlock,
 .skillCallout,
 .endingCallout { display: grid; gap: 10px; margin: 4px 0; padding: 15px 18px; border: 1px solid #d2c7b5; border-radius: 6px; background: #f8f4eb; }
@@ -173,6 +177,8 @@
   .storyText { gap: 15px; }
   .storyParagraph { font-size: 1.06rem; line-height: 1.72; }
   .storyHeading { font-size: 1.08rem; }
+  .combatPulse span { grid-template-columns: 76px 1fr; gap: 9px; padding: 10px 11px; }
+  .combatPulse strong { font-size: .92rem; }
   .playerAction { padding: 13px 18px; }
   .playerAction p { font-size: .94rem; line-height: 1.45; overflow-wrap: anywhere; }
   .readControls { margin-top: 16px; padding-top: 16px; }
@@ -202,6 +208,7 @@
   .sceneChapter h1 { font-size: 1.72rem; }
   .scenePage { padding: 20px 15px; }
   .storyParagraph { font-size: 1.02rem; line-height: 1.68; }
+  .combatPulse span { grid-template-columns: 1fr; gap: 4px; }
   .loadingPanel { min-height: 260px; border-radius: 6px; }
   .sheet { padding: 20px 14px 32px; }
   .sheet dl,
