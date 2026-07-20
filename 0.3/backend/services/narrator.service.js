@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { applyCharacterResourceDeltas, awardCharacterSkill, createLegacyHeroForPlayer, getPlayerSheet } = require("./player.service");
+const { applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, createLegacyHeroForPlayer, getPlayerSheet } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -254,6 +254,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
   const combatPressure = inferCombatPressure(action, normalizedRecentMessages);
   const dungeonNumber = Number(runtime.dungeonNumber || character.dungeon || body.dungeon || 1);
   const floorNumber = Number(runtime.floorNumber || character.floor || body.floor || 1);
+  const currentBoss = bossGauntlet.find((boss) => boss.sequence === dungeonNumber) || bossGauntlet[0];
 
   return {
     player: {
@@ -277,16 +278,23 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
     currentPosition: {
       dungeon: dungeonNumber,
       floor: floorNumber,
-      canonicalDungeonLabel: runtime.dungeonLabel || `Dungeon ${dungeonNumber}`,
-      canonicalFloorLabel: runtime.floorLabel || `Dungeon ${dungeonNumber} Floor ${floorNumber}`,
+      canonicalDungeonLabel: runtime.dungeonLabel || `Boss Stage ${dungeonNumber}`,
+      canonicalFloorLabel: runtime.floorLabel || `Boss Stage ${dungeonNumber}`,
       aiDungeonName: runtime.dungeonAiName || null,
       aiFloorName: runtime.floorAiName || null,
-      floorRole: runtime.floorRole || (floorNumber === 3 ? "boss" : floorNumber === 1 ? "introduction" : "main_danger"),
-      isBossFloor: Boolean(runtime.isBossFloor || floorNumber === 3),
-      isFinalBossFloor: Boolean(runtime.isFinalBossFloor || (dungeonNumber === 5 && floorNumber === 3)),
-      totalDungeons: 5,
-      floorsPerDungeon: 3,
+      floorRole: runtime.floorRole || (dungeonNumber === bossGauntlet.length ? "final_boss" : dungeonNumber === 1 ? "opening_boss" : "boss"),
+      isBossFloor: Boolean(runtime.isBossFloor || floorNumber === 1),
+      isFinalBossFloor: Boolean(runtime.isFinalBossFloor || (dungeonNumber === bossGauntlet.length && floorNumber === 1)),
+      totalDungeons: bossGauntlet.length,
+      floorsPerDungeon: 1,
       status: character.status || body.status || "newly reincarnated"
+    },
+    bossGauntlet: {
+      currentBoss,
+      bosses: bossGauntlet,
+      totalBosses: bossGauntlet.length,
+      completedBosses: Math.max(0, dungeonNumber - 1),
+      remainingBosses: Math.max(0, bossGauntlet.length - dungeonNumber + 1)
     },
     sceneState: {
       isOpeningScene: !action && normalizedRecentMessages.length === 0,
@@ -305,11 +313,13 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       "You are the Game Master and narrator, not just a prose writer.",
       "The player begins as a human who died in the real world and reincarnated inside Deep Saga.",
       "The player may attempt any action, but player statements are attempts, not facts.",
-      "Do not grant godhood, infinite gold, instant boss kills, or skipped floors unless saved state already allows it.",
+      "Do not grant godhood, infinite gold, instant boss kills, or skipped boss stages unless saved state already allows it.",
       "Use the saved body, dungeon, floor, skills, memories, and current position as truth.",
       "Skills are earned from repeated actions, rare discoveries, quest conditions, survival pressure, or impossible achievements.",
       "If a skill is earned, return it in stateChanges.skillsUnlocked and explain it in narration.",
-      "The world has five dungeons with three floors each. Floor 3 is the boss floor.",
+      "The world has ten boss stages. Each stage is one boss encounter with combat, survival choices, analysis, evolution chances, and consequences.",
+      "Version 0.3 is a ten-boss reincarnation combat gauntlet. The current dungeon number is the current boss stage.",
+      "The player must defeat Boss 1 through Boss 10 in order. The first boss is cocky and easier than later bosses, but the player can still die from bad choices.",
       "Every reply must resolve the player action, continue the current scene, and provide 3 to 5 meaningful choices.",
       combatPressure.instruction,
       "Choices must be specific story actions, not generic commands.",

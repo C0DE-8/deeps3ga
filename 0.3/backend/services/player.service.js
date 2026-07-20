@@ -4,60 +4,22 @@ const { hashPassword, verifyPassword } = require("../utils/password");
 
 const monsterRaces = [
   {
-    race: "Slime",
-    strengths: ["adaptive body", "acidic touch", "silent movement"],
-    weaknesses: ["low physical force", "vulnerable to heat"],
-    skills: ["Absorb", "Split Form", "Acid Drop"],
-    evolutionPaths: ["Gel Core", "Venom Slime", "Mimic Ooze"]
+    race: "Reincarnated Slime",
+    archetype: "Reincarnated as a Slime",
+    storyMode: "Starts weak but can become extremely powerful by absorbing, adapting, and evolving from battle.",
+    strengths: ["adaptive body", "absorption", "silent movement", "rapid evolution potential"],
+    weaknesses: ["almost no starting strength", "vulnerable to heat", "easy to underestimate and crush early"],
+    skills: ["Absorb", "Split Form", "Acid Drop", "Predator Memory"],
+    evolutionPaths: ["Gel Core", "Venom Slime", "Mimic Ooze", "Demon Slime"]
   },
   {
-    race: "Spider",
-    strengths: ["web control", "wall crawling", "ambush instincts"],
-    weaknesses: ["fragile frame", "weak against fire"],
-    skills: ["Silk Trap", "Venom Bite", "Ceiling Stalk"],
-    evolutionPaths: ["Cave Weaver", "Arachne Spawn", "Night Widow"]
-  },
-  {
-    race: "Goblin",
-    strengths: ["tool use", "dirty tactics", "fast learning"],
-    weaknesses: ["small body", "feared by settlements"],
-    skills: ["Scavenge", "Cheap Shot", "Pack Signal"],
-    evolutionPaths: ["Hobgoblin", "Goblin Shaman", "Goblin Assassin"]
-  },
-  {
-    race: "Kobold",
-    strengths: ["trap sense", "ore scent", "group tactics"],
-    weaknesses: ["poor daylight vision", "low stamina"],
-    skills: ["Tunnel Step", "Snare Craft", "Ore Nose"],
-    evolutionPaths: ["Drake Kobold", "Kobold Smith", "Scale Scout"]
-  },
-  {
-    race: "Wolf",
-    strengths: ["speed", "scent tracking", "pack pressure"],
-    weaknesses: ["limited hands", "vulnerable alone"],
-    skills: ["Blood Scent", "Pounce", "Howl"],
-    evolutionPaths: ["Dire Wolf", "Moon Fang", "Fenrir Pup"]
-  },
-  {
-    race: "Skeleton",
-    strengths: ["no pain", "dark vision", "necrotic resistance"],
-    weaknesses: ["holy magic", "blunt weapons"],
-    skills: ["Bone Guard", "Deathless Step", "Grave Chill"],
-    evolutionPaths: ["Bone Knight", "Wraith Husk", "Lich Seed"]
-  },
-  {
-    race: "Bat",
-    strengths: ["flight", "echolocation", "escape routes"],
-    weaknesses: ["weak defense", "bright light"],
-    skills: ["Echo Pulse", "Dive Bite", "Wing Feint"],
-    evolutionPaths: ["Vampire Bat", "Cave Screecher", "Night Imp"]
-  },
-  {
-    race: "Mimic Larva",
-    strengths: ["disguise", "patience", "surprise attacks"],
-    weaknesses: ["slow movement", "limited speech"],
-    skills: ["False Shape", "Clamp", "Treasure Scent"],
-    evolutionPaths: ["Chest Mimic", "Weapon Mimic", "House Mimic"]
+    race: "Reincarnated Spider",
+    archetype: "Reincarnated as a Spider",
+    storyMode: "Starts extremely weak and survives through traps, venom, fear, analysis, and brutal adaptation.",
+    strengths: ["web control", "wall crawling", "ambush instincts", "venom potential"],
+    weaknesses: ["fragile frame", "weak against fire", "can be killed by one careless choice early"],
+    skills: ["Silk Trap", "Venom Bite", "Ceiling Stalk", "Thread Sense"],
+    evolutionPaths: ["Cave Weaver", "Arachne Spawn", "Night Widow", "Queen Broodling"]
   }
 ];
 
@@ -124,15 +86,120 @@ const skillCatalog = [
   { key: "false_shape", name: "False Shape", family: "Mimic", type: "Deception", description: "Hold a harmless shape until prey trusts the lie.", rarity: "uncommon" },
   { key: "clamp", name: "Clamp", family: "Mimic", type: "Physical", description: "Snap shut and hold with patient, crushing force.", rarity: "common" },
   { key: "treasure_scent", name: "Treasure Scent", family: "Mimic", type: "Sense", description: "Sense handled valuables, greedy attention, and hidden caches.", rarity: "common" },
+  { key: "predator_memory", name: "Predator Memory", family: "Predator", type: "Growth", description: "Remember the shape, taste, and combat lesson of absorbed enemies.", rarity: "uncommon" },
+  { key: "thread_sense", name: "Thread Sense", family: "Spider", type: "Sense", description: "Read pressure, movement, and intent through silk vibration.", rarity: "common" },
   { key: "analyze", name: "Analyze", family: "Arcane", type: "Support", description: "Study a creature, object, or trace to reveal useful story clues.", rarity: "uncommon" },
   { key: "predator_instinct", name: "Predator Instinct", family: "Predator", type: "Passive", description: "Feel danger before an ambush fully reveals itself.", rarity: "rare" },
   { key: "soul_echo", name: "Soul Echo", family: "Soul", type: "Memory", description: "Hear fragments of old fear, death, or promise clinging to a place.", rarity: "rare" }
 ];
 
-const dungeonCount = 5;
-const floorsPerDungeon = 3;
-const startingDungeonName = "Crimson Wakewood";
-const startingFloorName = "The First Threshold";
+const dungeonCount = 10;
+const floorsPerDungeon = 1;
+const startingDungeonName = "The Rebirth Crucible";
+const startingFloorName = "Boss 1: Gloria Taratect";
+
+const bossGauntlet = [
+  {
+    sequence: 1,
+    name: "Gloria Taratect",
+    title: "Evolved Giant Spider",
+    sourceWorld: "Spider Reincarnation",
+    powerRank: 10,
+    profile: "A durable evolved spider that serves the Queen Taratect and tests whether a newborn soul understands movement, traps, and timing.",
+    combatStyle: "web pressure, armored legs, sudden lunges",
+    openingAttitude: "cocky and dismissive"
+  },
+  {
+    sequence: 2,
+    name: "Clayman",
+    title: "Manipulative Demon Lord",
+    sourceWorld: "Slime Reincarnation",
+    powerRank: 9,
+    profile: "A schemer who relies on puppets, fear, mind pressure, and staged advantages more than raw strength.",
+    combatStyle: "mind control, summoned soldiers, dirty bargains",
+    openingAttitude: "condescending"
+  },
+  {
+    sequence: 3,
+    name: "Araba",
+    title: "Earth Dragon",
+    sourceWorld: "Spider Reincarnation",
+    powerRank: 8,
+    profile: "A disciplined dragon whose raw physical control forces the player to earn every opening.",
+    combatStyle: "stone breath, disciplined counters, crushing endurance",
+    openingAttitude: "silent and honorable"
+  },
+  {
+    sequence: 4,
+    name: "Mother (Queen Taratect)",
+    title: "Queen Spider",
+    sourceWorld: "Spider Reincarnation",
+    powerRank: 7,
+    profile: "A giant queen spider commanding countless offspring through pressure, instinct, and brood authority.",
+    combatStyle: "brood control, psychic pressure, layered webs",
+    openingAttitude: "possessive and predatory"
+  },
+  {
+    sequence: 5,
+    name: "Hinata Sakaguchi",
+    title: "Holy Knight Commander",
+    sourceWorld: "Slime Reincarnation",
+    powerRank: 6,
+    profile: "A master swordswoman whose anti-monster techniques punish reckless monster instincts.",
+    combatStyle: "holy sword forms, analysis, anti-monster seals",
+    openingAttitude: "coldly focused"
+  },
+  {
+    sequence: 6,
+    name: "Demon Lord Ariel",
+    title: "Ancient Demon Ruler",
+    sourceWorld: "Spider Reincarnation",
+    powerRank: 5,
+    profile: "A centuries-old demon ruler with overwhelming experience and calm battlefield cruelty.",
+    combatStyle: "ancient magic, close combat mastery, regeneration",
+    openingAttitude: "amused but alert"
+  },
+  {
+    sequence: 7,
+    name: "Milim Nava",
+    title: "Catastrophe Demon Lord",
+    sourceWorld: "Slime Reincarnation",
+    powerRank: 4,
+    profile: "A childlike ancient demon lord whose cheerful mood hides nation-breaking force.",
+    combatStyle: "catastrophic strength, flight, explosive magic",
+    openingAttitude: "playful and careless"
+  },
+  {
+    sequence: 8,
+    name: "Veldora Tempest",
+    title: "Storm Dragon",
+    sourceWorld: "Slime Reincarnation",
+    powerRank: 3,
+    profile: "A True Dragon of storm and destruction whose presence turns the arena into weather.",
+    combatStyle: "storm aura, dragon magic, destructive breath",
+    openingAttitude: "loudly overconfident"
+  },
+  {
+    sequence: 9,
+    name: "Guy Crimson",
+    title: "Primordial Demon Lord",
+    sourceWorld: "Slime Reincarnation",
+    powerRank: 2,
+    profile: "The strongest demon lord, feared for near-unmatched power, patience, and impossible reads.",
+    combatStyle: "primordial magic, perfect counters, domination pressure",
+    openingAttitude: "politely terrifying"
+  },
+  {
+    sequence: 10,
+    name: "Administrator D",
+    title: "Mirror Administrator",
+    sourceWorld: "Spider Reincarnation",
+    powerRank: 1,
+    profile: "A godlike administrator who appears as the player's perfected self: what the soul could become through ruthless effort.",
+    combatStyle: "system rewriting, mirror choices, impossible observation",
+    openingAttitude: "playful, clinical, and personal"
+  }
+];
 
 function parseJson(value, fallback) {
   if (!value) return fallback;
@@ -273,11 +340,13 @@ async function ensurePlayerSchema() {
     await ensurePersonaColumn();
     await ensureNarratorPersonaSchema();
     await ensureWorldProgressionSchema();
+    await ensureBossSchema();
     await ensureCharacterSchema();
     await ensureSkillSchema();
     await ensureStoryMemorySchema();
     await ensureLegacyHeroSchema();
     await seedWorldProgression();
+    await seedBossGauntlet();
     await seedNarratorPersonas();
     await seedSkills();
     await backfillActiveCharacters();
@@ -386,6 +455,29 @@ async function ensureWorldProgressionSchema() {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_ai_location_names_position (dungeon_number, floor_number),
       INDEX idx_ai_location_names_player (player_id, run_number)
+    )
+  `);
+}
+
+async function ensureBossSchema() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS story_bosses (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      boss_sequence INT NOT NULL UNIQUE,
+      boss_name VARCHAR(120) NOT NULL,
+      boss_title VARCHAR(160) NOT NULL,
+      source_world VARCHAR(120) NOT NULL,
+      power_rank INT NOT NULL,
+      dungeon_number INT NOT NULL,
+      floor_number INT NOT NULL DEFAULT 1,
+      profile TEXT NOT NULL,
+      combat_style TEXT NOT NULL,
+      opening_attitude VARCHAR(160) NOT NULL,
+      active TINYINT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_story_bosses_stage (dungeon_number, floor_number),
+      INDEX idx_story_bosses_power (power_rank)
     )
   `);
 }
@@ -547,8 +639,8 @@ async function ensureLegacyHeroSchema() {
       titles_json JSON NULL,
       personality_json JSON NULL,
       combat_style_json JSON NULL,
-      final_dungeon INT NOT NULL DEFAULT 5,
-      final_floor INT NOT NULL DEFAULT 3,
+      final_dungeon INT NOT NULL DEFAULT 10,
+      final_floor INT NOT NULL DEFAULT 1,
       boss_intro_dialogue TEXT NULL,
       boss_defeat_dialogue TEXT NULL,
       locked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -572,33 +664,39 @@ async function seedNarratorPersonas() {
 
 async function seedWorldProgression() {
   for (let dungeon = 1; dungeon <= dungeonCount; dungeon += 1) {
-    const dungeonAiName = dungeon === 1 ? startingDungeonName : null;
+    const boss = bossGauntlet[dungeon - 1];
+    const dungeonAiName = dungeon === 1 ? startingDungeonName : `Boss ${dungeon}: ${boss?.name || `Unknown Boss ${dungeon}`}`;
     await db.execute(
       `INSERT INTO dungeons (dungeon_number, canonical_label, ai_name, ai_name_note, is_final_dungeon, active)
        VALUES (?, ?, ?, ?, ?, 1)
-       ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), ai_name = COALESCE(dungeons.ai_name, VALUES(ai_name)), ai_name_note = COALESCE(dungeons.ai_name_note, VALUES(ai_name_note)), is_final_dungeon = VALUES(is_final_dungeon), active = 1`,
-      [dungeon, `Dungeon ${dungeon}`, dungeonAiName, dungeonAiName ? "Seeded starting dungeon name." : null, dungeon === dungeonCount ? 1 : 0]
+       ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), ai_name = VALUES(ai_name), ai_name_note = VALUES(ai_name_note), is_final_dungeon = VALUES(is_final_dungeon), active = 1`,
+      [dungeon, `Boss Stage ${dungeon}`, dungeonAiName, "0.3 ten-boss reincarnation gauntlet.", dungeon === dungeonCount ? 1 : 0]
     );
 
     for (let floor = 1; floor <= floorsPerDungeon; floor += 1) {
-      const isBossFloor = floor === floorsPerDungeon;
+      const isBossFloor = true;
       const isFinalBossFloor = dungeon === dungeonCount && floor === floorsPerDungeon;
-      const floorRole = isFinalBossFloor
-        ? "final_boss"
-        : isBossFloor
-          ? "boss"
-          : floor === 1
-          ? "introduction"
-          : "main_danger";
-      const floorAiName = dungeon === 1 && floor === 1 ? startingFloorName : null;
+      const floorRole = isFinalBossFloor ? "final_boss" : dungeon === 1 ? "opening_boss" : "boss";
+      const floorAiName = dungeon === 1 && floor === 1 ? startingFloorName : `Boss ${dungeon}: ${boss?.name || `Unknown Boss ${dungeon}`}`;
 
       await db.execute(
         `INSERT INTO dungeon_floors (dungeon_number, floor_number, canonical_label, ai_name, ai_name_note, floor_role, is_boss_floor, is_final_boss_floor, active)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-         ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), ai_name = COALESCE(dungeon_floors.ai_name, VALUES(ai_name)), ai_name_note = COALESCE(dungeon_floors.ai_name_note, VALUES(ai_name_note)), floor_role = VALUES(floor_role), is_boss_floor = VALUES(is_boss_floor), is_final_boss_floor = VALUES(is_final_boss_floor), active = 1`,
-        [dungeon, floor, `Dungeon ${dungeon} Floor ${floor}`, floorAiName, floorAiName ? "Seeded starting floor name." : null, floorRole, isBossFloor ? 1 : 0, isFinalBossFloor ? 1 : 0]
+         ON DUPLICATE KEY UPDATE canonical_label = VALUES(canonical_label), ai_name = VALUES(ai_name), ai_name_note = VALUES(ai_name_note), floor_role = VALUES(floor_role), is_boss_floor = VALUES(is_boss_floor), is_final_boss_floor = VALUES(is_final_boss_floor), active = 1`,
+        [dungeon, floor, `Boss Stage ${dungeon}`, floorAiName, "0.3 combat boss stage.", floorRole, isBossFloor ? 1 : 0, isFinalBossFloor ? 1 : 0]
       );
     }
+  }
+}
+
+async function seedBossGauntlet() {
+  for (const boss of bossGauntlet) {
+    await db.execute(
+      `INSERT INTO story_bosses (boss_sequence, boss_name, boss_title, source_world, power_rank, dungeon_number, floor_number, profile, combat_style, opening_attitude, active)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 1)
+       ON DUPLICATE KEY UPDATE boss_name = VALUES(boss_name), boss_title = VALUES(boss_title), source_world = VALUES(source_world), power_rank = VALUES(power_rank), dungeon_number = VALUES(dungeon_number), floor_number = VALUES(floor_number), profile = VALUES(profile), combat_style = VALUES(combat_style), opening_attitude = VALUES(opening_attitude), active = 1`,
+      [boss.sequence, boss.name, boss.title, boss.sourceWorld, boss.powerRank, boss.sequence, boss.profile, boss.combatStyle, boss.openingAttitude]
+    );
   }
 }
 
@@ -762,8 +860,8 @@ async function getFloorRuntime(dungeonNumber, floorNumber) {
     return {
       dungeonNumber: dungeon,
       floorNumber: floor,
-      dungeonLabel: `Dungeon ${dungeon}`,
-      floorLabel: `Dungeon ${dungeon} Floor ${floor}`,
+      dungeonLabel: `Boss Stage ${dungeon}`,
+      floorLabel: `Boss Stage ${dungeon}`,
       dungeonAiName: null,
       floorAiName: null,
       floorRole: floor === floorsPerDungeon ? (dungeon === dungeonCount ? "final_boss" : "boss") : floor === 1 ? "introduction" : "main_danger",
@@ -840,7 +938,7 @@ async function createLegacyHeroForPlayer(playerId, runNumber) {
 
   await db.execute(
     `INSERT INTO legacy_heroes (player_id, source_run_number, source_character_id, hero_name, race, class_name, level, xp, hp, max_hp, mana, max_mana, stamina, max_stamina, stats_json, skills_json, inventory_json, titles_json, personality_json, combat_style_json, final_dungeon, final_floor, boss_intro_dialogue, boss_defeat_dialogue)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 5, 3, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 10, 1, ?, ?)
      ON DUPLICATE KEY UPDATE source_character_id = VALUES(source_character_id), hero_name = VALUES(hero_name), race = VALUES(race), class_name = VALUES(class_name), level = VALUES(level), xp = VALUES(xp), hp = VALUES(hp), max_hp = VALUES(max_hp), mana = VALUES(mana), max_mana = VALUES(max_mana), stamina = VALUES(stamina), max_stamina = VALUES(max_stamina), stats_json = VALUES(stats_json), skills_json = VALUES(skills_json), inventory_json = VALUES(inventory_json), titles_json = VALUES(titles_json), personality_json = VALUES(personality_json), combat_style_json = VALUES(combat_style_json)`,
     [
       playerId,
@@ -1121,6 +1219,7 @@ async function loginPlayer({ identifier, password }) {
 module.exports = {
   applyCharacterResourceDeltas,
   awardCharacterSkill,
+  bossGauntlet,
   createLegacyHeroForPlayer,
   ensurePlayerSchema,
   getFloorRuntime,
