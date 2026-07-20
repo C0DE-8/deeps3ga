@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen, X } from 'lucide-react'
+import { ArrowUp, BookOpen, ChevronDown, PanelRightClose, PanelRightOpen, Square, Volume2, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { continueNarrative, createOpeningNarrative, fetchGameState, startGame } from '../../../api/deepSagaApi'
 import { AppHeader } from '../../shell/AppHeader'
@@ -71,6 +71,14 @@ function StatLine({ label, value }) {
 
 function cleanMarkdown(value) {
   return String(value || '').replace(/\*\*/g, '').replace(/\*/g, '').trim()
+}
+
+function sceneText(scene) {
+  return cleanMarkdown((scene?.paragraphs || []).join('\n\n'))
+}
+
+function chapterText(scenes) {
+  return cleanMarkdown((scenes || []).map((scene) => sceneText(scene)).filter(Boolean).join('\n\n'))
 }
 
 const CHAPTERS = [
@@ -228,7 +236,6 @@ function StatsMessage({ sheet }) {
 
       <section className={styles.statsGrid}>
         <StatLine label="Level" value={numberValue(character.level, 1)} />
-        <StatLine label="XP" value={`${numberValue(character.xp, 0)}/${numberValue(character.xpNeeded, 100)}`} />
         <StatLine label="HP" value={`${numberValue(character.hp, 0)}/${numberValue(character.maxHp, 0)}`} />
         <StatLine label="Mana" value={`${numberValue(character.mana, 0)}/${numberValue(character.maxMana, 0)}`} />
         <StatLine label="Stamina" value={`${numberValue(character.stamina, 0)}/${numberValue(character.maxStamina, 0)}`} />
@@ -285,7 +292,9 @@ export function StoryPage() {
   const [error, setError] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [appraisalOpen, setAppraisalOpen] = useState(false)
+  const [readingMode, setReadingMode] = useState('')
   const endRef = useRef(null)
+  const speechRef = useRef(null)
 
   async function loadStory(id) {
     const loaded = await fetchGameState(id)
@@ -356,6 +365,31 @@ export function StoryPage() {
     if (scenes.length) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [scenes.length])
 
+  useEffect(() => () => {
+    window.speechSynthesis?.cancel()
+  }, [])
+
+  function stopReading() {
+    window.speechSynthesis?.cancel()
+    speechRef.current = null
+    setReadingMode('')
+  }
+
+  function readAloud(text, mode) {
+    const cleaned = cleanMarkdown(text)
+    if (!cleaned || !('speechSynthesis' in window)) return
+
+    stopReading()
+    const utterance = new SpeechSynthesisUtterance(cleaned)
+    utterance.rate = 0.92
+    utterance.pitch = 0.95
+    utterance.onend = () => setReadingMode('')
+    utterance.onerror = () => setReadingMode('')
+    speechRef.current = utterance
+    setReadingMode(mode)
+    window.speechSynthesis.speak(utterance)
+  }
+
   async function submit(playerAction, actionKind = 'typed', selectedTarget = null) {
     if (busy || !playerAction.trim()) return
     setBusy(true)
@@ -393,6 +427,10 @@ export function StoryPage() {
   const canAppraise = hasSkill(game?.skills, 'Appraisal')
   const bossProfile = game?.currentBossProfile || {}
   const bossDefeated = boss?.status === 'defeated' || Number(boss?.currentHp ?? 1) <= 0
+  const latestScene = scenes[scenes.length - 1]
+  const latestPageText = sceneText(latestScene)
+  const fullChapterText = chapterText(scenes)
+  const canRead = Boolean(latestPageText) && 'speechSynthesis' in window
 
   return (
     <main className={styles.page}>
@@ -415,7 +453,7 @@ export function StoryPage() {
         <button className={styles.sheetClose} type="button" onClick={() => setSheetOpen(false)} title="Close character sheet">
           <X size={18} />
         </button>
-        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Chapter</dt><dd>{chapter.number}: {chapter.title}</dd><dt>Boss</dt><dd>{currentBossName}</dd>{boss && <><dt>Condition</dt><dd>{bossState}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>XP</dt><dd>{sheet.xp}/{sheet.xp_needed}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl>{canAppraise && boss && <section className={styles.appraisalPanel}><button type="button" onClick={() => setAppraisalOpen((open) => !open)} aria-expanded={appraisalOpen}><span>Appraisal</span><strong>{appraisalOpen ? 'Close enemy read' : 'Read enemy'}</strong><ChevronDown size={18} /></button>{appraisalOpen && <div className={styles.appraisalBody}><small>Observation Complete</small><h3>{currentBossName}</h3>{bossDefeated ? <p>Status: Dead</p> : <><p>{bossProfile.title || 'Boss entity'} · {bossProfile.openingAttitude || 'Unknown attitude'}</p><dl><dt>Vitality</dt><dd>{bossHpValue(boss)}</dd><dt>Threat</dt><dd>Rank {bossProfile.powerRank || bossProfile.power_rank || '?'}</dd><dt>Pattern</dt><dd>{bossProfile.combatStyle || bossProfile.combat_style || 'Still being learned.'}</dd><dt>Read</dt><dd>{bossProfile.profile || bossState}</dd></dl></>}</div>}</section>}</>}
+        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Chapter</dt><dd>{chapter.number}: {chapter.title}</dd><dt>Boss</dt><dd>{currentBossName}</dd>{boss && <><dt>Condition</dt><dd>{bossState}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl>{canAppraise && boss && <section className={styles.appraisalPanel}><button type="button" onClick={() => setAppraisalOpen((open) => !open)} aria-expanded={appraisalOpen}><span>Appraisal</span><strong>{appraisalOpen ? 'Close enemy read' : 'Read enemy'}</strong><ChevronDown size={18} /></button>{appraisalOpen && <div className={styles.appraisalBody}><small>Observation Complete</small><h3>{currentBossName}</h3>{bossDefeated ? <p>Status: Dead</p> : <><p>{bossProfile.title || 'Boss entity'} · {bossProfile.openingAttitude || 'Unknown attitude'}</p><dl><dt>Vitality</dt><dd>{bossHpValue(boss)}</dd><dt>Threat</dt><dd>Rank {bossProfile.powerRank || bossProfile.power_rank || '?'}</dd><dt>Pattern</dt><dd>{bossProfile.combatStyle || bossProfile.combat_style || 'Still being learned.'}</dd><dt>Read</dt><dd>{bossProfile.profile || bossState}</dd></dl></>}</div>}</section>}</>}
       </aside>
 
       <section className={styles.reader}>
@@ -471,6 +509,25 @@ export function StoryPage() {
             </article>
           )}
         </div>
+
+        {!busy && canRead && (
+          <section className={styles.readControls} aria-label="Narrator read aloud controls">
+            <button type="button" onClick={() => readAloud(latestPageText, 'page')} disabled={readingMode === 'page'} title="Read latest page">
+              <Volume2 size={18} />
+              <span>{readingMode === 'page' ? 'Reading page' : 'Read latest page'}</span>
+            </button>
+            <button type="button" onClick={() => readAloud(fullChapterText, 'chapter')} disabled={readingMode === 'chapter'} title="Read full chapter">
+              <BookOpen size={18} />
+              <span>{readingMode === 'chapter' ? 'Reading chapter' : 'Read full chapter'}</span>
+            </button>
+            {readingMode && (
+              <button type="button" onClick={stopReading} title="Stop reading">
+                <Square size={16} />
+                <span>Stop</span>
+              </button>
+            )}
+          </section>
+        )}
 
         {error && <p className={styles.error} role="alert">{error}</p>}
         {busy && scenes.length > 0 && <PageLoader compact />}

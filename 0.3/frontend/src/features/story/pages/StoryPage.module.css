@@ -97,6 +97,11 @@
 .playerAction { padding: 14px clamp(24px, 5vw, 48px); border-bottom: 1px solid #d1c7b6; border-left: 0; background: linear-gradient(90deg, #e5e1d7, #eee9dd); }
 .playerAction span { color: #775434; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
 .playerAction p { margin-top: 4px; color: #39352f; font-weight: 700; }
+.readControls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; padding-top: 18px; border-top: 1px solid #cfc7b7; }
+.readControls button { min-height: 40px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #b9ac98; border-radius: 5px; padding: 8px 12px; color: #312b23; background: #f8f5ed; font: inherit; font-weight: 750; cursor: pointer; }
+.readControls button:hover:not(:disabled) { border-color: #7b5a35; background: #fffdf7; }
+.readControls button:disabled { opacity: .62; cursor: default; }
+.readControls svg { color: #765531; }
 .actions { padding-top: 28px; border-top: 1px solid #cfc7b7; }
 .choicePrompt { margin-bottom: 12px; color: #5f5548; font-family: Georgia, serif; font-size: 1.02rem; font-style: italic; }
 .choiceList { display: grid; gap: 9px; }
@@ -164,6 +169,8 @@
   .storyHeading { font-size: 1.08rem; }
   .playerAction { padding: 13px 18px; }
   .playerAction p { font-size: .94rem; line-height: 1.45; overflow-wrap: anywhere; }
+  .readControls { margin-top: 16px; padding-top: 16px; }
+  .readControls button { flex: 1 1 160px; justify-content: center; min-height: 44px; }
   .actions { padding-top: 22px; }
   .choiceList > button { min-height: 76px; padding: 13px 14px; }
   .choiceList strong { font-size: 1rem; line-height: 1.3; }
