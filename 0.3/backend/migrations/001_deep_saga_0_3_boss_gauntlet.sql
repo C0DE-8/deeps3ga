@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS story_bosses (
   boss_title VARCHAR(160) NOT NULL,
   source_world VARCHAR(120) NOT NULL,
   power_rank INT NOT NULL,
+  max_hp INT NOT NULL DEFAULT 100,
   dungeon_number INT NOT NULL,
   floor_number INT NOT NULL DEFAULT 1,
   profile TEXT NOT NULL,
@@ -79,6 +80,23 @@ CREATE TABLE IF NOT EXISTS story_bosses (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_story_bosses_stage (dungeon_number, floor_number),
   INDEX idx_story_bosses_power (power_rank)
+);
+
+CREATE TABLE IF NOT EXISTS player_boss_progress (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  player_id VARCHAR(32) NOT NULL,
+  run_number INT NOT NULL,
+  boss_sequence INT NOT NULL,
+  boss_name VARCHAR(120) NOT NULL,
+  current_hp INT NOT NULL,
+  max_hp INT NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'active',
+  defeated_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_player_run_boss (player_id, run_number, boss_sequence),
+  INDEX idx_player_boss_progress_player (player_id, run_number),
+  INDEX idx_player_boss_progress_status (status)
 );
 
 CREATE TABLE IF NOT EXISTS player_characters (
@@ -268,22 +286,23 @@ ON DUPLICATE KEY UPDATE
   is_final_boss_floor = VALUES(is_final_boss_floor),
   active = 1;
 
-INSERT INTO story_bosses (boss_sequence, boss_name, boss_title, source_world, power_rank, dungeon_number, floor_number, profile, combat_style, opening_attitude, active) VALUES
-(1, 'Gloria Taratect', 'Evolved Giant Spider', 'Spider Reincarnation', 10, 1, 1, 'A durable evolved spider that serves the Queen Taratect and tests whether a newborn soul understands movement, traps, and timing.', 'web pressure, armored legs, sudden lunges', 'cocky and dismissive', 1),
-(2, 'Clayman', 'Manipulative Demon Lord', 'Slime Reincarnation', 9, 2, 1, 'A schemer who relies on puppets, fear, mind pressure, and staged advantages more than raw strength.', 'mind control, summoned soldiers, dirty bargains', 'condescending', 1),
-(3, 'Araba', 'Earth Dragon', 'Spider Reincarnation', 8, 3, 1, 'A disciplined dragon whose raw physical control forces the player to earn every opening.', 'stone breath, disciplined counters, crushing endurance', 'silent and honorable', 1),
-(4, 'Mother (Queen Taratect)', 'Queen Spider', 'Spider Reincarnation', 7, 4, 1, 'A giant queen spider commanding countless offspring through pressure, instinct, and brood authority.', 'brood control, psychic pressure, layered webs', 'possessive and predatory', 1),
-(5, 'Hinata Sakaguchi', 'Holy Knight Commander', 'Slime Reincarnation', 6, 5, 1, 'A master swordswoman whose anti-monster techniques punish reckless monster instincts.', 'holy sword forms, analysis, anti-monster seals', 'coldly focused', 1),
-(6, 'Demon Lord Ariel', 'Ancient Demon Ruler', 'Spider Reincarnation', 5, 6, 1, 'A centuries-old demon ruler with overwhelming experience and calm battlefield cruelty.', 'ancient magic, close combat mastery, regeneration', 'amused but alert', 1),
-(7, 'Milim Nava', 'Catastrophe Demon Lord', 'Slime Reincarnation', 4, 7, 1, 'A childlike ancient demon lord whose cheerful mood hides nation-breaking force.', 'catastrophic strength, flight, explosive magic', 'playful and careless', 1),
-(8, 'Veldora Tempest', 'Storm Dragon', 'Slime Reincarnation', 3, 8, 1, 'A True Dragon of storm and destruction whose presence turns the arena into weather.', 'storm aura, dragon magic, destructive breath', 'loudly overconfident', 1),
-(9, 'Guy Crimson', 'Primordial Demon Lord', 'Slime Reincarnation', 2, 9, 1, 'The strongest demon lord, feared for near-unmatched power, patience, and impossible reads.', 'primordial magic, perfect counters, domination pressure', 'politely terrifying', 1),
-(10, 'Administrator D', 'Mirror Administrator', 'Spider Reincarnation', 1, 10, 1, 'A godlike administrator who appears as the player''s perfected self: what the soul could become through ruthless effort.', 'system rewriting, mirror choices, impossible observation', 'playful, clinical, and personal', 1)
+INSERT INTO story_bosses (boss_sequence, boss_name, boss_title, source_world, power_rank, max_hp, dungeon_number, floor_number, profile, combat_style, opening_attitude, active) VALUES
+(1, 'Gloria Taratect', 'Evolved Giant Spider', 'Spider Reincarnation', 10, 120, 1, 1, 'A durable evolved spider that serves the Queen Taratect and tests whether a newborn soul understands movement, traps, and timing.', 'web pressure, armored legs, sudden lunges', 'cocky and dismissive', 1),
+(2, 'Clayman', 'Manipulative Demon Lord', 'Slime Reincarnation', 9, 180, 2, 1, 'A schemer who relies on puppets, fear, mind pressure, and staged advantages more than raw strength.', 'mind control, summoned soldiers, dirty bargains', 'condescending', 1),
+(3, 'Araba', 'Earth Dragon', 'Spider Reincarnation', 8, 260, 3, 1, 'A disciplined dragon whose raw physical control forces the player to earn every opening.', 'stone breath, disciplined counters, crushing endurance', 'silent and honorable', 1),
+(4, 'Mother (Queen Taratect)', 'Queen Spider', 'Spider Reincarnation', 7, 340, 4, 1, 'A giant queen spider commanding countless offspring through pressure, instinct, and brood authority.', 'brood control, psychic pressure, layered webs', 'possessive and predatory', 1),
+(5, 'Hinata Sakaguchi', 'Holy Knight Commander', 'Slime Reincarnation', 6, 430, 5, 1, 'A master swordswoman whose anti-monster techniques punish reckless monster instincts.', 'holy sword forms, analysis, anti-monster seals', 'coldly focused', 1),
+(6, 'Demon Lord Ariel', 'Ancient Demon Ruler', 'Spider Reincarnation', 5, 540, 6, 1, 'A centuries-old demon ruler with overwhelming experience and calm battlefield cruelty.', 'ancient magic, close combat mastery, regeneration', 'amused but alert', 1),
+(7, 'Milim Nava', 'Catastrophe Demon Lord', 'Slime Reincarnation', 4, 680, 7, 1, 'A childlike ancient demon lord whose cheerful mood hides nation-breaking force.', 'catastrophic strength, flight, explosive magic', 'playful and careless', 1),
+(8, 'Veldora Tempest', 'Storm Dragon', 'Slime Reincarnation', 3, 840, 8, 1, 'A True Dragon of storm and destruction whose presence turns the arena into weather.', 'storm aura, dragon magic, destructive breath', 'loudly overconfident', 1),
+(9, 'Guy Crimson', 'Primordial Demon Lord', 'Slime Reincarnation', 2, 1020, 9, 1, 'The strongest demon lord, feared for near-unmatched power, patience, and impossible reads.', 'primordial magic, perfect counters, domination pressure', 'politely terrifying', 1),
+(10, 'Administrator D', 'Mirror Administrator', 'Spider Reincarnation', 1, 1400, 10, 1, 'A godlike administrator who appears as the player''s perfected self: what the soul could become through ruthless effort.', 'system rewriting, mirror choices, impossible observation', 'playful, clinical, and personal', 1)
 ON DUPLICATE KEY UPDATE
   boss_name = VALUES(boss_name),
   boss_title = VALUES(boss_title),
   source_world = VALUES(source_world),
   power_rank = VALUES(power_rank),
+  max_hp = VALUES(max_hp),
   dungeon_number = VALUES(dungeon_number),
   floor_number = VALUES(floor_number),
   profile = VALUES(profile),

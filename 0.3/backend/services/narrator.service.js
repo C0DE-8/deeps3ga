@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, createLegacyHeroForPlayer, evolutionCatalog, getPlayerSheet, skillNames } = require("./player.service");
+const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterSkill, bossGauntlet, createLegacyHeroForPlayer, evolutionCatalog, getBossProgress, getPlayerSheet, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -245,7 +245,7 @@ async function loadImportantMemories(player, limit = 12) {
   }));
 }
 
-function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = []) {
+function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = [], bossProgress = null) {
   const body = player.currentBody || {};
   const character = player.activeCharacter || {};
   const runtime = player.floorRuntime || {};
@@ -292,6 +292,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
     },
     bossGauntlet: {
       currentBoss,
+      currentBossHp: bossProgress,
       bosses: bossGauntlet,
       totalBosses: bossGauntlet.length,
       completedBosses: Math.max(0, dungeonNumber - 1),
@@ -410,6 +411,15 @@ function stateHasResourceDelta(stateChanges) {
   );
 }
 
+function readBossHpDelta(stateChanges) {
+  return Number(
+    stateChanges.bossHpDelta ??
+    stateChanges.enemyHpDelta ??
+    stateChanges.currentBossHpDelta ??
+    0
+  );
+}
+
 function normalizeCharacterStatus(stateChanges) {
   const requested = String(stateChanges.characterStatus || stateChanges.playerStatus || "").trim().toLowerCase();
   const endingType = String(stateChanges.endingType || "").trim().toLowerCase();
@@ -423,6 +433,14 @@ function normalizeCharacterStatus(stateChanges) {
   }
 
   return "";
+}
+
+function isDeathEnding(scene) {
+  const stateChanges = scene.stateChanges || {};
+  const endingType = String(stateChanges.endingType || "").trim().toLowerCase();
+  const status = String(stateChanges.characterStatus || stateChanges.playerStatus || "").trim().toLowerCase();
+
+  return endingType === "death" || status === "dead";
 }
 
 async function applyAcceptedStateChanges(context, scene) {
@@ -451,6 +469,37 @@ async function applyAcceptedStateChanges(context, scene) {
       ...(scene.recordChanges || []),
       ...resourceRecordChanges(resourceResult)
     ];
+  }
+
+  const bossHpDelta = readBossHpDelta(stateChanges);
+  if (bossHpDelta) {
+    const bossResult = await applyBossHpDelta({
+      playerId: context.player?.playerId,
+      runNumber: Number(context.player?.run || 1),
+      characterId,
+      bossSequence: Number(context.currentPosition?.dungeon || 1),
+      hpDelta: bossHpDelta
+    });
+
+    if (bossResult) {
+      scene.appliedBoss = bossResult;
+      scene.stateChanges = {
+        ...stateChanges,
+        bossCurrentHp: bossResult.after.currentHp,
+        bossMaxHp: bossResult.after.maxHp,
+        bossDefeated: bossResult.defeated,
+        advancedToStage: bossResult.advancedToStage
+      };
+      scene.recordChanges = [
+        ...(scene.recordChanges || []),
+        {
+          type: "boss",
+          text: bossResult.defeated
+            ? `${bossResult.after.bossName} HP ${bossResult.before.currentHp}/${bossResult.before.maxHp} -> 0/${bossResult.after.maxHp}. Boss defeated.`
+            : `${bossResult.after.bossName} HP ${bossResult.before.currentHp}/${bossResult.before.maxHp} -> ${bossResult.after.currentHp}/${bossResult.after.maxHp}`
+        }
+      ];
+    }
   }
 
   const unlocked = [];
@@ -483,7 +532,7 @@ async function applyAcceptedStateChanges(context, scene) {
       ...(scene.recordChanges || []),
       {
         type: "book",
-        text: characterStatus === "dead" ? "Book ended: death" : "Book completed: victory"
+        text: characterStatus === "dead" ? "Chapter ended: reincarnation begins" : "Book completed: victory"
       }
     ];
   }
@@ -561,6 +610,34 @@ async function maybeCreateLegacyHero(context, scene) {
   }
 
   return createLegacyHeroForPlayer(context.player.playerId, Number(context.player.run || 1));
+}
+
+async function maybeReincarnateAfterDeath(context, scene) {
+  if (!isDeathEnding(scene)) {
+    return null;
+  }
+
+  const deathMemory = [
+    `Run ${Number(context.player?.run || 1)} ended in death.`,
+    String(scene.memoryUpdates?.[0]?.text || scene.narration || "The last body died.").slice(0, 600)
+  ].join(" ");
+
+  const reincarnation = await reincarnatePlayerAfterDeath(
+    context.player.playerId,
+    Number(context.player.run || 1),
+    deathMemory
+  );
+
+  scene.reincarnation = {
+    newRun: reincarnation.run,
+    newBody: {
+      race: reincarnation.body.race,
+      archetype: reincarnation.body.archetype,
+      evolutionPaths: reincarnation.body.evolutionPaths
+    }
+  };
+
+  return scene.reincarnation;
 }
 
 async function saveAiLocationNames(context, scene) {
@@ -649,12 +726,18 @@ async function createStoryScene(player, playerAction, recentMessages) {
   const sqlRecentMessages = await loadRecentStoryMessages(player);
   const importantMemories = await loadImportantMemories(player);
   const sheet = await getPlayerSheet(player.playerId);
+  const bossProgress = await getBossProgress(
+    player.playerId,
+    Number(player.currentRun || 1),
+    Number(player.floorRuntime?.dungeonNumber || player.activeCharacter?.dungeon || player.currentBody?.dungeon || 1)
+  );
   const context = buildContext(
     player,
     playerAction,
     sqlRecentMessages.length ? sqlRecentMessages : recentMessages,
     importantMemories,
-    sheet?.skills || []
+    sheet?.skills || [],
+    bossProgress
   );
 
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "#") {
@@ -671,6 +754,7 @@ async function createStoryScene(player, playerAction, recentMessages) {
   await applyAcceptedStateChanges(context, scene);
   await saveAiLocationNames(context, scene);
   await saveStoryTurn(context, playerAction, scene);
+  await maybeReincarnateAfterDeath(context, scene);
   const legacyHero = await maybeCreateLegacyHero(context, scene);
   if (legacyHero) {
     scene.legacyHero = legacyHero;

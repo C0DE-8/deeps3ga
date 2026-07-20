@@ -157,28 +157,6 @@ function StoryText({ paragraphs }) {
   )
 }
 
-function RecordChanges({ changes }) {
-  const visible = (Array.isArray(changes) ? changes : [])
-    .map((change) => typeof change === 'string' ? { type: 'change', text: change } : change)
-    .filter((change) => String(change?.text || '').trim())
-
-  if (!visible.length) return null
-
-  return (
-    <section className={styles.recordChanges}>
-      <small>The record changes</small>
-      <ul>
-        {visible.map((change, index) => (
-          <li key={`${change.type || 'change'}-${change.text}-${index}`}>
-            <span>{change.type || 'change'}</span>
-            <strong>{change.text}</strong>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
 function StatsMessage({ sheet }) {
   const character = sheet?.character || {}
   const runtime = sheet?.floorRuntime || {}
@@ -255,6 +233,14 @@ export function StoryPage() {
 
   async function loadStory(id) {
     const loaded = await fetchGameState(id)
+    if (!storyEntries(loaded).length) {
+      const opening = await createOpeningNarrative()
+      const reloaded = await fetchGameState(id)
+      setGame(reloaded)
+      setChoices(opening.choices || latestChoices(reloaded))
+      return
+    }
+
     setGame(loaded)
     setChoices(latestChoices(loaded))
   }
@@ -302,6 +288,7 @@ export function StoryPage() {
   const messages = useMemo(() => storyEntries(game), [game])
   const scenes = useMemo(() => storyScenes(messages, game), [messages, game])
   const sheet = game?.characterSheet
+  const boss = game?.currentBoss
   const ended = Boolean(game?.run?.book_ended || game?.run?.character_status !== 'alive' || game?.run?.status === 'completed')
   const endingLabel = game?.run?.ending_type === 'victory'
     ? 'Book complete'
@@ -354,6 +341,7 @@ export function StoryPage() {
           <span><small>Stamina</small><strong>{sheet.stamina}/{sheet.max_stamina}</strong></span>
           <span><small>Level</small><strong>{sheet.level}</strong></span>
           <span><small>Boss stage</small><strong>{game.currentDungeon.boss_stage || game.currentDungeon.dungeon_number}/10</strong></span>
+          {boss && <span><small>Boss HP</small><strong>{boss.currentHp}/{boss.maxHp}</strong></span>}
           <span className={styles.position}><small>{ended ? endingLabel : 'Current boss'}</small><strong>{game.currentFloor.floor_name || game.currentDungeon.name}</strong></span>
           <button type="button" onClick={() => setSheetOpen((open) => !open)} title={sheetOpen ? 'Close character sheet' : 'Open character sheet'}>
             {sheetOpen ? <PanelRightClose /> : <PanelRightOpen />}
@@ -362,7 +350,7 @@ export function StoryPage() {
       )}
 
       <aside className={`${styles.sheet} ${sheetOpen ? styles.sheetOpen : ''}`} aria-hidden={!sheetOpen}>
-        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Boss</dt><dd>Stage {game.currentDungeon.boss_stage || game.currentDungeon.dungeon_number}/10</dd><dt>Gold</dt><dd>{sheet.gold}</dd><dt>XP</dt><dd>{sheet.xp}/{sheet.xp_needed}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl></>}
+        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Boss</dt><dd>Stage {game.currentDungeon.boss_stage || game.currentDungeon.dungeon_number}/10</dd>{boss && <><dt>Boss HP</dt><dd>{boss.currentHp}/{boss.maxHp}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>XP</dt><dd>{sheet.xp}/{sheet.xp_needed}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl></>}
       </aside>
 
       <section className={styles.reader}>
@@ -404,7 +392,6 @@ export function StoryPage() {
                         ) : (
                           <>
                             <StoryText paragraphs={scene.paragraphs} />
-                            <RecordChanges changes={scene.recordChanges} />
                           </>
                         )}
                       </div>

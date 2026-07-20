@@ -138,6 +138,7 @@ const bossGauntlet = [
     title: "Evolved Giant Spider",
     sourceWorld: "Spider Reincarnation",
     powerRank: 10,
+    maxHp: 120,
     profile: "A durable evolved spider that serves the Queen Taratect and tests whether a newborn soul understands movement, traps, and timing.",
     combatStyle: "web pressure, armored legs, sudden lunges",
     openingAttitude: "cocky and dismissive"
@@ -148,6 +149,7 @@ const bossGauntlet = [
     title: "Manipulative Demon Lord",
     sourceWorld: "Slime Reincarnation",
     powerRank: 9,
+    maxHp: 180,
     profile: "A schemer who relies on puppets, fear, mind pressure, and staged advantages more than raw strength.",
     combatStyle: "mind control, summoned soldiers, dirty bargains",
     openingAttitude: "condescending"
@@ -158,6 +160,7 @@ const bossGauntlet = [
     title: "Earth Dragon",
     sourceWorld: "Spider Reincarnation",
     powerRank: 8,
+    maxHp: 260,
     profile: "A disciplined dragon whose raw physical control forces the player to earn every opening.",
     combatStyle: "stone breath, disciplined counters, crushing endurance",
     openingAttitude: "silent and honorable"
@@ -168,6 +171,7 @@ const bossGauntlet = [
     title: "Queen Spider",
     sourceWorld: "Spider Reincarnation",
     powerRank: 7,
+    maxHp: 340,
     profile: "A giant queen spider commanding countless offspring through pressure, instinct, and brood authority.",
     combatStyle: "brood control, psychic pressure, layered webs",
     openingAttitude: "possessive and predatory"
@@ -178,6 +182,7 @@ const bossGauntlet = [
     title: "Holy Knight Commander",
     sourceWorld: "Slime Reincarnation",
     powerRank: 6,
+    maxHp: 430,
     profile: "A master swordswoman whose anti-monster techniques punish reckless monster instincts.",
     combatStyle: "holy sword forms, analysis, anti-monster seals",
     openingAttitude: "coldly focused"
@@ -188,6 +193,7 @@ const bossGauntlet = [
     title: "Ancient Demon Ruler",
     sourceWorld: "Spider Reincarnation",
     powerRank: 5,
+    maxHp: 540,
     profile: "A centuries-old demon ruler with overwhelming experience and calm battlefield cruelty.",
     combatStyle: "ancient magic, close combat mastery, regeneration",
     openingAttitude: "amused but alert"
@@ -198,6 +204,7 @@ const bossGauntlet = [
     title: "Catastrophe Demon Lord",
     sourceWorld: "Slime Reincarnation",
     powerRank: 4,
+    maxHp: 680,
     profile: "A childlike ancient demon lord whose cheerful mood hides nation-breaking force.",
     combatStyle: "catastrophic strength, flight, explosive magic",
     openingAttitude: "playful and careless"
@@ -208,6 +215,7 @@ const bossGauntlet = [
     title: "Storm Dragon",
     sourceWorld: "Slime Reincarnation",
     powerRank: 3,
+    maxHp: 840,
     profile: "A True Dragon of storm and destruction whose presence turns the arena into weather.",
     combatStyle: "storm aura, dragon magic, destructive breath",
     openingAttitude: "loudly overconfident"
@@ -218,6 +226,7 @@ const bossGauntlet = [
     title: "Primordial Demon Lord",
     sourceWorld: "Slime Reincarnation",
     powerRank: 2,
+    maxHp: 1020,
     profile: "The strongest demon lord, feared for near-unmatched power, patience, and impossible reads.",
     combatStyle: "primordial magic, perfect counters, domination pressure",
     openingAttitude: "politely terrifying"
@@ -228,6 +237,7 @@ const bossGauntlet = [
     title: "Mirror Administrator",
     sourceWorld: "Spider Reincarnation",
     powerRank: 1,
+    maxHp: 1400,
     profile: "A godlike administrator who appears as the player's perfected self: what the soul could become through ruthless effort.",
     combatStyle: "system rewriting, mirror choices, impossible observation",
     openingAttitude: "playful, clinical, and personal"
@@ -501,6 +511,7 @@ async function ensureBossSchema() {
       boss_title VARCHAR(160) NOT NULL,
       source_world VARCHAR(120) NOT NULL,
       power_rank INT NOT NULL,
+      max_hp INT NOT NULL DEFAULT 100,
       dungeon_number INT NOT NULL,
       floor_number INT NOT NULL DEFAULT 1,
       profile TEXT NOT NULL,
@@ -513,6 +524,39 @@ async function ensureBossSchema() {
       INDEX idx_story_bosses_power (power_rank)
     )
   `);
+
+  await ensureBossColumn("max_hp", "INT NOT NULL DEFAULT 100");
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS player_boss_progress (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      player_id VARCHAR(32) NOT NULL,
+      run_number INT NOT NULL,
+      boss_sequence INT NOT NULL,
+      boss_name VARCHAR(120) NOT NULL,
+      current_hp INT NOT NULL,
+      max_hp INT NOT NULL,
+      status VARCHAR(40) NOT NULL DEFAULT 'active',
+      defeated_at TIMESTAMP NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_player_run_boss (player_id, run_number, boss_sequence),
+      INDEX idx_player_boss_progress_player (player_id, run_number),
+      INDEX idx_player_boss_progress_status (status)
+    )
+  `);
+}
+
+async function ensureBossColumn(columnName, definition) {
+  try {
+    await db.execute(`ALTER TABLE story_bosses ADD COLUMN ${columnName} ${definition}`);
+  } catch (error) {
+    const message = String(error.message || "").toLowerCase();
+
+    if (!message.includes("duplicate") && !message.includes("exists")) {
+      throw error;
+    }
+  }
 }
 
 async function ensureCharacterSchema() {
@@ -725,10 +769,10 @@ async function seedWorldProgression() {
 async function seedBossGauntlet() {
   for (const boss of bossGauntlet) {
     await db.execute(
-      `INSERT INTO story_bosses (boss_sequence, boss_name, boss_title, source_world, power_rank, dungeon_number, floor_number, profile, combat_style, opening_attitude, active)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 1)
-       ON DUPLICATE KEY UPDATE boss_name = VALUES(boss_name), boss_title = VALUES(boss_title), source_world = VALUES(source_world), power_rank = VALUES(power_rank), dungeon_number = VALUES(dungeon_number), floor_number = VALUES(floor_number), profile = VALUES(profile), combat_style = VALUES(combat_style), opening_attitude = VALUES(opening_attitude), active = 1`,
-      [boss.sequence, boss.name, boss.title, boss.sourceWorld, boss.powerRank, boss.sequence, boss.profile, boss.combatStyle, boss.openingAttitude]
+      `INSERT INTO story_bosses (boss_sequence, boss_name, boss_title, source_world, power_rank, max_hp, dungeon_number, floor_number, profile, combat_style, opening_attitude, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 1)
+       ON DUPLICATE KEY UPDATE boss_name = VALUES(boss_name), boss_title = VALUES(boss_title), source_world = VALUES(source_world), power_rank = VALUES(power_rank), max_hp = VALUES(max_hp), dungeon_number = VALUES(dungeon_number), floor_number = VALUES(floor_number), profile = VALUES(profile), combat_style = VALUES(combat_style), opening_attitude = VALUES(opening_attitude), active = 1`,
+      [boss.sequence, boss.name, boss.title, boss.sourceWorld, boss.powerRank, boss.maxHp, boss.sequence, boss.profile, boss.combatStyle, boss.openingAttitude]
     );
   }
 }
@@ -1007,6 +1051,46 @@ async function createLegacyHeroForPlayer(playerId, runNumber) {
   return rows[0] || null;
 }
 
+async function reincarnatePlayerAfterDeath(playerId, previousRunNumber, deathMemory = "") {
+  await ensurePlayerSchema();
+
+  const previousRun = Number(previousRunNumber || 1);
+  const nextRun = previousRun + 1;
+  const body = randomMonsterBody();
+  const memoryText = String(deathMemory || "The last body died, and the soul was dragged back to the beginning.").trim().slice(0, 4000);
+
+  await db.execute("UPDATE player_characters SET active_character = 0, status = 'dead' WHERE player_id = ? AND run_number = ?", [playerId, previousRun]);
+  await db.execute(
+    "UPDATE deep_saga_players SET current_run = ?, current_body = ?, memory_log = JSON_ARRAY_APPEND(COALESCE(memory_log, JSON_ARRAY()), '$', ?) WHERE player_id = ?",
+    [nextRun, JSON.stringify(body), memoryText, playerId]
+  );
+
+  const characterId = await createCharacterForPlayer(playerId, nextRun, body);
+
+  await db.execute(
+    `INSERT INTO story_memory (player_id, run_number, character_id, memory_type, memory_text, facts_json, importance, remembered_across_lives)
+     VALUES (?, ?, ?, 'reincarnation', ?, ?, 5, 1)`,
+    [
+      playerId,
+      nextRun,
+      characterId,
+      memoryText,
+      JSON.stringify({
+        previousRun,
+        nextRun,
+        newBody: body.race,
+        reason: "death_reincarnation"
+      })
+    ]
+  );
+
+  return {
+    run: nextRun,
+    body,
+    characterId
+  };
+}
+
 async function getPlayerSheet(playerId) {
   await ensurePlayerSchema();
 
@@ -1017,6 +1101,9 @@ async function getPlayerSheet(playerId) {
 
   const player = serializePlayer(row);
   const character = player.activeCharacter;
+  const bossProgress = character
+    ? await getBossProgress(player.playerId, player.currentRun, character.dungeon || 1)
+    : null;
   let skills = [];
 
   if (character?.id) {
@@ -1056,8 +1143,87 @@ async function getPlayerSheet(playerId) {
     character,
     currentBody: player.currentBody,
     floorRuntime: player.floorRuntime,
+    bossProgress,
     skills,
     memoryLog: player.memoryLog || []
+  };
+}
+
+async function getBossProgress(playerId, runNumber, bossSequence) {
+  await ensurePlayerSchema();
+
+  const sequence = Math.max(1, Math.min(Number(bossSequence || 1), dungeonCount));
+  const run = Number(runNumber || 1);
+  const boss = bossGauntlet.find((entry) => entry.sequence === sequence) || bossGauntlet[0];
+  const maxHp = Number(boss.maxHp || 100);
+
+  await db.execute(
+    `INSERT INTO player_boss_progress (player_id, run_number, boss_sequence, boss_name, current_hp, max_hp, status)
+     VALUES (?, ?, ?, ?, ?, ?, 'active')
+     ON DUPLICATE KEY UPDATE boss_name = VALUES(boss_name), max_hp = VALUES(max_hp), current_hp = LEAST(current_hp, VALUES(max_hp))`,
+    [playerId, run, sequence, boss.name, maxHp, maxHp]
+  );
+
+  const rows = await db.query(
+    `SELECT player_id, run_number, boss_sequence, boss_name, current_hp, max_hp, status, defeated_at
+       FROM player_boss_progress
+      WHERE player_id = ? AND run_number = ? AND boss_sequence = ?
+      LIMIT 1`,
+    [playerId, run, sequence]
+  );
+
+  const row = rows[0] || {};
+  return {
+    bossSequence: Number(row.boss_sequence || sequence),
+    bossName: row.boss_name || boss.name,
+    currentHp: Number(row.current_hp ?? maxHp),
+    maxHp: Number(row.max_hp || maxHp),
+    status: row.status || "active",
+    defeatedAt: row.defeated_at || null
+  };
+}
+
+async function applyBossHpDelta({ playerId, runNumber, characterId, bossSequence, hpDelta }) {
+  await ensurePlayerSchema();
+
+  const delta = Math.max(-99999, Math.min(Number(hpDelta || 0), 99999));
+  if (!playerId || !runNumber || !bossSequence || !delta) {
+    return null;
+  }
+
+  const before = await getBossProgress(playerId, runNumber, bossSequence);
+  if (before.status === "defeated") {
+    return { before, after: before, delta: 0, defeated: true, alreadyDefeated: true };
+  }
+
+  const nextHp = Math.max(0, Math.min(before.maxHp, before.currentHp + delta));
+  const defeated = nextHp <= 0;
+
+  await db.execute(
+    `UPDATE player_boss_progress
+        SET current_hp = ?, status = ?, defeated_at = CASE WHEN ? = 1 THEN COALESCE(defeated_at, CURRENT_TIMESTAMP) ELSE defeated_at END
+      WHERE player_id = ? AND run_number = ? AND boss_sequence = ?`,
+    [nextHp, defeated ? "defeated" : "active", defeated ? 1 : 0, playerId, Number(runNumber || 1), Number(bossSequence || 1)]
+  );
+
+  const after = await getBossProgress(playerId, runNumber, bossSequence);
+  let advancedToStage = null;
+
+  if (defeated && characterId && Number(bossSequence) < dungeonCount) {
+    advancedToStage = Number(bossSequence) + 1;
+    await db.execute(
+      "UPDATE player_characters SET dungeon = ?, floor = 1 WHERE id = ?",
+      [advancedToStage, characterId]
+    );
+    await getBossProgress(playerId, runNumber, advancedToStage);
+  }
+
+  return {
+    before,
+    after,
+    delta,
+    defeated,
+    advancedToStage
   };
 }
 
@@ -1251,12 +1417,14 @@ async function loginPlayer({ identifier, password }) {
 
 module.exports = {
   applyCharacterResourceDeltas,
+  applyBossHpDelta,
   awardCharacterSkill,
   bossGauntlet,
   createLegacyHeroForPlayer,
   ensurePlayerSchema,
   evolutionCatalog,
   getFloorRuntime,
+  getBossProgress,
   getPlayerSheet,
   listNarratorPersonas,
   loginPlayer,
@@ -1264,6 +1432,7 @@ module.exports = {
   normalizePersona,
   normalizeUsername,
   randomMonsterBody,
+  reincarnatePlayerAfterDeath,
   registerPlayer,
   serializePlayer,
   skillNames,
