@@ -255,6 +255,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
   const dungeonNumber = Number(runtime.dungeonNumber || character.dungeon || body.dungeon || 1);
   const floorNumber = Number(runtime.floorNumber || character.floor || body.floor || 1);
   const currentBoss = bossGauntlet.find((boss) => boss.sequence === dungeonNumber) || bossGauntlet[0];
+  const characterStatus = String(character.status || body.status || "newly reincarnated").toLowerCase();
 
   return {
     player: {
@@ -287,7 +288,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       isFinalBossFloor: Boolean(runtime.isFinalBossFloor || (dungeonNumber === bossGauntlet.length && floorNumber === 1)),
       totalDungeons: bossGauntlet.length,
       floorsPerDungeon: 1,
-      status: character.status || body.status || "newly reincarnated"
+      status: characterStatus
     },
     bossGauntlet: {
       currentBoss,
@@ -299,6 +300,8 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
     sceneState: {
       isOpeningScene: !action && normalizedRecentMessages.length === 0,
       hasRecentStory: normalizedRecentMessages.length > 0,
+      bookEnded: characterStatus === "dead" || characterStatus === "completed",
+      endingType: characterStatus === "dead" ? "death" : characterStatus === "completed" ? "victory" : null,
       combatPressure
     },
     memoryLog: [
@@ -321,6 +324,7 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       "Version 0.3 is a ten-boss reincarnation combat gauntlet. The current dungeon number is the current boss stage.",
       "The player must defeat Boss 1 through Boss 10 in order. The first boss is cocky and easier than later bosses, but the player can still die from bad choices.",
       "Every reply must resolve the player action, continue the current scene, and provide 3 to 5 meaningful choices.",
+      "If sceneState.bookEnded is true, do not continue combat. Return a reflective epilogue or restart-facing closure for the already-ended book.",
       combatPressure.instruction,
       "Choices must be specific story actions, not generic commands.",
       "Return JSON only."
@@ -401,6 +405,21 @@ function stateHasResourceDelta(stateChanges) {
   );
 }
 
+function normalizeCharacterStatus(stateChanges) {
+  const requested = String(stateChanges.characterStatus || stateChanges.playerStatus || "").trim().toLowerCase();
+  const endingType = String(stateChanges.endingType || "").trim().toLowerCase();
+
+  if (requested === "dead" || endingType === "death") {
+    return "dead";
+  }
+
+  if (requested === "completed" || endingType === "victory" || stateChanges.runCompleted) {
+    return "completed";
+  }
+
+  return "";
+}
+
 async function applyAcceptedStateChanges(context, scene) {
   const characterId = context.activeCharacter?.id || null;
   const stateChanges = scene.stateChanges || {};
@@ -445,6 +464,22 @@ async function applyAcceptedStateChanges(context, scene) {
         type: "skill",
         text: `${skill.name} awakened`
       }))
+    ];
+  }
+
+  const characterStatus = normalizeCharacterStatus(stateChanges);
+  if (characterStatus) {
+    await db.execute(
+      "UPDATE player_characters SET status = ? WHERE id = ?",
+      [characterStatus, characterId]
+    );
+
+    scene.recordChanges = [
+      ...(scene.recordChanges || []),
+      {
+        type: "book",
+        text: characterStatus === "dead" ? "Book ended: death" : "Book completed: victory"
+      }
     ];
   }
 }
