@@ -107,6 +107,15 @@ function bossCondition(boss) {
   return 'The enemy guard remains strong, every movement steady, and pride untouched.'
 }
 
+function hasSkill(skills, skillName) {
+  return Array.isArray(skills) && skills.some((skill) => String(skill?.name || skill).toLowerCase() === skillName.toLowerCase())
+}
+
+function bossHpValue(boss) {
+  if (!boss?.maxHp) return 'Unknown'
+  return `${Number(boss.currentHp ?? boss.current_hp ?? boss.maxHp)}/${Number(boss.maxHp ?? boss.max_hp)}`
+}
+
 function InlineText({ text }) {
   const parts = String(text || '').split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean)
 
@@ -263,6 +272,7 @@ export function StoryPage() {
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [appraisalOpen, setAppraisalOpen] = useState(false)
   const endRef = useRef(null)
 
   async function loadStory(id) {
@@ -368,6 +378,8 @@ export function StoryPage() {
   const chapter = chapterFor(stage)
   const currentBossName = bossName(boss, game?.currentFloor?.floor_name || game?.currentDungeon?.name)
   const bossState = bossCondition(boss)
+  const canAppraise = hasSkill(game?.skills, 'Appraisal')
+  const bossProfile = game?.currentBossProfile || {}
 
   return (
     <main className={styles.page}>
@@ -390,7 +402,7 @@ export function StoryPage() {
         <button className={styles.sheetClose} type="button" onClick={() => setSheetOpen(false)} title="Close character sheet">
           <X size={18} />
         </button>
-        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Chapter</dt><dd>{chapter.number}: {chapter.title}</dd><dt>Boss</dt><dd>{currentBossName}</dd>{boss && <><dt>Condition</dt><dd>{bossState}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>XP</dt><dd>{sheet.xp}/{sheet.xp_needed}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl></>}
+        {sheet && <><span>Character sheet</span><h2>{sheet.character_name}</h2><p>{sheet.race_name} · {sheet.class_name}</p><dl><dt>Status</dt><dd>{game.run.character_status}</dd><dt>Chapter</dt><dd>{chapter.number}: {chapter.title}</dd><dt>Boss</dt><dd>{currentBossName}</dd>{boss && <><dt>Condition</dt><dd>{bossState}</dd></>}<dt>Gold</dt><dd>{sheet.gold}</dd><dt>XP</dt><dd>{sheet.xp}/{sheet.xp_needed}</dd><dt>Skills</dt><dd>{game.skills.map((skill) => skill.name).join(', ') || 'None'}</dd><dt>Inventory</dt><dd>{game.inventory.map((item) => item.name).join(', ') || 'Empty'}</dd></dl>{canAppraise && boss && <section className={styles.appraisalPanel}><button type="button" onClick={() => setAppraisalOpen((open) => !open)} aria-expanded={appraisalOpen}><span>Appraisal</span><strong>{appraisalOpen ? 'Close enemy read' : 'Read enemy'}</strong><ChevronDown size={18} /></button>{appraisalOpen && <div className={styles.appraisalBody}><small>Observation Complete</small><h3>{currentBossName}</h3><p>{bossProfile.title || 'Boss entity'} · {bossProfile.openingAttitude || 'Unknown attitude'}</p><dl><dt>Vitality</dt><dd>{bossHpValue(boss)}</dd><dt>Threat</dt><dd>Rank {bossProfile.powerRank || bossProfile.power_rank || '?'}</dd><dt>Pattern</dt><dd>{bossProfile.combatStyle || bossProfile.combat_style || 'Still being learned.'}</dd><dt>Read</dt><dd>{bossProfile.profile || bossState}</dd></dl></div>}</section>}</>}
       </aside>
 
       <section className={styles.reader}>

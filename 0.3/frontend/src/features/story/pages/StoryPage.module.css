@@ -15,6 +15,18 @@
 .sheet dl { display: grid; grid-template-columns: 90px 1fr; gap: 14px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #2e3936; }
 .sheet dt { color: #8d9995; font-size: .72rem; text-transform: uppercase; }
 .sheet dd { margin: 0; line-height: 1.5; }
+.appraisalPanel { margin-top: 24px; padding-top: 18px; border-top: 1px solid #2e3936; }
+.appraisalPanel > button { width: 100%; min-height: 54px; display: grid; grid-template-columns: 1fr auto 18px; align-items: center; gap: 10px; border: 1px solid #4d625b; border-radius: 6px; padding: 10px 12px; color: #e9f2ee; background: linear-gradient(180deg, #172525, #10191a); text-align: left; cursor: pointer; }
+.appraisalPanel > button:hover { border-color: #c1a36b; background: linear-gradient(180deg, #1d3030, #132021); }
+.appraisalPanel > button span { color: #7fd2c4; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
+.appraisalPanel > button strong { color: #f4ead0; font-size: .82rem; white-space: nowrap; }
+.appraisalBody { display: grid; gap: 10px; margin-top: 10px; padding: 16px; border: 1px solid #35514b; border-radius: 6px; background: #071010; box-shadow: inset 3px 0 0 #64bbae; }
+.appraisalBody > small { color: #7fd2c4; font-size: .68rem; font-weight: 850; text-transform: uppercase; }
+.appraisalBody h3 { color: #fff7df; font-family: Georgia, serif; font-size: 1.28rem; font-weight: 500; }
+.appraisalBody p { color: #aebbb7; line-height: 1.45; }
+.appraisalBody dl { grid-template-columns: 82px 1fr; gap: 10px; margin-top: 2px; padding-top: 12px; }
+.appraisalBody dt { color: #7fd2c4; }
+.appraisalBody dd { color: #e4ece8; }
 .reader { width: min(900px, calc(100% - 40px)); margin: 0 auto; padding: 58px 0 110px; }
 .story { display: grid; padding-bottom: 34px; }
 .bookPanel { min-height: 520px; overflow: hidden; border: 1px solid #c9c0af; border-radius: 8px; background: linear-gradient(180deg, rgba(255,253,248,.97), rgba(249,244,235,.97)); box-shadow: 0 22px 58px rgba(49, 39, 28, .12); animation: pageIn 240ms ease both; }

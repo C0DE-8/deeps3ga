@@ -202,6 +202,7 @@ function stateFromPlayer(player, narrativeHistory = []) {
       boss_stage: dungeonNumber,
     },
     currentBoss: player.bossProgress || null,
+    currentBossProfile: player.currentBossProfile || null,
     currentFloor: {
       id: dungeonNumber * 100 + floorNumber,
       floor_number: floorNumber,
@@ -244,6 +245,7 @@ export async function fetchGameState() {
     currentBody: sheet.currentBody || player.currentBody,
     floorRuntime: sheet.floorRuntime || player.floorRuntime,
     bossProgress: sheet.bossProgress || player.bossProgress,
+    currentBossProfile: sheet.currentBossProfile || player.currentBossProfile,
     skills: sheet.skills || player.skills,
     memoryLog: sheet.memoryLog || player.memoryLog,
   } : player

@@ -1104,6 +1104,9 @@ async function getPlayerSheet(playerId) {
   const bossProgress = character
     ? await getBossProgress(player.playerId, player.currentRun, character.dungeon || 1)
     : null;
+  const currentBossProfile = character
+    ? bossGauntlet.find((boss) => boss.sequence === Number(character.dungeon || 1)) || bossGauntlet[0]
+    : null;
   let skills = [];
 
   if (character?.id) {
@@ -1144,6 +1147,7 @@ async function getPlayerSheet(playerId) {
     currentBody: player.currentBody,
     floorRuntime: player.floorRuntime,
     bossProgress,
+    currentBossProfile,
     skills,
     memoryLog: player.memoryLog || []
   };
