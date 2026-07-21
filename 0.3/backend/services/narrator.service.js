@@ -478,7 +478,7 @@ async function loadRecentStoryMessages(player, limit = 12) {
 async function loadStoryHistory(player, limit = 80) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 80), 120));
   const rows = await db.query(
-    `SELECT id, speaker, message_text, choices_json, state_changes_json, record_changes_json, memory_updates_json, created_at
+    `SELECT id, dungeon_number, floor_number, speaker, message_text, choices_json, state_changes_json, record_changes_json, memory_updates_json, created_at
        FROM story_messages
       WHERE player_id = ? AND run_number = ?
       ORDER BY id DESC
@@ -488,6 +488,8 @@ async function loadStoryHistory(player, limit = 80) {
 
   return rows.reverse().map((message) => ({
     id: `sql-${message.id}`,
+    dungeon_number: Number(message.dungeon_number || 1),
+    floor_number: Number(message.floor_number || 1),
     speaker: message.speaker,
     message_text: message.message_text,
     choices_json: typeof message.choices_json === "string" ? JSON.parse(message.choices_json || "[]") : (message.choices_json || []),
@@ -652,10 +654,10 @@ function normalizeSkillUnlocks(stateChanges) {
 }
 
 function actionLooksLikeSkillClaim(action) {
-  return /\b(skill|awaken|claim|choose|earned power|battle carved)\b/i.test(String(action || ""));
+  return /\b(skill|awaken|claim|choose|earned power|battle carved|mastery|master|refin(?:e|ing)|improv(?:e|ing)|strengthen|deepen|train|practice|learn)\b/i.test(String(action || ""));
 }
 
-function selectedEarnedSkill(context) {
+function selectedSkillReward(context) {
   if (context.progressionState?.phase !== "post_boss_growth") {
     return null;
   }
@@ -663,6 +665,21 @@ function selectedEarnedSkill(context) {
   const action = String(context.playerAction || "");
   if (!actionLooksLikeSkillClaim(action)) {
     return null;
+  }
+
+  const known = (context.knownSkills || []).find((skill) => normalizedAction.includes(String(skill.name || "").toLowerCase()));
+  if (known) {
+    const nextLevel = Math.max(2, Math.min(Number(known.level || 1) + 1, 10));
+    return {
+      name: known.name,
+      skillKey: known.key,
+      family: known.family,
+      type: known.type,
+      rarity: known.rarity || "common",
+      level: nextLevel,
+      description: known.description || `${known.name} sharpened through the boss fight.`,
+      reason: `The player chose to improve ${known.name} after surviving the boss.`
+    };
   }
 
   const candidates = earnedSkillCandidates(context);
@@ -677,7 +694,7 @@ function ensureSelectedSkillUnlock(context, scene) {
     return;
   }
 
-  const selected = selectedEarnedSkill(context);
+  const selected = selectedSkillReward(context);
   if (!selected) {
     return;
   }
@@ -719,6 +736,10 @@ function normalizeEvolutionSelection(stateChanges) {
   }
 
   return null;
+}
+
+function actionLooksLikeEvolutionChoice(action) {
+  return /\b(evolution|evolve|evolved|transform|transformation|next shape|new body|reshape|metamorph|answer the evolution|accept .*evolution)\b/i.test(String(action || ""));
 }
 
 function resourceRecordChanges(resourceResult) {
@@ -1132,6 +1153,23 @@ async function applyAcceptedStateChanges(context, scene) {
 
   const evolutionSelection = normalizeEvolutionSelection(stateChanges);
   if (evolutionSelection) {
+    if (context.progressionState?.phase === "post_boss_growth" && !actionLooksLikeEvolutionChoice(context.playerAction)) {
+      delete stateChanges.evolutionSelected;
+      delete stateChanges.evolutionUnlocked;
+      delete stateChanges.evolution;
+      delete stateChanges.selectedEvolution;
+      scene.stateChanges = stateChanges;
+      scene.choices = postBossGrowthChoices(context, context.bossGauntlet?.currentBossHp?.bossName || context.progressionState?.lastDefeatedBoss || "the fallen boss");
+      scene.recordChanges = [
+        ...(scene.recordChanges || []),
+        {
+          type: "evolution_guard",
+          text: "Ignored evolution because the player had not chosen an evolution action."
+        }
+      ];
+      return;
+    }
+
     const evolutionResult = await completeBossGrowthTransition(characterId, evolutionSelection);
     if (evolutionResult) {
       scene.appliedEvolution = evolutionResult;

@@ -43,7 +43,7 @@
 .appraisalBody dt { color: #7fd2c4; }
 .appraisalBody dd { color: #e4ece8; }
 .reader { width: min(900px, calc(100% - 40px)); margin: 0 auto; padding: 58px 0 110px; }
-.story { display: grid; padding-bottom: 34px; }
+.story { display: grid; gap: 28px; padding-bottom: 34px; }
 .bookPanel { min-height: 520px; overflow: hidden; border: 1px solid #c9c0af; border-radius: 8px; background: linear-gradient(180deg, rgba(255,253,248,.97), rgba(249,244,235,.97)); box-shadow: 0 22px 58px rgba(49, 39, 28, .12); animation: pageIn 240ms ease both; }
 .sceneChapter { padding: clamp(20px, 4vw, 36px); border-bottom: 1px solid #d1c7b6; background: rgba(250, 247, 239, .72); }
 .sceneChapter > span { color: #835f36; font-size: .72rem; font-weight: 850; text-transform: uppercase; }

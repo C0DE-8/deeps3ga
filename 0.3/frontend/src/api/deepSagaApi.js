@@ -187,9 +187,10 @@ function choicesForState(state) {
   const defeated = state?.currentBoss?.status === 'defeated' || Number(state?.currentBoss?.currentHp ?? 1) <= 0
   const phase = state?.characterSheet?.story_phase || state?.characterSheet?.storyPhase
   const savedChoices = latestChoices(state?.narrativeHistory || [])
+  const savedGrowthChoices = savedChoices.filter((choice) => ['growth', 'skill', 'evolution'].includes(String(choice.direction || '').toLowerCase()))
 
   if (phase === 'post_boss_growth' || defeated) {
-    if (savedChoices.length) return savedChoices
+    if (savedGrowthChoices.length) return savedGrowthChoices
     return postBossGrowthChoices(state)
   }
 

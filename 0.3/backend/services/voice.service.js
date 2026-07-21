@@ -19,7 +19,7 @@ function toneInstructions(personaKey, voiceMode) {
   ].join(" ");
 }
 
-async function synthesizeStoryVoice({ text, personaKey = "ADMIN", voiceMode = "male" }) {
+async function synthesizeStoryVoice({ text, personaKey = "ADMIN", voiceMode = "female" }) {
   const input = String(text || "").trim().slice(0, 4096);
   if (!input) {
     throw new Error("Voice text is required.");
@@ -37,7 +37,7 @@ async function synthesizeStoryVoice({ text, personaKey = "ADMIN", voiceMode = "m
     },
     body: JSON.stringify({
       model: process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts",
-      voice: voiceByMode[voiceMode] || voiceByMode.male,
+      voice: voiceByMode[voiceMode] || voiceByMode.female,
       input,
       instructions: toneInstructions(personaKey, voiceMode),
       response_format: "mp3"

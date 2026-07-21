@@ -25,13 +25,17 @@ function storyScenes(messages, game) {
     }
 
     if (message.speaker !== 'narrator') continue
+    const stage = Number(message.dungeon_number || playerAction?.dungeon_number || game?.currentDungeon?.boss_stage || game?.currentDungeon?.dungeon_number || 1)
+    const chapter = chapterFor(stage)
 
     scenes.push({
       id: message.id,
       playerAction,
       narrator: message,
-      chapter: game?.currentDungeon?.name || 'Deep Saga',
-      title: game?.currentFloor?.floor_name || 'The next page',
+      stage,
+      chapter,
+      chapterBossName: BOSS_NAMES[Math.max(0, stage - 1)] || game?.currentBoss?.bossName || game?.currentBoss?.boss_name || 'The boss',
+      title: chapter.title,
       floor: game?.currentFloor?.floor_number || 1,
       purpose: game?.currentFloor?.story_purpose || 'The story continues.',
       paragraphs: String(message.message_text || '').split(/\n\s*\n/).map((entry) => entry.trim()).filter(Boolean),
@@ -41,12 +45,16 @@ function storyScenes(messages, game) {
   }
 
   if (playerAction) {
+    const stage = Number(playerAction.dungeon_number || game?.currentDungeon?.boss_stage || game?.currentDungeon?.dungeon_number || 1)
+    const chapter = chapterFor(stage)
     scenes.push({
       id: playerAction.id,
       playerAction,
       narrator: null,
-      chapter: game?.currentDungeon?.name || 'Deep Saga',
-      title: game?.currentFloor?.floor_name || 'The next page',
+      stage,
+      chapter,
+      chapterBossName: BOSS_NAMES[Math.max(0, stage - 1)] || game?.currentBoss?.bossName || game?.currentBoss?.boss_name || 'The boss',
+      title: chapter.title,
       floor: game?.currentFloor?.floor_number || 1,
       purpose: game?.currentFloor?.story_purpose || 'The story continues.',
       paragraphs: [],
@@ -112,8 +120,53 @@ const CHAPTERS = [
   { number: 'Ten', title: 'The Administrator Watches', subtitle: 'The Last Page of the Game' },
 ]
 
+const BOSS_NAMES = [
+  'Gloria Taratect',
+  'Clayman',
+  'Araba',
+  'Mother (Queen Taratect)',
+  'Hinata Sakaguchi',
+  'Demon Lord Ariel',
+  'Milim Nava',
+  'Veldora Tempest',
+  'Guy Crimson',
+  'Administrator D',
+]
+
 function chapterFor(stage) {
   return CHAPTERS[Math.max(0, Math.min(CHAPTERS.length - 1, Number(stage || 1) - 1))]
+}
+
+function groupChapterScenes(scenes, currentStage, currentBossName, currentBossState) {
+  const groups = []
+
+  for (const scene of scenes) {
+    const stage = Number(scene.stage || 1)
+    let group = groups[groups.length - 1]
+    if (!group || group.stage !== stage) {
+      const chapter = scene.chapter || chapterFor(stage)
+      group = {
+        stage,
+        chapter,
+        bossName: scene.chapterBossName || BOSS_NAMES[Math.max(0, stage - 1)] || 'The boss',
+        bossState: stage === Number(currentStage || 1) ? currentBossState : 'Chapter complete.',
+        scenes: [],
+      }
+      groups.push(group)
+    }
+
+    group.scenes.push(scene)
+  }
+
+  if (groups.length) {
+    const latest = groups[groups.length - 1]
+    if (latest.stage === Number(currentStage || 1)) {
+      latest.bossName = currentBossName
+      latest.bossState = currentBossState
+    }
+  }
+
+  return groups
 }
 
 function bossName(boss, fallback) {
@@ -403,7 +456,7 @@ export function StoryPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [appraisalOpen, setAppraisalOpen] = useState(false)
   const [readingMode, setReadingMode] = useState('')
-  const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem('deepSagaVoiceMode') || 'male')
+  const [voiceMode, setVoiceMode] = useState(() => localStorage.getItem('deepSagaVoiceMode') || 'female')
   const endRef = useRef(null)
   const audioRef = useRef(null)
   const readCancelRef = useRef(false)
@@ -561,10 +614,12 @@ export function StoryPage() {
   const canAppraise = hasSkill(game?.skills, 'Appraisal')
   const bossProfile = game?.currentBossProfile || {}
   const bossDefeated = boss?.status === 'defeated' || Number(boss?.currentHp ?? 1) <= 0
+  const groupedScenes = groupChapterScenes(scenes, stage, currentBossName, bossState)
   const latestScene = scenes[scenes.length - 1]
+  const latestGroup = groupedScenes[groupedScenes.length - 1]
   const conditions = conditionEntries(latestScene, boss, game?.activeEffects || [])
   const latestPageText = sceneText(latestScene)
-  const fullChapterText = chapterText(scenes)
+  const fullChapterText = chapterText(latestGroup?.scenes || scenes)
   const canRead = Boolean(latestPageText)
 
   return (
@@ -576,8 +631,7 @@ export function StoryPage() {
           <span><small>Mana</small><strong>{sheet.mana}/{sheet.max_mana}</strong></span>
           <span><small>Stamina</small><strong>{sheet.stamina}/{sheet.max_stamina}</strong></span>
           <span><small>Level</small><strong>{sheet.level}</strong></span>
-          <span><small>Chapter</small><strong>{chapter.number}</strong></span>
-          <span className={styles.position}><small>{ended ? endingLabel : currentBossName}</small><strong>{chapter.title}</strong></span>
+          <span className={styles.position}><small>{ended ? endingLabel : 'Boss'}</small><strong>{currentBossName}</strong></span>
           <button type="button" onClick={() => setSheetOpen((open) => !open)} title={sheetOpen ? 'Close character sheet' : 'Open character sheet'}>
             {sheetOpen ? <PanelRightClose /> : <PanelRightOpen />}
           </button>
@@ -672,25 +726,25 @@ export function StoryPage() {
           {!scenes.length && !busy && (
             <article className={styles.bookPanel}>
               <header className={styles.sceneChapter}>
-                <span>Chapter {chapter.number} · {chapter.title}</span>
-                <h1>{chapter.subtitle}</h1>
-                <p><strong>{currentBossName}</strong> · {bossState}</p>
+                <span>Chapter {chapter.number}</span>
+                <h1>{chapter.title}</h1>
+                <p><strong>{chapter.subtitle}</strong> · {currentBossName} · {bossState}</p>
               </header>
               <section className={styles.scenePage}><BookOpen /><p>{initialStory}</p></section>
             </article>
           )}
 
-          {scenes.length > 0 && (
-            <article className={styles.bookPanel}>
+          {groupedScenes.map((group, groupIndex) => (
+            <article className={styles.bookPanel} key={`chapter-${group.stage}-${groupIndex}`}>
               <header className={styles.sceneChapter}>
-                <span>Chapter {chapter.number} · {chapter.title}</span>
-                <h1>{chapter.subtitle}</h1>
-                <p><strong>{currentBossName}</strong> · {bossState}</p>
+                <span>Chapter {group.chapter.number}</span>
+                <h1>{group.chapter.title}</h1>
+                <p><strong>{group.chapter.subtitle}</strong> · {group.bossName} · {group.bossState}</p>
               </header>
 
               <div className={styles.sceneFlow}>
-                {scenes.map((scene, index) => {
-                  const latest = index === scenes.length - 1
+                {group.scenes.map((scene) => {
+                  const latest = scene.id === latestScene?.id
                   return (
                     <section className={`${styles.sceneEntry} ${latest ? styles.sceneEntryLatest : styles.sceneEntryOld}`} key={scene.id} ref={latest ? endRef : null}>
                       {scene.playerAction && (
@@ -714,7 +768,7 @@ export function StoryPage() {
                 })}
               </div>
             </article>
-          )}
+          ))}
         </div>
 
         {!busy && canRead && (
