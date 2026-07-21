@@ -1,6 +1,6 @@
 const { buildGameMasterPrompt } = require("../config/prompts");
 const db = require("../db");
-const { applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterLoot, awardCharacterSkill, bossGauntlet, completeBossGrowthTransition, createLegacyHeroForPlayer, evolutionCatalog, getBossCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, getSkillCatalog, reincarnatePlayerAfterDeath, skillNames } = require("./player.service");
+const { addCombatStatusEffects, applyBossHpDelta, applyCharacterResourceDeltas, awardCharacterLoot, awardCharacterSkill, bossGauntlet, completeBossGrowthTransition, createLegacyHeroForPlayer, evolutionCatalog, getActiveCombatStatusEffects, getBossCatalog, getBossProgress, getBossRunProgress, getPlayerSheet, getSkillCatalog, reincarnatePlayerAfterDeath, skillNames, tickCombatStatusEffects } = require("./player.service");
 
 function buildFallbackScene(player, playerAction) {
   const body = player.currentBody || {};
@@ -409,6 +409,24 @@ function normalizeLootAwards(stateChanges) {
     .slice(0, 5);
 }
 
+function normalizeStatusEffectAwards(stateChanges) {
+  const raw = [
+    ...(Array.isArray(stateChanges.statusEffectsApplied) ? stateChanges.statusEffectsApplied : []),
+    ...(Array.isArray(stateChanges.effectsApplied) ? stateChanges.effectsApplied : []),
+    ...(Array.isArray(stateChanges.damageOverTime) ? stateChanges.damageOverTime : [])
+  ];
+
+  return raw
+    .map((effect) => {
+      if (typeof effect === "string") {
+        return { name: effect };
+      }
+      return effect && typeof effect === "object" ? effect : null;
+    })
+    .filter((effect) => String(effect?.name || effect?.effectName || effect?.status || "").trim())
+    .slice(0, 5);
+}
+
 function bossLootFallback(context, bossName = "the defeated boss") {
   const text = battleStyleText(context);
   const scored = lootThemes
@@ -498,7 +516,7 @@ async function loadImportantMemories(player, limit = 12) {
   }));
 }
 
-function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = [], bossProgress = null, bossRunProgress = [], bossCatalog = bossGauntlet, skillCatalog = skillNames) {
+function buildContext(player, playerAction, recentMessages = [], importantMemories = [], knownSkills = [], bossProgress = null, bossRunProgress = [], bossCatalog = bossGauntlet, skillCatalog = skillNames, activeEffects = [], effectTicks = []) {
   const body = player.currentBody || {};
   const character = player.activeCharacter || {};
   const runtime = player.floorRuntime || {};
@@ -573,7 +591,9 @@ function buildContext(player, playerAction, recentMessages = [], importantMemori
       bookEnded: characterStatus === "dead" || characterStatus === "completed",
       endingType: characterStatus === "dead" ? "death" : characterStatus === "completed" ? "victory" : null,
       currentBossDefeated,
-      combatPressure
+      combatPressure,
+      activeEffects,
+      effectTicks
     },
     memoryLog: [
       ...(Array.isArray(player.memoryLog) ? player.memoryLog.slice(-20) : []),
@@ -743,6 +763,21 @@ function resourceRecordChanges(resourceResult) {
   return records;
 }
 
+function effectTickRecordChanges(ticks = []) {
+  return ticks.map((tick) => ({
+    type: "effect",
+    text: `${tick.name} damaged ${tick.targetType} for ${tick.damage}. ${tick.remainingTurns} turn(s) remain.`
+  }));
+}
+
+function bossDefeatFromEffectTicks(ticks = []) {
+  return ticks.find((tick) => tick.targetType === "boss" && tick.targetDefeated && tick.bossResult?.defeated) || null;
+}
+
+function playerDeathFromEffectTicks(ticks = []) {
+  return ticks.find((tick) => tick.targetType === "player" && tick.targetDefeated) || null;
+}
+
 function actionLooksLikeAppraisal(action) {
   return /\b(apprais(?:e|al|ing)?|analyz(?:e|e|ing)|inspect|identify|study|self-analysis|read\s+more|see\s+more\s+information)\b/i.test(String(action || ""));
 }
@@ -869,6 +904,58 @@ async function applyAcceptedStateChanges(context, scene) {
     return;
   }
 
+  const effectTicks = context.sceneState?.effectTicks || [];
+  if (effectTicks.length) {
+    scene.recordChanges = [
+      ...(scene.recordChanges || []),
+      ...effectTickRecordChanges(effectTicks)
+    ];
+    stateChanges.effectTicks = effectTicks.map((tick) => ({
+      name: tick.name,
+      target: tick.targetType,
+      damage: tick.damage,
+      remainingTurns: tick.remainingTurns,
+      targetDefeated: tick.targetDefeated
+    }));
+    scene.stateChanges = stateChanges;
+  }
+
+  const effectDeath = playerDeathFromEffectTicks(effectTicks);
+  if (effectDeath) {
+    Object.assign(stateChanges, {
+      bookEnded: true,
+      endingType: "death",
+      characterStatus: "dead"
+    });
+    scene.stateChanges = stateChanges;
+  }
+
+  const effectBossDefeat = bossDefeatFromEffectTicks(effectTicks);
+  if (effectBossDefeat) {
+    const finalBossDefeated = Number(context.currentPosition?.dungeon || 1) >= bossGauntlet.length;
+    Object.assign(stateChanges, {
+      bossCurrentHp: effectBossDefeat.bossResult.after.currentHp,
+      bossMaxHp: effectBossDefeat.bossResult.after.maxHp,
+      bossDefeated: true,
+      advancedToStage: effectBossDefeat.bossResult.advancedToStage
+    });
+    if (finalBossDefeated) {
+      Object.assign(stateChanges, {
+        bookEnded: true,
+        endingType: "victory",
+        characterStatus: "completed",
+        runCompleted: true
+      });
+    }
+    if (!normalizeLootAwards(stateChanges).length) {
+      stateChanges.lootAwarded = bossLootFallback(context, effectBossDefeat.bossResult.after.bossName);
+    }
+    scene.choices = finalBossDefeated
+      ? scene.choices
+      : postBossGrowthChoices(context, effectBossDefeat.bossResult.after.bossName);
+    scene.stateChanges = stateChanges;
+  }
+
   if (currentBossIsFinished(context) && removeDefeatedBossCombatChanges(stateChanges)) {
     scene.stateChanges = stateChanges;
     scene.choices = postBossGrowthChoices(context, context.bossGauntlet?.currentBossHp?.bossName);
@@ -967,6 +1054,28 @@ async function applyAcceptedStateChanges(context, scene) {
           }
         ];
       }
+    }
+  }
+
+  const statusEffects = normalizeStatusEffectAwards(stateChanges)
+    .filter((effect) => !currentBossIsFinished(context) || String(effect.target || effect.targetType || "boss").toLowerCase() === "player");
+  if (statusEffects.length) {
+    const savedEffects = await addCombatStatusEffects({
+      playerId: context.player?.playerId,
+      runNumber: Number(context.player?.run || 1),
+      characterId,
+      bossSequence: Number(context.currentPosition?.dungeon || 1),
+      effects: statusEffects
+    });
+    if (savedEffects.length) {
+      scene.appliedStatusEffects = savedEffects;
+      scene.recordChanges = [
+        ...(scene.recordChanges || []),
+        ...savedEffects.map((effect) => ({
+          type: "status_effect",
+          text: `${effect.name} applied to ${effect.targetType} for ${effect.remainingTurns} turn(s)`
+        }))
+      ];
     }
   }
 
@@ -1262,12 +1371,31 @@ async function createStoryScene(player, playerAction, recentMessages) {
   const sqlRecentMessages = await loadRecentStoryMessages(player);
   const importantMemories = await loadImportantMemories(player);
   const sheet = await getPlayerSheet(player.playerId);
+  const runNumber = Number(player.currentRun || 1);
+  const characterId = player.activeCharacter?.id || sheet?.character?.id || null;
+  const bossSequence = Number(player.floorRuntime?.dungeonNumber || player.activeCharacter?.dungeon || player.currentBody?.dungeon || 1);
+  const effectTicks = characterId
+    ? await tickCombatStatusEffects({
+      playerId: player.playerId,
+      runNumber,
+      characterId,
+      bossSequence
+    })
+    : [];
   const bossProgress = await getBossProgress(
     player.playerId,
-    Number(player.currentRun || 1),
-    Number(player.floorRuntime?.dungeonNumber || player.activeCharacter?.dungeon || player.currentBody?.dungeon || 1)
+    runNumber,
+    bossSequence
   );
-  const bossRunProgress = await getBossRunProgress(player.playerId, Number(player.currentRun || 1));
+  const activeEffects = characterId
+    ? await getActiveCombatStatusEffects({
+      playerId: player.playerId,
+      runNumber,
+      characterId,
+      bossSequence
+    })
+    : [];
+  const bossRunProgress = await getBossRunProgress(player.playerId, runNumber);
   const bossCatalog = await getBossCatalog();
   const skillCatalog = await getSkillCatalog();
   const context = buildContext(
@@ -1279,7 +1407,9 @@ async function createStoryScene(player, playerAction, recentMessages) {
     bossProgress,
     bossRunProgress,
     bossCatalog,
-    skillCatalog
+    skillCatalog,
+    activeEffects,
+    effectTicks
   );
 
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "#") {

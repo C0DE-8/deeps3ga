@@ -1164,6 +1164,15 @@ async function getPlayerSheet(playerId) {
     }));
   }
 
+  const activeEffects = character?.id
+    ? await getActiveCombatStatusEffects({
+      playerId: player.playerId,
+      runNumber: player.currentRun,
+      characterId: character.id,
+      bossSequence: character.dungeon || 1
+    })
+    : [];
+
   return {
     player: {
       playerId: player.playerId,
@@ -1177,6 +1186,7 @@ async function getPlayerSheet(playerId) {
     floorRuntime: player.floorRuntime,
     bossProgress,
     currentBossProfile,
+    activeEffects,
     skills,
     memoryLog: player.memoryLog || []
   };
@@ -1840,8 +1850,10 @@ async function loginPlayer({ identifier, password }) {
 }
 
 module.exports = {
+  addCombatStatusEffects,
   applyCharacterResourceDeltas,
   applyBossHpDelta,
+  awardCharacterLoot,
   awardCharacterSkill,
   bossGauntlet,
   completeBossGrowthTransition,
@@ -1852,6 +1864,7 @@ module.exports = {
   getFloorRuntime,
   getBossProgress,
   getBossRunProgress,
+  getActiveCombatStatusEffects,
   getPlayerSheet,
   getSkillCatalog,
   listNarratorPersonas,
@@ -1864,6 +1877,7 @@ module.exports = {
   registerPlayer,
   serializePlayer,
   skillNames,
+  tickCombatStatusEffects,
   updatePlayerPersona,
   validateUsername
 };

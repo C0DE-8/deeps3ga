@@ -166,7 +166,7 @@ function bossDeltaFeeling(delta, defeated) {
   return ''
 }
 
-function conditionEntries(scene, boss) {
+function conditionEntries(scene, boss, activeEffects = []) {
   const changes = scene?.narrator?.state_changes_json || {}
   const player = []
   const enemy = []
@@ -186,6 +186,31 @@ function conditionEntries(scene, boss) {
 
   const enemyText = bossDeltaFeeling(bossDelta, bossDefeated) || (boss ? bossCondition(boss) : '')
   if (enemyText) enemy.push({ label: bossDefeated ? 'Status' : 'Read', value: bossDelta, text: enemyText })
+
+  for (const tick of Array.isArray(changes.effectTicks) ? changes.effectTicks : []) {
+    const target = String(tick.target || tick.targetType || 'boss').toLowerCase()
+    const label = tick.name || 'Effect'
+    const damage = Number(tick.damage || 0)
+    const text = damage
+      ? `${label} takes hold and deals another wound.`
+      : `${label} still clings to the body.`
+    const entry = { label: 'Effect', value: damage, text }
+    if (target === 'player') player.push(entry)
+    else enemy.push(entry)
+  }
+
+  for (const effect of activeEffects) {
+    const target = String(effect.targetType || effect.target_type || effect.target || 'boss').toLowerCase()
+    const label = effect.name || effect.effectName || 'Effect'
+    const turns = Number(effect.remainingTurns ?? effect.remaining_turns ?? 0)
+    const potency = Number(effect.potency || 0)
+    const text = potency
+      ? `${label} keeps biting for ${turns} more page${turns === 1 ? '' : 's'}.`
+      : `${label} lingers for ${turns} more page${turns === 1 ? '' : 's'}.`
+    const entry = { label: 'Effect', value: potency, text }
+    if (target === 'player') player.push(entry)
+    else if (!bossDefeated) enemy.push(entry)
+  }
 
   return { player, enemy }
 }
@@ -537,7 +562,7 @@ export function StoryPage() {
   const bossProfile = game?.currentBossProfile || {}
   const bossDefeated = boss?.status === 'defeated' || Number(boss?.currentHp ?? 1) <= 0
   const latestScene = scenes[scenes.length - 1]
-  const conditions = conditionEntries(latestScene, boss)
+  const conditions = conditionEntries(latestScene, boss, game?.activeEffects || [])
   const latestPageText = sceneText(latestScene)
   const fullChapterText = chapterText(scenes)
   const canRead = Boolean(latestPageText)

@@ -271,6 +271,7 @@ function stateFromPlayer(player, narrativeHistory = []) {
         : { id: skill.id || index + 1, name: skill.name, skill_level: skill.level || skill.skill_level || 1, family: skill.family, type: skill.type }
     )),
     inventory: body.inventory || [],
+    activeEffects: player.activeEffects || [],
     narrativeHistory,
   }
 }
@@ -296,6 +297,7 @@ export async function fetchGameState() {
     floorRuntime: sheet.floorRuntime || player.floorRuntime,
     bossProgress: sheet.bossProgress || player.bossProgress,
     currentBossProfile: sheet.currentBossProfile || player.currentBossProfile,
+    activeEffects: sheet.activeEffects || player.activeEffects || [],
     skills: sheet.skills || player.skills,
     memoryLog: sheet.memoryLog || player.memoryLog,
   } : player

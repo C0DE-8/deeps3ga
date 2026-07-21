@@ -99,6 +99,28 @@ CREATE TABLE IF NOT EXISTS player_boss_progress (
   INDEX idx_player_boss_progress_status (status)
 );
 
+CREATE TABLE IF NOT EXISTS combat_status_effects (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  player_id VARCHAR(32) NOT NULL,
+  run_number INT NOT NULL,
+  character_id BIGINT UNSIGNED NULL,
+  boss_sequence INT NOT NULL,
+  target_type VARCHAR(24) NOT NULL,
+  effect_key VARCHAR(80) NOT NULL,
+  effect_name VARCHAR(120) NOT NULL,
+  effect_type VARCHAR(60) NOT NULL,
+  potency INT NOT NULL DEFAULT 1,
+  remaining_turns INT NOT NULL DEFAULT 1,
+  source VARCHAR(160) NULL,
+  metadata_json JSON NULL,
+  active TINYINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_combat_effects_actor (player_id, run_number, boss_sequence, active),
+  INDEX idx_combat_effects_character (character_id, active),
+  INDEX idx_combat_effects_target (target_type, active)
+);
+
 CREATE TABLE IF NOT EXISTS player_characters (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   player_id VARCHAR(32) NOT NULL,
