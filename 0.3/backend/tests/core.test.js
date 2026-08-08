@@ -5,6 +5,7 @@ const { startingState, getBlockedRevelations } = require("../books/ant-world/sto
 const { validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
 const { boundedExperience, categoryDevelopment, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
 const { assertDevelopmentResetAllowed } = require("../scripts/reset-db");
+const { createToken, verifyToken } = require("../utils/token");
 
 test("Ant World canonical starting state is an ant larva with human memories", () => {
   assert.equal(startingState.character.species, "Ant");
@@ -92,6 +93,17 @@ test("allowed character state changes are converted to SQL assignments", () => {
   assert.ok(result.assignments.includes("condition_text = ?"));
   assert.ok(result.assignments.includes("location = ?"));
   assert.ok(result.assignments.includes("mana_known = 1"));
+});
+
+test("auth tokens use the 0.3 user identity shape", () => {
+  const previousSecret = process.env.AUTH_TOKEN_SECRET;
+  process.env.AUTH_TOKEN_SECRET = "test-secret";
+  const token = createToken({ userId: 42, email: "ant@example.com" });
+  const payload = verifyToken(token);
+  assert.equal(payload.sub, 42);
+  assert.equal(payload.email, "ant@example.com");
+  if (previousSecret == null) delete process.env.AUTH_TOKEN_SECRET;
+  else process.env.AUTH_TOKEN_SECRET = previousSecret;
 });
 
 test("production reset protection refuses without strong override", () => {

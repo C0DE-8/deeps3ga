@@ -45,7 +45,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/story", storyRouter);
 
-app.get("/health", async (req, res) => {
+async function healthCheck(req, res) {
   try {
     const dbClient = getDbClient();
 
@@ -58,7 +58,10 @@ app.get("/health", async (req, res) => {
   } catch (error) {
     res.status(503).json({ ok: false, error: error.message });
   }
-});
+}
+
+app.get("/health", healthCheck);
+app.get("/api/health", healthCheck);
 
 if (require.main === module) {
   const port = process.env.PORT || 3000;

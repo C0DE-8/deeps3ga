@@ -14,22 +14,22 @@ function sign(value, secret) {
   return crypto.createHmac("sha256", secret).update(value).digest("base64url");
 }
 
-function createToken(player) {
+function createToken(user) {
   const secret = getSecret();
-  const playerId = player.player_id || player.playerId;
+  const userId = user.user_id || user.userId || user.player_id || user.playerId;
 
   if (!secret) {
     throw new Error("AUTH_TOKEN_SECRET or API_KEY is required");
   }
 
-  if (!playerId) {
-    throw new Error("A player ID is required to create an auth token");
+  if (!userId) {
+    throw new Error("A user ID is required to create an auth token");
   }
 
   const header = base64Url({ alg: "HS256", typ: "JWT" });
   const payload = base64Url({
-    sub: playerId,
-    email: player.email,
+    sub: userId,
+    email: user.email,
     exp: Date.now() + tokenTtlMs
   });
 
