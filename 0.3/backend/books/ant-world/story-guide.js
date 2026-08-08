@@ -106,9 +106,7 @@ const startingState = {
     "You try to breathe and instead feel your soft larval body twitch in the nursery of an ant colony. You are alive. You are not human."
   ],
   openingChoices: [
-    { label: "Stay still and observe", action: "I stay still and try to understand the scents and movement around me." },
-    { label: "Reach for memory", action: "I focus on my last human memory and try to work out what happened to me." },
-    { label: "Call for help", action: "I try to communicate with the nearest worker ant, even if I only have instinct and scent." }
+    { label: "Focus on the scents", action: "I focus on the pheromone scents around me." }
   ]
 };
 

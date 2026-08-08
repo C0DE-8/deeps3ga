@@ -53,6 +53,10 @@ If `OPENAI_API_KEY` is configured, the backend can call the Responses API. Witho
 
 `backend/services/turn-engine.service.js` treats player text as intent, not reality. It bounds experience, mana, health, abilities, relationship deltas, chapter movement, death, and completion. It rejects arbitrary chapter skipping and overpowered early abilities.
 
+`backend/services/capability.service.js` enforces the core law: free will is not free reality. The engine derives current capabilities from book, chapter, species, life stage, level, condition, location, known discoveries, learned abilities, traits, resources, relationships, and canonical facts. A player can attempt anything, but text cannot create powers, knowledge, items, NPC behavior, relationships, success, evolution, locations, or world facts.
+
+Generated guidance is limited to one short guided choice, and the backend validates that it is currently possible to attempt. Impossible or metagame actions are resolved in narration as failed or partial attempts without persisting impossible consequences.
+
 ## Progression
 
 There is no class picker. Hidden development signals accumulate from behavior:

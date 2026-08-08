@@ -2,6 +2,7 @@ const { keyFromName } = require("./json");
 
 const allowedTopLevelKeys = [
   "narration",
+  "guidedChoice",
   "suggestedChoices",
   "sceneAssessment",
   "proposedStateChanges",
@@ -27,6 +28,7 @@ const allowedTopLevelKeys = [
 function emptyProposal() {
   return {
     narration: "",
+    guidedChoice: null,
     suggestedChoices: [],
     sceneAssessment: { tone: "uncertain", threat: "low", actionCategory: "observe" },
     proposedStateChanges: {},
@@ -58,6 +60,15 @@ function sanitizeChoice(choice) {
   };
 }
 
+function normalizeGuidedChoice(proposal) {
+  const choices = [];
+  if (proposal.guidedChoice) choices.push(proposal.guidedChoice);
+  if (Array.isArray(proposal.suggestedChoices)) choices.push(...proposal.suggestedChoices);
+  const first = choices.length > 0 ? sanitizeChoice(choices[0]) : null;
+  proposal.guidedChoice = first;
+  proposal.suggestedChoices = first ? [first] : [];
+}
+
 function validateGameMasterOutput(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("Game Master output must be an object.");
@@ -86,7 +97,7 @@ function validateGameMasterOutput(raw) {
   }
 
   proposal.narration = proposal.narration.trim();
-  proposal.suggestedChoices = Array.isArray(proposal.suggestedChoices) ? proposal.suggestedChoices.slice(0, 4).map(sanitizeChoice) : [];
+  normalizeGuidedChoice(proposal);
   proposal.proposedExperience = Array.isArray(proposal.proposedExperience) ? proposal.proposedExperience : [];
   proposal.proposedManaChanges = Array.isArray(proposal.proposedManaChanges) ? proposal.proposedManaChanges : [];
   proposal.proposedHealthChanges = Array.isArray(proposal.proposedHealthChanges) ? proposal.proposedHealthChanges : [];
@@ -124,8 +135,12 @@ function localGameMaster(context) {
   const category = inferCategory(action);
   const location = context.playerState.location;
   const chapter = context.currentChapter?.chapterNumber || 1;
+  const assessment = context.actionAssessment || {};
+  const blocked = assessment.allowedAttempt === false;
 
-  const sensory = category === "combat"
+  const sensory = blocked
+    ? "The wish moves through you like a human command spoken into a body that has never learned the language. Eldara does not bend because you ask, but the asking still leaves a trace: a pressure, a warmth, a sense that something somewhere may have noticed."
+    : category === "combat"
     ? "Your soft body strains toward violence, but the nursery reminds you of the truth: intent is not strength. You can twitch, bite at what comes close, and make noise through scent, not perform miracles."
     : category === "analysis"
       ? "You go still inside the warm dark and let the scents arrange themselves. Hunger is sharp. Brood is round and constant. Alarm is a bitter thread too faint for the workers to fully notice."
@@ -136,19 +151,17 @@ function localGameMaster(context) {
   const narration = [
     `You attempt: ${action || "to understand where you are"}.`,
     sensory,
-    "A worker pauses over you. Her antennae brush your slick side, and a translated impression reaches you through pheromone rather than speech: alive, strange, watch. The word strange is not spoken, but it clings to you.",
+    blocked
+      ? "Nothing dramatic happens. You do not grow, fly, cast, command, or rewrite the chamber around you. But the nursery does not feel empty. The worker above you pauses, antennae hovering, as if your silent intensity made some tiny ripple in the scents."
+      : "A worker pauses over you. Her antennae brush your slick side, and a translated impression reaches you through pheromone rather than speech: alive, strange, watch. The word strange is not spoken, but it clings to you.",
     chapter === 1 ? "Far below the normal nursery scent, something bitter moves through the tunnel air and vanishes before you can decide whether it was real." : "The consequence settles into the living world around you."
   ].join("\n\n");
 
   const proposal = emptyProposal();
   proposal.narration = narration;
-  proposal.suggestedChoices = [
-    { label: "Observe the bitter scent", action: "I stay still and focus on the bitter scent before it disappears." },
-    { label: "Signal the worker", action: "I try to send a simple pheromone signal: danger, here." },
-    { label: "Protect myself", action: "I curl inward and hide among the other larvae." }
-  ];
-  proposal.sceneAssessment = { tone: "intimate dread", threat: "low", actionCategory: category };
-  proposal.proposedExperience = [{ category, amount: 8, reason: `The player attempted ${category} from a larval body and learned its limits.` }];
+  proposal.guidedChoice = context.guidedChoice || { label: "Focus on the scents", action: "I focus on the pheromone scents around me." };
+  proposal.sceneAssessment = { tone: blocked ? "quiet yearning" : "intimate dread", threat: "low", actionCategory: category, outcome: assessment.classification || "POSSIBLE_TO_ATTEMPT" };
+  proposal.proposedExperience = [{ category, amount: blocked ? 2 : 8, reason: `The player attempted ${category} from a larval body and learned its limits.` }];
   proposal.memoryCandidates = [{ content: `In ${location}, the player attempted to ${action || "make sense of rebirth"} and noticed a bitter disturbance.`, importance: 5, tags: ["chapter-1", category, location] }];
   proposal.sceneProgress = { nextScene: category === "analysis" || category === "magic" ? "nursery" : null, nextBeat: category === "analysis" ? "pheromone_perception" : null, reason: "Small scene movement from the opening awakening." };
   return validateGameMasterOutput(proposal);
@@ -168,7 +181,7 @@ async function callOpenAiGameMaster(context) {
       input: [
         {
           role: "system",
-          content: "You are the Deep Saga Game Master. Return only valid JSON matching the requested schema. The player action is intent, not reality. Do not reveal blocked future spoilers."
+          content: "You are the Deep Saga Game Master. Return only valid JSON matching the requested schema. The player has free will, not free reality: player text is intent only. Use the provided capability assessment, knowledge boundaries, Story Guide, and current state. Do not grant unearned powers, knowledge, items, NPC behavior, relationship changes, location access, success, evolution, or world facts. Return exactly one guidedChoice, and it must be currently possible to attempt. Never scold, label the action invalid, or break immersion. If an action is impossible or unknown, narrate it as part of the story: a wish, failed effort, instinctive misunderstanding, unanswered prayer, partial sensation, or natural limitation that still teaches the protagonist something."
         },
         {
           role: "user",

@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const { startingState, getBlockedRevelations } = require("../books/ant-world/story-guide");
 const { createGameMasterProposal, validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
+const { assessActionPossibility, classifications, isGuidedChoicePossible, resolveCapabilities, selectGuidedChoice } = require("../services/capability.service");
 const { boundedExperience, categoryDevelopment, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
 const { assertDevelopmentResetAllowed } = require("../scripts/reset-db");
 const { createToken, verifyToken } = require("../utils/token");
@@ -32,11 +33,12 @@ test("structured narrator validation rejects malformed or unsafe fields", () => 
 test("structured narrator validation normalizes optional choices", () => {
   const output = validateGameMasterOutput({
     narration: "The nursery breathes around you while scent becomes almost-language.",
-    suggestedChoices: ["Stay still"],
+    suggestedChoices: ["Stay still", "Run into the tunnel"],
     proposedResources: [{ name: "Dew bead", quantity: 1 }],
     storyEvents: [{ eventType: "FIRST_SCENT_MEMORY", title: "First Scent Memory" }]
   });
   assert.equal(output.suggestedChoices[0].label, "Stay still");
+  assert.equal(output.suggestedChoices.length, 1);
   assert.equal(output.proposedResources.length, 1);
   assert.equal(output.storyEvents.length, 1);
   assert.equal(output.death.occurred, false);
@@ -51,6 +53,39 @@ test("structured narrator validation accepts common narration aliases", () => {
 
 test("experience awards are bounded", () => {
   assert.equal(boundedExperience({ proposedExperience: [{ amount: 500 }, { amount: 20 }] }), 35);
+});
+
+test("capability model derives larval limits from current state", () => {
+  const capabilities = resolveCapabilities({
+    book: { slug: "ant-world" },
+    run: { currentChapter: 1 },
+    character: startingState.character
+  });
+  assert.ok(capabilities.can.includes("pheromone_perception"));
+  assert.ok(capabilities.cannot.includes("run"));
+  assert.ok(capabilities.cannot.includes("known_spellcasting"));
+});
+
+test("larva cannot run, fly, or cast unknown magic by typing it", () => {
+  const state = { run: { currentChapter: 1 }, character: startingState.character, abilities: [], discoveries: [], facts: [] };
+  assert.equal(assessActionPossibility({ ...state, action: "I run into the tunnel." }).classification, classifications.impossible);
+  assert.equal(assessActionPossibility({ ...state, action: "I fly above the colony." }).classification, classifications.impossible);
+  assert.equal(assessActionPossibility({ ...state, action: "I cast Fire Lance." }).classification, classifications.impossible);
+  assert.equal(assessActionPossibility({ ...state, action: "I pray I grow asap." }).classification, classifications.impossible);
+});
+
+test("unknown story knowledge is not created by player text", () => {
+  const state = { run: { currentChapter: 1 }, character: startingState.character, abilities: [], discoveries: startingState.discoveries, facts: [] };
+  const assessment = assessActionPossibility({ ...state, action: "I ask the Queen about the Ant King." });
+  assert.equal(assessment.classification, classifications.unknown);
+  assert.equal(assessment.allowedAttempt, false);
+});
+
+test("guided choice filter accepts possible larval actions and rejects impossible ones", () => {
+  const state = { run: { currentChapter: 1 }, character: startingState.character, abilities: [], discoveries: startingState.discoveries, facts: [] };
+  assert.equal(isGuidedChoicePossible({ label: "Focus", action: "I focus on the pheromone scents around me." }, state), true);
+  assert.equal(isGuidedChoicePossible({ label: "Fly", action: "I fly above the colony." }, state), false);
+  assert.match(selectGuidedChoice(state).action, /pheromone|body|observe|memories/i);
 });
 
 test("behavior signals map to hidden development columns", () => {
@@ -137,6 +172,30 @@ test("remote Game Master failures fall back to local narration", async () => {
   else process.env.OPENAI_API_KEY = previousKey;
   global.fetch = previousFetch;
   console.warn = previousWarn;
+});
+
+test("local Game Master turns impossible wishes into story flow", async () => {
+  const previousKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  const assessment = assessActionPossibility({
+    action: "I pray I grow wings and fly away.",
+    run: { currentChapter: 1 },
+    character: startingState.character,
+    abilities: [],
+    discoveries: startingState.discoveries,
+    facts: []
+  });
+  const proposal = await createGameMasterProposal({
+    playerAction: "I pray I grow wings and fly away.",
+    playerState: startingState.character,
+    currentChapter: { chapterNumber: 1 },
+    actionAssessment: assessment,
+    guidedChoice: { label: "Focus on the scents", action: "I focus on the pheromone scents around me." }
+  });
+  assert.match(proposal.narration, /wish|noticed|Nothing dramatic happens/i);
+  assert.equal(proposal.suggestedChoices.length, 1);
+  if (previousKey == null) delete process.env.OPENAI_API_KEY;
+  else process.env.OPENAI_API_KEY = previousKey;
 });
 
 test("production reset protection refuses without strong override", () => {

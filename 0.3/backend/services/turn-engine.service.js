@@ -1,4 +1,5 @@
 const { createGameMasterProposal, inferCategory } = require("./game-master.service");
+const { assessActionPossibility, isGuidedChoicePossible, selectGuidedChoice } = require("./capability.service");
 const { keyFromName, parseJson, toJson } = require("./json");
 
 const maxDevelopmentDelta = 3;
@@ -138,6 +139,66 @@ function validateStoryEvent(event, run, turnNumber) {
 function boundedExperience(proposal) {
   const entries = Array.isArray(proposal.proposedExperience) ? proposal.proposedExperience : [];
   return clamp(entries.reduce((sum, entry) => sum + clamp(entry.amount, 0, 25), 0), 0, 35);
+}
+
+function enforceGuidedChoice(state, proposal) {
+  const capabilityState = {
+    book: state.book,
+    run: state.run,
+    character: state.character,
+    abilities: state.abilities,
+    traits: state.traits,
+    resources: state.resources,
+    discoveries: state.discoveries,
+    facts: state.facts
+  };
+  const firstChoice = proposal.guidedChoice || proposal.suggestedChoices?.[0];
+  const guidedChoice = firstChoice && isGuidedChoicePossible(firstChoice, capabilityState)
+    ? firstChoice
+    : selectGuidedChoice(capabilityState);
+  proposal.guidedChoice = guidedChoice;
+  proposal.suggestedChoices = guidedChoice ? [guidedChoice] : [];
+  return proposal;
+}
+
+function sanitizeProposalForCapability(proposal, actionAssessment) {
+  if (actionAssessment.allowedAttempt) {
+    proposal.sceneAssessment = {
+      ...(proposal.sceneAssessment || {}),
+      outcome: proposal.sceneAssessment?.outcome || actionAssessment.classification,
+      normalizedIntent: actionAssessment.normalizedIntent
+    };
+    return proposal;
+  }
+
+  proposal.sceneAssessment = {
+    ...(proposal.sceneAssessment || {}),
+    outcome: actionAssessment.classification,
+    normalizedIntent: actionAssessment.normalizedIntent,
+    capabilityBlocks: actionAssessment.blocks
+  };
+  proposal.proposedStateChanges = {};
+  proposal.proposedManaChanges = [];
+  proposal.proposedHealthChanges = [];
+  proposal.proposedTraits = [];
+  proposal.proposedAbilities = [];
+  proposal.proposedResources = [];
+  proposal.relationshipChanges = [];
+  proposal.newDiscoveries = [];
+  proposal.canonicalFacts = [];
+  proposal.openThreadUpdates = [];
+  proposal.worldStateChanges = [];
+  proposal.storyEvents = [];
+  proposal.chapterProgress = { chapterComplete: false, targetChapter: null, reason: "Capability boundary prevented story progression." };
+  proposal.sceneProgress = { nextScene: null, nextBeat: null, reason: "Capability boundary resolved through narration only." };
+  proposal.death = { occurred: false, reason: "", location: "" };
+  proposal.endingCandidate = null;
+  proposal.proposedExperience = [{ category: "survival", amount: 2, reason: "The player tested what this body and world allow." }];
+  proposal.memoryCandidates = [
+    ...(Array.isArray(proposal.memoryCandidates) ? proposal.memoryCandidates.slice(0, 1) : []),
+    { content: `The player attempted something outside current capability: ${actionAssessment.normalizedIntent}`, importance: 3, tags: ["capability-boundary", actionAssessment.classification] }
+  ];
+  return proposal;
 }
 
 async function insertActionRequest(run, clientActionId, action) {
@@ -365,8 +426,16 @@ async function resolvePlayerAction({ userId, runId, action, clientActionId, expe
 
   try {
     const recentMessages = state.messages.slice(-12);
+    const actionAssessment = assessActionPossibility({
+      action,
+      run: state.run,
+      character: state.character,
+      abilities: state.abilities,
+      discoveries: state.discoveries,
+      facts: state.facts
+    });
     const context = await buildStoryContext({ ...state, recentMessages, action });
-    const proposal = await createGameMasterProposal(context);
+    const proposal = enforceGuidedChoice(state, sanitizeProposalForCapability(await createGameMasterProposal(context), actionAssessment));
     await applyProposal(state, proposal, action);
     const response = await loadRunState(userId, runId);
     await getDb().query(
