@@ -1,7 +1,7 @@
 const express = require("express");
 const { optionalAuth, requireAuth } = require("../middleware/auth");
 const { createToken } = require("../utils/token");
-const { listNarratorPersonas, loginPlayer, normalizePersona, registerPlayer, updatePlayerPersona, validateUsername } = require("../services/player.service");
+const { loginUser, registerUser, validateUsername } = require("../services/auth.service");
 
 const router = express.Router();
 
@@ -17,32 +17,25 @@ router.post("/register", async (req, res) => {
   if (!username) {
     return res.status(400).json({ success: false, message: "Username must be 3 to 24 characters using letters, numbers, or underscores." });
   }
-
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return res.status(400).json({ success: false, message: "Enter a valid email address." });
   }
-
   if (password.length < 8 || password.length > 200) {
     return res.status(400).json({ success: false, message: "Password must be 8 to 200 characters." });
   }
 
   try {
-    const player = await registerPlayer({ username, email, password });
-    const token = createToken(player);
-
+    const user = await registerUser({ username, email, password });
     return res.status(201).json({
       success: true,
-      message: "Player reincarnated.",
-      data: { player, token }
+      message: "Account created.",
+      data: { player: user, user, token: createToken(user) }
     });
   } catch (error) {
-    const message = String(error.message || "").toLowerCase();
-    const duplicate = message.includes("duplicate");
-    const usernameDuplicate = duplicate && message.includes("username");
-
+    const duplicate = String(error.message || "").toLowerCase().includes("duplicate");
     return res.status(duplicate ? 409 : 500).json({
       success: false,
-      message: duplicate ? (usernameDuplicate ? "That username is already registered." : "That email is already registered.") : "Registration failed.",
+      message: duplicate ? "That username or email is already registered." : "Registration failed.",
       error: duplicate ? undefined : error.message
     });
   }
@@ -57,18 +50,14 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    const player = await loginPlayer({ identifier, password });
-
-    if (!player) {
+    const user = await loginUser({ identifier, password });
+    if (!user) {
       return res.status(401).json({ success: false, message: "Username, email, or password is incorrect." });
     }
-
-    const token = createToken(player);
-
     return res.json({
       success: true,
-      message: "Player synchronized.",
-      data: { player, token }
+      message: "Session restored.",
+      data: { player: user, user, token: createToken(user) }
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Login failed.", error: error.message });
@@ -76,7 +65,7 @@ router.post("/login", async (req, res) => {
 });
 
 router.get("/me", requireAuth, (req, res) => {
-  res.json({ success: true, data: { player: req.auth.player } });
+  res.json({ success: true, data: { player: req.auth.user, user: req.auth.user } });
 });
 
 router.get("/status", optionalAuth, (req, res) => {
@@ -85,43 +74,15 @@ router.get("/status", optionalAuth, (req, res) => {
       success: true,
       authenticated: false,
       message: "Your session has expired. Log in again to continue your story.",
-      data: { player: null }
+      data: { player: null, user: null }
     });
   }
 
   return res.json({
     success: true,
     authenticated: true,
-    data: { player: req.auth.player }
+    data: { player: req.auth.user, user: req.auth.user }
   });
-});
-
-router.get("/personas", async (req, res) => {
-  try {
-    const personas = await listNarratorPersonas();
-
-    return res.json({
-      success: true,
-      data: { personas }
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: "Personas could not be loaded.", error: error.message });
-  }
-});
-
-router.patch("/persona", requireAuth, async (req, res) => {
-  try {
-    const narratorPersona = normalizePersona(req.body.persona);
-    const player = await updatePlayerPersona(req.auth.player.playerId, narratorPersona);
-
-    return res.json({
-      success: true,
-      message: "Narrator persona updated.",
-      data: { player }
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: "Persona update failed.", error: error.message });
-  }
 });
 
 module.exports = router;

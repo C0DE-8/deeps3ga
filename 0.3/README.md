@@ -1,127 +1,179 @@
 # Deep Saga 0.3
 
-Deep Saga 0.3 is the combat-focused reincarnation choice RPG version.
+Deep Saga 0.3 is an interactive fantasy book/RPG engine. The player writes free-form attempted actions, the Game Master narrates moment-to-moment story, the Story Guide protects canon and reveal timing, and the backend engine validates what becomes persistent reality.
 
-Players start as themselves, die in the real world, and wake inside Deep Saga as one random weak base body:
+## Book I
 
-- Reincarnated as a Slime: weak at first, built around absorption, adaptation, and extreme late growth.
-- Reincarnated as a Spider: extremely weak at first, built around venom, webs, movement, analysis, and survival.
+`ant-world` is the active book:
 
-The AI acts as Game Master. Player input is always an attempted action, not automatic truth. Bad choices can kill the current body, even in the first fight.
+- Title: `The Ant World: The King's Soul`
+- World: `Eldara`
+- Genre: fantasy, reincarnation, evolution, war, mystery, adventure
+- Starting state: human memories retained, species `Ant`, life stage `Larva`, level `1`, location `Ant Nursery`
 
-## Current Game Flow
+The protagonist does not know why they reincarnated, what Royal Soul Resonance is, the truth of the Grand Insect Tournament, the Great War, the sanctuary, the final enemy, or their final evolution path at the start.
 
-```txt
-Player registers or logs in
-  -> backend restores saved player, active body, skills, memories, and boss stage
-  -> player chooses a narrator persona
-  -> player opens the story reader
-  -> backend builds the AI context from SQL
-  -> prompts.js instructs the AI to run the current boss stage
-  -> AI returns narration, choices, state changes, records, and memories
-  -> backend applies confirmed resource/skill changes and saves the turn
+## Architecture
+
+- Users are account identities only.
+- Books define playable Deep Saga works.
+- Runs belong to a user and book and can be `active`, `dead`, `completed`, or `abandoned`.
+- Character state is per run, not per account.
+- Story messages, discoveries, canonical facts, relationships, world state, open threads, memories, traits, abilities, resources, and story events are persisted in SQL.
+- Action requests use `clientActionId` plus run versions for idempotency and stale action rejection.
+
+## Story Guide
+
+Book-specific canon lives in `backend/books/ant-world/story-guide.js` and the seeded SQL chapter guide. The 15 chapters are represented as structured definitions with purpose, required canon, major revelations, possible developments, end conditions, blocked future revelations, and scene guidance. They are not fixed scripts.
+
+The core law is:
+
+- AI = Game Master
+- Story Guide = Canon
+- Player = Protagonist
+- Engine = Reality
+
+## Game Master
+
+`backend/services/game-master.service.js` validates a strict internal proposal shape:
+
+- narration
+- suggested choices
+- scene assessment
+- proposed state, experience, mana, and health changes
+- proposed traits and abilities
+- relationship changes
+- discoveries, canonical facts, memories, open threads, world state changes
+- chapter and scene progress
+- death and ending candidates
+
+If `OPENAI_API_KEY` is configured, the backend can call the Responses API. Without it, the local deterministic Game Master keeps development playable without fabricating future canon.
+
+## Engine
+
+`backend/services/turn-engine.service.js` treats player text as intent, not reality. It bounds experience, mana, health, abilities, relationship deltas, chapter movement, death, and completion. It rejects arbitrary chapter skipping and overpowered early abilities.
+
+## Progression
+
+There is no class picker. Hidden development signals accumulate from behavior:
+
+- combat
+- scouting
+- magic
+- analysis
+- leadership
+- support
+- survival
+- predator
+- soul
+
+Levels and evolution are controlled by backend rules. Important powers require a reason and cannot be randomly granted.
+
+## Database
+
+Migrations are deterministic:
+
+- `001_deep_saga_core.sql`
+- `002_ant_world_book.sql`
+- `003_ant_world_story_guide.sql`
+- `004_ant_world_state.sql`
+
+Run:
+
+```bash
+cd backend
+npm run migrate
 ```
 
-Later turns:
+For development reset:
 
-```txt
-Player clicks a choice or types an action
-  -> backend loads recent story_messages and story_memory
-  -> backend includes current boss data from the 10-boss gauntlet
-  -> AI resolves the action as combat, survival, analysis, recovery, or boss preparation
-  -> backend saves the player action and narrator response
+```bash
+cd backend
+npm run db:reset
 ```
 
-## Boss Gauntlet
+The reset drops old 0.3 gameplay tables and new 0.3 story tables, then reapplies the clean baseline. It refuses to run in production unless the explicit destructive override is set.
 
-The game now uses 10 boss stages. Each stage is one boss encounter. The first boss is easier because she is cocky and overlooks the newborn player, but she can still kill them.
+## Backend Setup
 
-Played order:
-
-1. Gloria Taratect
-2. Clayman
-3. Araba
-4. Mother (Queen Taratect)
-5. Hinata Sakaguchi
-6. Demon Lord Ariel
-7. Milim Nava
-8. Veldora Tempest
-9. Guy Crimson
-10. Administrator D
-
-Power scale strongest to weaker:
-
-```txt
-Administrator D
-Guy Crimson
-Veldora Tempest
-Milim Nava
-Demon Lord Ariel
-Hinata Sakaguchi
-Mother (Queen Taratect)
-Araba
-Clayman
-Gloria Taratect
+```bash
+cd backend
+npm install
+cp .env.example .env
+npm run migrate
+npm run dev
 ```
 
-## Backend
+Required backend environment:
 
-Location:
+- `SITE_ID`
+- `API_KEY`
+- `DBMS_URL`
+- `AUTH_TOKEN_SECRET`
+- optional `OPENAI_API_KEY`
+- optional `OPENAI_MODEL`
 
-```txt
-0.3/backend
+## Frontend Setup
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
-Main files:
+Frontend environment may contain only public Vite configuration such as `VITE_API_BASE_URL`.
 
-| File | Purpose |
-| --- | --- |
-| `server.js` | Express app and route mounting |
-| `router/auth.router.js` | Register, login, session status, personas |
-| `router/story.router.js` | Story narration endpoint |
-| `services/player.service.js` | Player creation, schema setup, body/boss/skill seeds |
-| `services/narrator.service.js` | Builds AI context and calls OpenAI |
-| `config/prompts.js` | Deep Saga 0.3 Game Master prompt |
-| `migrations/001_deep_saga_0_3_boss_gauntlet.sql` | Baseline SQL for the 0.3 schema and boss table |
-| `scripts/migrate.js` | Runs schema setup and seeds through the JS runtime path |
+## Frontend Flow
 
-## Environment
+Routes:
 
-Backend env:
+- `/`
+- `/login`
+- `/register`
+- `/library`
+- `/books/ant-world`
+- `/play/:runId`
+- `/journey/:runId`
 
-```txt
-SITE_ID=your_project_site_id
-API_KEY=full_dbms_api_key_not_the_short_prefix
-DBMS_URL=https://api.dbms.copupbid.com
-DBMS_TIMEOUT_MS=15000
-AUTH_TOKEN_SECRET=change_this_long_random_secret
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-4o-mini
-DEEP_SAGA_PERSONA=ADMIN
-ALLOW_STATIC_NARRATOR_FALLBACK=false
-```
+Flow:
 
-Frontend env:
+Create account -> Library -> Ant World detail -> Start run -> cinematic opening -> story reader -> death/completion/journey.
 
-```txt
-VITE_API_BASE_URL=https://your-backend-domain/api
-```
+The reader keeps narration central, renders optional suggested choices, and always provides a free-form action composer while the run is active. Character, discoveries, relationships, and objectives are available through the journal panel without exposing hidden engine stats or future spoilers.
 
-## Setup
+## Tests
 
 Backend:
 
 ```bash
-cd 0.3/backend
-npm install
-npm run migrate
-npm run dev
+cd backend
+npm test
 ```
 
 Frontend:
 
 ```bash
-cd 0.3/frontend
-npm install
-npm run dev
+cd frontend
+npm run lint
+npm run build
 ```
+
+## Adding Future Books
+
+Add book-specific metadata, starting state, canon, reveal rules, and chapter guide under `backend/books/<book-slug>/`, seed it through migrations, and reuse the generic run/turn/message/state engine.
+
+## Current Status
+
+Implemented in 0.3:
+
+- account auth separated from story bodies
+- Ant World Book I metadata and 15-chapter Story Guide
+- canonical run creation
+- persistent messages and state domains
+- idempotent action requests
+- structured Game Master proposal validation
+- bounded engine consequences
+- death/completion blocking
+- library, book detail, reader, journal, and journey UI
+- development reset with production protection

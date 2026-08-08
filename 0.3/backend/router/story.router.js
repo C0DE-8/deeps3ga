@@ -1,64 +1,149 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
-const { createStoryScene, loadStoryHistory } = require("../services/narrator.service");
-const { getPlayerSheet } = require("../services/player.service");
-const { synthesizeStoryVoice } = require("../services/voice.service");
+const { getBookBySlug, listBooks } = require("../services/book.service");
+const { createAntWorldRun, getRunForUser, listRunsForUser, loadRunState } = require("../services/run.service");
+const { resolvePlayerAction } = require("../services/turn-engine.service");
 
 const router = express.Router();
 
-router.post("/opening", requireAuth, async (req, res) => {
-  try {
-    const scene = await createStoryScene(req.auth.player, req.body.playerAction, req.body.recentMessages);
+function userId(req) {
+  return req.auth.user.userId;
+}
 
-    return res.json({ success: true, data: scene });
+router.get("/books", requireAuth, async (req, res) => {
+  try {
+    const books = await listBooks();
+    const runs = await listRunsForUser(userId(req));
+    return res.json({ success: true, data: { books, runs } });
   } catch (error) {
-    console.error(JSON.stringify({
-      type: "narration_error",
-      playerId: req.auth?.player?.playerId,
-      message: error.message,
-      stack: process.env.NODE_ENV === "production" ? undefined : error.stack
-    }));
-    return res.status(500).json({ success: false, message: "Narration failed.", error: error.message });
+    return res.status(500).json({ success: false, message: "Books could not be loaded.", error: error.message });
   }
 });
 
-router.get("/history", requireAuth, async (req, res) => {
+router.get("/books/:slug", requireAuth, async (req, res) => {
   try {
-    const messages = await loadStoryHistory(req.auth.player, Number(req.query.limit || 80));
-
-    return res.json({ success: true, data: { messages } });
+    const book = await getBookBySlug(req.params.slug);
+    if (!book) return res.status(404).json({ success: false, message: "Book not found." });
+    const runs = (await listRunsForUser(userId(req))).filter((run) => run.book.slug === book.slug);
+    return res.json({ success: true, data: { book, runs } });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Story history failed.", error: error.message });
+    return res.status(500).json({ success: false, message: "Book detail could not be loaded.", error: error.message });
   }
 });
 
-router.get("/stats", requireAuth, async (req, res) => {
+router.get("/runs", requireAuth, async (req, res) => {
   try {
-    const sheet = await getPlayerSheet(req.auth.player.playerId);
-
-    if (!sheet) {
-      return res.status(404).json({ success: false, message: "Player sheet not found." });
-    }
-
-    return res.json({ success: true, data: sheet });
+    return res.json({ success: true, data: { runs: await listRunsForUser(userId(req)) } });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Player sheet failed.", error: error.message });
+    return res.status(500).json({ success: false, message: "Runs could not be loaded.", error: error.message });
   }
 });
 
-router.post("/voice", requireAuth, async (req, res) => {
+router.post("/runs", requireAuth, async (req, res) => {
   try {
-    const audio = await synthesizeStoryVoice({
-      text: req.body.text,
-      personaKey: req.auth.player.narratorPersona,
-      voiceMode: req.body.voiceMode
+    const slug = String(req.body.bookSlug || req.body.slug || "ant-world");
+    if (slug !== "ant-world") return res.status(400).json({ success: false, message: "Only Ant World is active in 0.3." });
+    const run = await createAntWorldRun(userId(req));
+    return res.status(201).json({ success: true, data: run });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Run could not be created.", error: error.message });
+  }
+});
+
+router.get("/runs/:runId", requireAuth, async (req, res) => {
+  try {
+    const run = await getRunForUser(userId(req), req.params.runId);
+    if (!run) return res.status(404).json({ success: false, message: "Run not found." });
+    return res.json({ success: true, data: run });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Run could not be loaded.", error: error.message });
+  }
+});
+
+router.get("/runs/:runId/journal", requireAuth, async (req, res) => {
+  try {
+    const state = await loadRunState(userId(req), req.params.runId);
+    if (!state) return res.status(404).json({ success: false, message: "Run not found." });
+    return res.json({
+      success: true,
+      data: {
+        character: state.character,
+        traits: state.traits,
+        abilities: state.abilities,
+        discoveries: state.discoveries,
+        relationships: state.relationships,
+        openThreads: state.threads,
+        worldState: state.worldState.filter((entry) => entry.visibility === "player")
+      }
     });
-
-    res.setHeader("Content-Type", "audio/mpeg");
-    res.setHeader("Cache-Control", "no-store");
-    return res.send(audio);
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Voice narration failed.", error: error.message });
+    return res.status(500).json({ success: false, message: "Journal could not be loaded.", error: error.message });
+  }
+});
+
+router.post("/runs/:runId/actions", requireAuth, async (req, res) => {
+  const action = String(req.body.action || "").trim();
+  const clientActionId = String(req.body.clientActionId || "").trim();
+
+  if (!action || action.length > 2000) {
+    return res.status(400).json({ success: false, message: "Action text is required and must be under 2000 characters." });
+  }
+  if (!clientActionId || clientActionId.length > 120) {
+    return res.status(400).json({ success: false, message: "A valid clientActionId is required." });
+  }
+
+  try {
+    const result = await resolvePlayerAction({
+      userId: userId(req),
+      runId: req.params.runId,
+      action,
+      clientActionId,
+      expectedVersion: req.body.expectedVersion
+    });
+    return res.json({ success: true, duplicate: result.duplicate, data: result.response });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.status === 409 ? error.message : "Action could not be resolved safely.",
+      error: error.status ? undefined : error.message
+    });
+  }
+});
+
+router.post("/runs/:runId/abandon", requireAuth, async (req, res) => {
+  try {
+    const run = await getRunForUser(userId(req), req.params.runId);
+    if (!run) return res.status(404).json({ success: false, message: "Run not found." });
+    await require("../db").query(
+      "UPDATE deep_saga_runs SET status = 'abandoned', last_played_at = CURRENT_TIMESTAMP WHERE run_id = ? AND user_id = ? AND status = 'active'",
+      [req.params.runId, userId(req)]
+    );
+    return res.json({ success: true, data: await getRunForUser(userId(req), req.params.runId) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Run could not be abandoned.", error: error.message });
+  }
+});
+
+router.get("/journey/:runId", requireAuth, async (req, res) => {
+  try {
+    const state = await loadRunState(userId(req), req.params.runId);
+    if (!state) return res.status(404).json({ success: false, message: "Run not found." });
+    return res.json({
+      success: true,
+      data: {
+        run: state.run,
+        book: state.book,
+        character: state.character,
+        messages: state.messages,
+        discoveries: state.discoveries,
+        facts: state.facts,
+        traits: state.traits,
+        abilities: state.abilities,
+        relationships: state.relationships
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Journey could not be loaded.", error: error.message });
   }
 });
 

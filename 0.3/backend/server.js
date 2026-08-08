@@ -35,8 +35,9 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     name: "Deep S3GA API",
-    message: "Deep Saga is a choice-based reincarnation story RPG.",
+    message: "Deep Saga 0.3 runs interactive fantasy books with a Story Guide, Game Master, and validated engine.",
     auth: "/api/auth",
+    story: "/api/story",
     health: "/health"
   });
 });

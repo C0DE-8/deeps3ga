@@ -1,90 +1,79 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, BookOpen, CirclePlus, Crown, Skull } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { fetchPersonas, updateNarratorPersona } from '../../../api/authApi'
-import { fetchGameSaves, startGame } from '../../../api/deepSagaApi'
-import { useAuth } from '../../auth/useAuth'
-import { AppHeader } from '../../shell/AppHeader'
-import styles from './LibraryPage.module.css'
+import { Link, useNavigate } from 'react-router-dom'
+import { BookOpen, Play } from 'lucide-react'
+import { createRun, fetchLibrary } from '../../../api/deepSagaApi'
+import { Shell } from '../../shell/Shell'
+
+function latestRunForBook(runs, slug) {
+  return runs.find((run) => run.book?.slug === slug && run.status === 'active') || runs.find((run) => run.book?.slug === slug)
+}
 
 export function LibraryPage() {
-  const { player, setPlayer } = useAuth()
-  const [saves, setSaves] = useState([])
-  const [personas, setPersonas] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [personaSaving, setPersonaSaving] = useState(false)
-  const [error, setError] = useState('')
   const navigate = useNavigate()
+  const [state, setState] = useState({ books: [], runs: [] })
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([fetchGameSaves(), fetchPersonas()])
-      .then(([saveList, personaResponse]) => {
-        setSaves(saveList)
-        setPersonas(personaResponse.data.personas || [])
-      })
-      .catch((e) => setError(e.message || 'The archive could not be opened.'))
+    fetchLibrary()
+      .then((payload) => setState(payload.data))
+      .catch((requestError) => setError(requestError.message))
       .finally(() => setLoading(false))
   }, [])
 
-  async function begin() {
-    setLoading(true)
-    try { const game = await startGame(); navigate(`/read/${game.storyCycleId}`) }
-    catch (e) { setError(e.message || 'A new life could not begin.'); setLoading(false) }
-  }
-
-  async function changePersona(event) {
-    const nextPersona = event.target.value
-    setPersonaSaving(true)
+  async function begin(slug) {
+    setBusy(true)
     setError('')
-
     try {
-      const response = await updateNarratorPersona(nextPersona)
-      setPlayer(response.data.player)
-    } catch (e) {
-      setError(e.message || 'The narrator persona could not be changed.')
+      const payload = await createRun(slug)
+      navigate(`/play/${payload.data.run.runId}`)
+    } catch (requestError) {
+      setError(requestError.message)
     } finally {
-      setPersonaSaving(false)
+      setBusy(false)
     }
   }
 
-  const active = saves.find((save) => ['opening_death', 'awake', 'in_progress'].includes(save.status))
   return (
-    <main className={styles.page}>
-      <AppHeader />
-      <section className={styles.hero}>
-        <p>Your soul archive</p>
-        <h1>Every life leaves a page behind.</h1>
-        <div className={styles.personaPanel}>
-          <label htmlFor="narrator-persona">
-            <span>Narrator persona</span>
-            <select id="narrator-persona" value={player?.narratorPersona || 'ADMIN'} onChange={changePersona} disabled={personaSaving || !personas.length}>
-              {(personas.length ? personas : [{ key: 'ADMIN', name: 'The Divine Administrator' }]).map((persona) => (
-                <option key={persona.key} value={persona.key}>{persona.name}</option>
-              ))}
-            </select>
-          </label>
-          <p>{personas.find((persona) => persona.key === (player?.narratorPersona || 'ADMIN'))?.description || 'Choose how Deep Saga speaks to you.'}</p>
+    <Shell>
+      <section className="page">
+        <div className="hero-panel">
+          <div className="stack">
+            <p className="eyebrow">Library</p>
+            <h1>DEEP SAGA</h1>
+            <p>Choose a book, begin a run, and act freely. The Game Master narrates; the Story Guide protects canon; the engine decides what becomes real.</p>
+          </div>
+          <div className="book-cover" aria-hidden="true" />
         </div>
-        <button onClick={active ? () => navigate(`/read/${active.story_cycle_id}`) : begin} disabled={loading}>
-          {active ? <BookOpen size={19} /> : <CirclePlus size={19} />}{active ? 'Continue reading' : 'Begin a new life'}
-        </button>
+
+        {error && <p className="notice">{error}</p>}
+        {loading ? <p>Loading library...</p> : (
+          <div className="book-grid">
+            {state.books.map((book) => {
+              const run = latestRunForBook(state.runs, book.slug)
+              return (
+                <article className="book-card" key={book.slug}>
+                  <div className="mini-cover" aria-hidden="true" />
+                  <div className="stack">
+                    <p className="meta">Book {book.bookNumber} · {book.world}</p>
+                    <h2>{book.title}</h2>
+                    <p>{book.description}</p>
+                    <div className="row">
+                      <Link className="ghost-button" to={`/books/${book.slug}`}><BookOpen size={17} /> Details</Link>
+                      {run?.status === 'active' ? (
+                        <Link className="button" to={`/play/${run.runId}`}><Play size={17} /> Continue</Link>
+                      ) : (
+                        <button className="button" disabled={busy} onClick={() => begin(book.slug)}><Play size={17} /> Begin Story</button>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
       </section>
-      <section className={styles.shelf}>
-        <header><div><span>Recorded lives</span><h2>Your stories</h2></div><small>{saves.length} records</small></header>
-        {error && <p className={styles.error}>{error}</p>}
-        {!loading && !saves.length && <div className={styles.empty}><BookOpen size={30} /><h3>No story has been written yet.</h3><p>Your first page always begins with the last breath of another life.</p></div>}
-        <div className={styles.list}>
-          {saves.map((save) => (
-            <article key={save.story_cycle_id}>
-              <div className={styles.recordIcon}>{save.status === 'dead' ? <Skull /> : save.status === 'completed' ? <Crown /> : <BookOpen />}</div>
-              <div className={styles.recordTitle}><span>Life {save.cycle_number}</span><h3>{save.character_name || 'Unmanifested soul'}</h3><p>{save.race_name} {save.class_name} · Level {save.level || 1}</p></div>
-              <div className={styles.location}><span>Boss Stage {save.boss_stage || 1}/10</span><p>{save.floor_name || save.dungeon_name || 'The Last Breath'}</p></div>
-              <span className={`${styles.status} ${styles[save.status] || ''}`}>{save.status.replace('_', ' ')}</span>
-              <button className={styles.open} onClick={() => navigate(`/read/${save.story_cycle_id}`)} title="Open story"><ArrowRight size={19} /></button>
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
+    </Shell>
   )
 }
