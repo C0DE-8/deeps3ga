@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const { startingState, getBlockedRevelations } = require("../books/ant-world/story-guide");
 const { createGameMasterProposal, validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
-const { buildStoryContext } = require("../services/story-guide.service");
+const { buildStoryContext, deriveJourneyProfile } = require("../services/story-guide.service");
 const { boundedExperience, categoryDevelopment, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
 const { assertDevelopmentResetAllowed } = require("../scripts/reset-db");
 const { createToken, verifyToken } = require("../utils/token");
@@ -62,8 +62,8 @@ test("story context gives the AI continuity guidance instead of coded action rul
     character: startingState.character,
     chapter: {
       chapterNumber: 1,
-      slug: "the-smallest-soul",
-      title: "The Smallest Soul",
+      slug: "the-strange-larva",
+      title: "The Strange Larva",
       purpose: "Opening",
       majorRevelations: [],
       sceneGuidance: ["awakening"]
@@ -81,8 +81,22 @@ test("story context gives the AI continuity guidance instead of coded action rul
     action: "I try to run into the tunnel."
   });
   assert.equal(context.playerAction, "I try to run into the tunnel.");
+  assert.ok(context.storyCanon.fixedCanon.includes("In Chapter 3, the chamber opens and the Soul Seed awakens."));
+  assert.match(context.promptPackage.storyBible, /one fixed canon spine/i);
+  assert.equal(context.playerJourney.dominantRoute, "undetermined");
   assert.ok(context.continuityGuidance.selfCheck.includes("Does it contradict established facts or current character state?"));
   assert.equal(Object.prototype.hasOwnProperty.call(context, "codedActionRules"), false);
+});
+
+test("story context derives soft route signals without branch locking", () => {
+  const profile = deriveJourneyProfile({
+    action: "I bite the worker and follow the guards toward the tunnel.",
+    memories: [{ content: "The player studied a bitter scent.", tags: ["analysis"] }]
+  });
+  assert.equal(profile.dominantRoute, "conflict");
+  assert.ok(profile.signals.includes("conflict"));
+  assert.ok(profile.signals.includes("investigation"));
+  assert.match(profile.instruction, /soft continuity signals/);
 });
 
 test("behavior signals map to hidden development columns", () => {

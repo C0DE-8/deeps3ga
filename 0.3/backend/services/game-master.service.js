@@ -136,6 +136,7 @@ function localGameMaster(context) {
   const category = inferCategory(action);
   const location = context.playerState.location;
   const chapter = context.currentChapter?.chapterNumber || 1;
+  const route = context.playerJourney?.dominantRoute || "undetermined";
 
   const sensory = category === "yearning"
     ? "You close whatever passes for eyes in this new body and push the wish outward. Nothing in your flesh changes at once. Still, the prayer does not feel entirely empty; warmth gathers somewhere deep and then fades, like something heard you from very far away."
@@ -151,13 +152,13 @@ function localGameMaster(context) {
     `You attempt: ${action || "to understand where you are"}.`,
     sensory,
     "A worker pauses over you. Her antennae brush your slick side, and a translated impression reaches you through pheromone rather than speech: alive, strange, watch. The word strange is not spoken, but it clings to you.",
-    chapter === 1 ? "Far below the normal nursery scent, something bitter moves through the tunnel air and vanishes before you can decide whether it was real." : "The consequence settles into the living world around you."
+    chapter === 1 ? `Far below the normal nursery scent, something bitter moves through the tunnel air and vanishes before you can decide whether it was real. The moment marks your path as ${route}, but it does not trap you there.` : "The consequence settles into the living world around you."
   ].join("\n\n");
 
   const proposal = emptyProposal();
   proposal.narration = narration;
   proposal.guidedChoice = context.guidedChoice || { label: "Focus on the scents", action: "I focus on the pheromone scents around me." };
-  proposal.sceneAssessment = { tone: category === "yearning" ? "quiet yearning" : "intimate dread", threat: "low", actionCategory: category, outcome: "AI_REASONED" };
+  proposal.sceneAssessment = { tone: category === "yearning" ? "quiet yearning" : "intimate dread", threat: "low", actionCategory: category, routeSignal: route, outcome: "AI_REASONED" };
   proposal.proposedExperience = [{ category, amount: category === "yearning" ? 4 : 8, reason: `The player attempted ${category} from a larval body and learned its limits.` }];
   proposal.memoryCandidates = [{ content: `In ${location}, the player attempted to ${action || "make sense of rebirth"} and noticed a bitter disturbance.`, importance: 5, tags: ["chapter-1", category, location] }];
   proposal.sceneProgress = { nextScene: category === "analysis" || category === "magic" ? "nursery" : null, nextBeat: category === "analysis" ? "pheromone_perception" : null, reason: "Small scene movement from the opening awakening." };
@@ -178,7 +179,7 @@ async function callOpenAiGameMaster(context) {
       input: [
         {
           role: "system",
-          content: "You are the Deep Saga Game Master. Return only valid JSON matching the requested schema. Deep Saga is an AI-first roleplaying engine: the player supplies protagonist intent, then you reason from Book World, Story Guide, current character, current world state, knowledge, relationships, memories, recent story, and the latest action to continue naturally. Do not use mechanical rejection language. Do not grant unearned powers, knowledge, items, NPC behavior, relationship changes, location access, success, evolution, or world facts just because the player typed them. If an action is impossible, risky, strange, or premature, let the world demonstrate that through immersive narration. If an action is clever or unexpectedly plausible, adapt. Return exactly one short guidedChoice that naturally follows from the current scene and feels plausible for the protagonist's current reality. Use emojis sparingly as mature visual markers for meaningful moments: 🐜 colony, 👑 authority, ⚔️ conflict, 🧬 evolution, ✨ magic, 🧠 understanding, 🌎 world discovery, ⚠️ danger, 🌑 mystery, 💀 death, 🏆 tournament. You may add storyEvents for earned protagonist-visible discoveries, traits, level changes, warnings, or evolution availability, but never reveal hidden canon or fake precision."
+          content: "You are the Deep Saga Game Master. Return only valid JSON matching the requested schema. Deep Saga is an AI-first roleplaying engine: the player supplies protagonist intent, then you reason from Book World, Story Guide, promptPackage, storyCanon, current character, current world state, knowledge, relationships, memories, recent story, playerJourney, and the latest action to continue naturally. Treat storyCanon and promptPackage as the authored canon spine: fixed milestones must eventually happen, but the route is improvised from the player's actions. Do not force the player into a branch, required action, or menu path. Do not use mechanical rejection language. Do not grant unearned powers, knowledge, items, NPC behavior, relationship changes, location access, success, evolution, or world facts just because the player typed them. If an action is impossible, risky, strange, or premature, let the world demonstrate that through immersive narration. If an action is clever or unexpectedly plausible, adapt. Preserve different knowledge states: an investigator notices clues, a protector notices bonds, a fighter notices threat and injury, and an accidental route notices confusion and displacement. Return exactly one short guidedChoice that naturally follows from the current scene and feels plausible for the protagonist's current reality. Use emojis sparingly as mature visual markers for meaningful moments: 🐜 colony, 👑 authority, ⚔️ conflict, 🧬 evolution, ✨ magic, 🧠 understanding, 🌎 world discovery, ⚠️ danger, 🌑 mystery, 💀 death, 🏆 tournament. You may add storyEvents for earned protagonist-visible discoveries, traits, level changes, warnings, or evolution availability, but never reveal hidden canon or fake precision."
         },
         {
           role: "user",

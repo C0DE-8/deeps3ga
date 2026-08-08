@@ -1,97 +1,80 @@
-# Deep Saga 0.3 - Ant World Playtest Story Flow
+# Deep Saga 0.3 - Ant World Story Flow
 
 Book: The Ant World: The King's Soul
-Chapter: 1 - The Smallest Soul
-Playtest route: observation, memory, prayer, communication, investigation, defensive instinct
+Core arc: 3 chapters
+Engine idea: one canon, many player journeys
 
-## Opening
+## Story Spine
 
-The last thing you remember is impact.
+A human dies and reincarnates as an ant larva.
 
-Light breaks into pieces. Breath leaves you. The human world falls away before you can understand what took your life.
+An old threat is moving toward the colony.
 
-Then there is pressure.
+The player does not have to pick the "right" action. They can study, hide, bite, pray, sleep, follow, help, or do something strange. The AI should treat the action as real protagonist intent, then let the world answer naturally.
 
-Warmth.
+The canon still moves:
 
-A wet, living dark.
+1. Chapter 1 - The Strange Larva
+   The player awakens in the nursery, learns they are an ant, remembers being human, begins to understand pheromones, gains the attention of one worker, and experiences the first sign of a wrong scent or disturbance.
 
-Your limbs do not answer because they are not limbs in any shape your mind remembers. You try to inhale and your body only twitches, soft and segmented, surrounded by other small bodies in a chamber filled with heat, touch, and scent.
+2. Chapter 2 - Beneath the Colony
+   The colony investigates tunnel disturbances. Depending on the player's route, they discover the old sealed passage through evidence, relationship, danger, injury, evacuation, or accident. The ancient chamber beneath the colony becomes established.
 
-Scent rolls over you like language without words.
+3. Chapter 3 - The Soul Seed
+   The chamber opens. The dying Soul Seed awakens. A wave of energy freezes the ants. The protagonist feels something touch their soul and sees an enormous crowned, wounded, ancient ant. The vision disappears before the truth is fully explained.
 
-Hunger.
-Brood.
-Protect.
-Move.
+## Example Routes
 
-The meanings are not spoken. They arrive through instinct, incomplete and overwhelming.
+### Player A - Investigation
 
-You are alive.
+Player action:
+I study the pheromones.
 
-You are not human.
+Story flow:
+The player notices the bitter scent does not behave like normal pheromones. Later they connect scent, symbols, and sealed passages. In Chapter 3, the Soul Seed awakening feels mysterious and intellectual.
 
-🐜 Suggested action
-Focus on the pheromone scents around you.
+Ending flavor:
+The symbols were not decoration. They were describing the crowned figure.
 
-## Player Action 1
+### Player B - Relationship
 
-I focus on the pheromone scents around me.
+Player action:
+I hide beneath the other larvae and stay close to the worker.
 
-## Game Master
+Story flow:
+The worker notices fear instead of cleverness. A bond forms through protection, evacuation, and danger. The chamber is found because the player follows, loses, or tries to save someone.
 
-You go still inside the warm dark and let the world come to you.
+Ending flavor:
+The worker collapses beside the player as the light passes through them both. The awakening feels emotional and personal.
 
-At first it is only smell. Then the scents begin to separate. Hunger is sharp. Brood is round and constant. Worker-attention is dry, practical, almost rhythm-like. The nursery is not a room so much as a living organ of the colony, every movement feeding into every other movement.
+### Player C - Conflict
 
-🧠 [DISCOVERY]
-Pheromone is not speech, but it carries meaning.
+Player action:
+I bite the worker touching me.
 
-A worker pauses over you. Her antennae brush your slick side.
+Story flow:
+The worker recoils. Guards notice. The player learns their larval body is weak, but their aggression changes how the colony watches them. They later reach the chamber through guard movement, danger, wounds, and survival.
 
-Alive.
+Ending flavor:
+The body should fail, but the soul stays awake. Something deep inside changes without explaining itself.
 
-Strange.
+### Player D - Accidental
 
-Watch.
+Player action:
+I eat, sleep, and let the workers carry me.
 
-The word strange is not spoken, but it clings to you.
+Story flow:
+The player does not investigate. The colony moves around them. They are carried during evacuation, displaced by collapse, or overlooked in a moment of panic. Canon still reaches them because the world is alive.
 
-Far below the normal nursery scent, something bitter moves through the tunnel air and vanishes before you can decide whether it was real.
+Ending flavor:
+The player barely understands the chamber, but the light knows them anyway.
 
-🐜 Suggested action
-Observe the worker tending you.
+## Sample Turn
 
-## Player Action 2
+Player action:
+I pray I grow as fast as possible.
 
-I search my human memories for the moment I died.
-
-## Game Master
-
-You reach backward.
-
-For a moment the nursery fades. You remember hard ground, broken light, the impossible heaviness of your human body, and the panic of knowing there would be no second breath.
-
-Then the memory tears.
-
-The ant body drags you back into warmth and scent. You have no hands to clutch your head. No voice to curse. Only a soft body that trembles among the brood while a human mind tries to fit inside it.
-
-🌑 [MEMORY]
-You remember dying, but not why you woke here.
-
-The bitter scent returns for one heartbeat.
-
-This time, you notice something worse: it is not random. It moves like searching.
-
-🐜 Suggested action
-Stay still and study the bitter scent.
-
-## Player Action 3
-
-I pray that this body grows quickly enough to survive.
-
-## Game Master
-
+Game Master flow:
 You close whatever passes for eyes in this new body and push the wish outward.
 
 Grow.
@@ -100,134 +83,37 @@ Survive.
 
 Please.
 
-Nothing dramatic happens. Your body does not split open into strength. No crown of power descends. No secret name wakes in your mind.
+Nothing dramatic happens. Your soft body does not split into strength. No wings open. No adult limbs tear free.
 
 But the prayer does not feel empty.
 
-For a breath, warmth gathers somewhere deeper than flesh. It is faint, distant, and gone almost as soon as you notice it, like something very far away turned its attention toward you and then looked elsewhere.
+For one breath, warmth gathers somewhere deeper than flesh. It is faint, distant, and gone almost as soon as you notice it, like something very far away turned its attention toward you and then looked elsewhere.
 
-✨ [SYSTEM EVENT]
-Something answered nothing you can yet understand.
+✨ Soul Stirring
+Something heard nothing you can yet understand.
 
-The worker above you freezes. Her antennae hover over your body, uncertain.
+The worker above you freezes. Her antennae hover over your body.
 
 Alive.
-
 Strange.
-
 Watch.
 
 Now the scent carries a trace of fear.
 
-🐜 Suggested action
+Suggested next action:
 Try to answer the worker with scent.
 
-## Player Action 4
+## Rule For The AI
 
-I try to send the same strange scent back to the worker.
+Do not say:
+You cannot do that.
 
-## Game Master
+Do say:
+What happens when this body, this world, this scene, and this history answer the player's intent?
 
-You do not know how to speak with this body.
+That is the whole system:
 
-So you imitate.
-
-You hold the worker's attention in your mind and push toward the feeling she gave you: alive, strange, watch.
-
-The result is clumsy. Too much hunger. Too much panic. Too much human fear folded into an insect signal.
-
-The worker recoils half a body-length.
-
-Not pain.
-
-Not rejection.
-
-Recognition.
-
-🐜 [COLONY RESPONSE]
-The worker knows you tried to answer.
-
-She touches you again, slower this time, and the nursery around you tightens with alertness. Somewhere beyond the brood chamber, legs scrape against packed earth.
-
-The bitter scent moves again.
-
-Closer.
-
-⚠️ Suggested action
-Focus on where the bitter scent is coming from.
-
-## Player Action 5
-
-I stay still and study the bitter scent below the nursery smell.
-
-## Game Master
-
-Stillness becomes your first weapon.
-
-You let the colony's normal scents pass over you: food, brood, worker, warmth, damp soil.
-
-Underneath them is the wrongness.
-
-It is thin and bitter, like a needle hidden in cloth. It does not spread like panic. It does not pulse like hunger. It threads through the air in careful lines, pausing, retreating, returning.
-
-Searching.
-
-Not for food.
-
-Not for larvae.
-
-For something specific.
-
-🌑 [MYSTERY]
-Something has entered the nursery, and it is looking for something.
-
-The worker tending you turns toward the tunnel.
-
-For the first time since waking, you understand one clean thing:
-
-you are helpless, but you are not useless.
-
-🐜 Suggested action
-Warn the worker as best you can.
-
-## Player Action 6
-
-If something touches me, I bite with everything this body has.
-
-## Game Master
-
-The instinct arrives before courage does.
-
-Your human mind imagines teeth, muscles, a body lunging forward.
-
-Your larval body offers less.
-
-A twitch.
-
-A curl.
-
-A tiny mouthparts' threat against a world far larger than you.
-
-But the intent is real.
-
-If the thing searching this nursery reaches you, you will not simply wait to be taken.
-
-⚔️ [INSTINCT]
-Fear becomes the beginning of resistance.
-
-The worker lowers her head over you, not quite shielding you, not quite studying you. Her scent changes.
-
-Protect.
-
-Strange.
-
-Important.
-
-Somewhere in the tunnel, the bitter thread stops moving.
-
-For one breath, the nursery is silent.
-
-Then something scratches softly from the dark.
-
-🐜 Suggested action
-Listen before you move.
+AI = Game Master
+Story Guide = Canon
+Player = Protagonist
+Engine = Reality

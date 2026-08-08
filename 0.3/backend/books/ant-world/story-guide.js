@@ -5,7 +5,7 @@ const antWorldMetadata = {
   world: "Eldara",
   status: "active",
   genre: ["Fantasy", "Reincarnation", "Evolution", "War", "Mystery", "Adventure"],
-  description: "A dead human awakens as an ant larva in Eldara, an insect world moving toward war, tournament, and the mystery of a vanished Ant King."
+  description: "A dead human awakens as an ant larva in Eldara, where a strange colony disturbance leads toward an ancient chamber, a dying Soul Seed, and the mystery of a vanished Ant King."
 };
 
 const privateCanon = {
@@ -21,6 +21,24 @@ const privateCanon = {
     "No random power.",
     "No future spoilers."
   ],
+  coreStory: {
+    model: "One fixed canon spine, infinite possible player journeys.",
+    fixedCanon: [
+      "A human dies and reincarnates as an ant larva.",
+      "An old threat is approaching the colony.",
+      "An ancient underground chamber exists beneath the colony.",
+      "The chamber contains a dying Soul Seed tied to forgotten colony history.",
+      "In Chapter 3, the chamber opens and the Soul Seed awakens.",
+      "The protagonist briefly sees an enormous crowned, wounded, ancient ant before the vision disappears."
+    ],
+    flexibleJourneys: [
+      "Analytical players may reach canon through pheromones, symbols, clues, and deduction.",
+      "Fearful or attached players may reach canon through protection, evacuation, separation, rescue, and worker relationships.",
+      "Aggressive players may reach canon through guards, wounds, failed violence, survival, and dangerous attention.",
+      "Passive or unusual players may reach canon by being carried, overlooked, displaced, protected, or caught in colony movement."
+    ],
+    narratorInstruction: "The Story Guide defines what must eventually happen and what must not happen yet. It never requires a specific player action, route, branch, or menu choice."
+  },
   futureTruths: [
     "Royal Soul Resonance connects the player to the vanished Ant King.",
     "The Grand Insect Tournament collects soul energy.",
@@ -111,9 +129,9 @@ const startingState = {
 };
 
 const revealBlocks = {
-  1: ["full Ant King revelation", "Royal Soul Resonance name", "tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
-  2: ["complete King's next existence truth", "tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
-  3: ["tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
+  1: ["Soul Seed identity", "ancient chamber full truth", "full Ant King revelation", "Royal Soul Resonance name", "tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
+  2: ["Soul Seed awakening", "crowned ancient ant vision", "complete King's next existence truth", "tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
+  3: ["complete King's next existence truth", "Royal Soul Resonance name", "tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
   4: ["tournament soul-energy revelation", "Great War full truth", "sanctuary truth", "final enemy", "final evolution logic"],
   5: ["soul-energy mechanism", "sanctuary truth", "final enemy", "final evolution logic"],
   6: ["sanctuary truth", "final enemy", "final evolution logic"],
