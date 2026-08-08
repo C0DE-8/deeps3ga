@@ -33,12 +33,12 @@ test("structured narrator validation rejects malformed or unsafe fields", () => 
 test("structured narrator validation normalizes optional choices", () => {
   const output = validateGameMasterOutput({
     narration: "The nursery breathes around you while scent becomes almost-language.",
-    suggestedChoices: ["Stay still", "Run into the tunnel"],
+    suggestedChoices: ["Stay still", "Run into the tunnel", "Call for help", "Study the scent", "Impossible fifth"],
     proposedResources: [{ name: "Dew bead", quantity: 1 }],
     storyEvents: [{ eventType: "FIRST_SCENT_MEMORY", title: "First Scent Memory" }]
   });
   assert.equal(output.suggestedChoices[0].label, "Stay still");
-  assert.equal(output.suggestedChoices.length, 1);
+  assert.equal(output.suggestedChoices.length, 4);
   assert.equal(output.proposedResources.length, 1);
   assert.equal(output.storyEvents.length, 1);
   assert.equal(output.death.occurred, false);
@@ -196,7 +196,7 @@ test("local Game Master turns impossible wishes into story flow", async () => {
   });
   assert.match(proposal.narration, /wish|heard|warmth|far away/i);
   assert.ok(proposal.narration.length > 900);
-  assert.equal(proposal.suggestedChoices.length, 1);
+  assert.equal(proposal.suggestedChoices.length, 4);
   if (previousKey == null) delete process.env.OPENAI_API_KEY;
   else process.env.OPENAI_API_KEY = previousKey;
 });

@@ -64,9 +64,18 @@ function normalizeGuidedChoice(proposal) {
   const choices = [];
   if (proposal.guidedChoice) choices.push(proposal.guidedChoice);
   if (Array.isArray(proposal.suggestedChoices)) choices.push(...proposal.suggestedChoices);
-  const first = choices.length > 0 ? sanitizeChoice(choices[0]) : null;
-  proposal.guidedChoice = first;
-  proposal.suggestedChoices = first ? [first] : [];
+  const seen = new Set();
+  const normalizedChoices = choices
+    .map(sanitizeChoice)
+    .filter((choice) => {
+      const key = `${choice.label}::${choice.action}`.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return choice.label && choice.action;
+    })
+    .slice(0, 4);
+  proposal.guidedChoice = normalizedChoices[0] || null;
+  proposal.suggestedChoices = normalizedChoices;
 }
 
 function validateGameMasterOutput(raw) {
@@ -160,7 +169,13 @@ function localGameMaster(context) {
 
   const proposal = emptyProposal();
   proposal.narration = narration;
-  proposal.guidedChoice = context.guidedChoice || { label: "Focus on the scents", action: "I focus on the pheromone scents around me." };
+  proposal.suggestedChoices = [
+    { label: "Study the scent", action: "I study the bitter scent and try to understand where it came from." },
+    { label: "Answer the worker", action: "I try to answer the worker with scent or movement." },
+    { label: "Stay hidden", action: "I stay very still among the other larvae and watch what happens." },
+    { label: "Resist if touched", action: "If something strange touches me, I bite with everything this body has." }
+  ];
+  proposal.guidedChoice = proposal.suggestedChoices[0];
   proposal.sceneAssessment = { tone: category === "yearning" ? "quiet yearning" : "intimate dread", threat: "low", actionCategory: category, routeSignal: route, outcome: "AI_REASONED" };
   proposal.proposedExperience = [{ category, amount: category === "yearning" ? 4 : 8, reason: `The player attempted ${category} from a larval body and learned its limits.` }];
   proposal.memoryCandidates = [{ content: `In ${location}, the player attempted to ${action || "make sense of rebirth"} and noticed a bitter disturbance.`, importance: 5, tags: ["chapter-1", category, location] }];
@@ -182,7 +197,7 @@ async function callOpenAiGameMaster(context) {
       input: [
         {
           role: "system",
-          content: "You are the Deep Saga Game Master. Return only valid JSON matching the requested schema. Deep Saga is an AI-first roleplaying engine: the player supplies protagonist intent, then you reason from Book World, Story Guide, promptPackage, storyCanon, current character, current world state, knowledge, relationships, memories, recent story, playerJourney, and the latest action to continue naturally. Treat storyCanon and promptPackage as the authored canon spine: fixed milestones must eventually happen, but the route is improvised from the player's actions. Do not force the player into a branch, required action, or menu path. Do not use mechanical rejection language. Do not grant unearned powers, knowledge, items, NPC behavior, relationship changes, location access, success, evolution, or world facts just because the player typed them. If an action is impossible, risky, strange, or premature, let the world demonstrate that through immersive narration. If an action is clever or unexpectedly plausible, adapt. Preserve different knowledge states: an investigator notices clues, a protector notices bonds, a fighter notices threat and injury, and an accidental route notices confusion and displacement. For normal active turns, narration must be rich story prose: 5 to 9 substantial paragraphs, usually 350 to 750 words. Cover the player's intent, immediate bodily/sensory result, world or NPC response, consequence to memory/state/relationship/threat, and a forward hook. Only go shorter for death, final ending, duplicate repair, or a purely technical failure. Return exactly one short guidedChoice that naturally follows from the current scene and feels plausible for the protagonist's current reality. Use emojis sparingly as mature visual markers for meaningful moments: 🐜 colony, 👑 authority, ⚔️ conflict, 🧬 evolution, ✨ magic, 🧠 understanding, 🌎 world discovery, ⚠️ danger, 🌑 mystery, 💀 death, 🏆 tournament. You may add storyEvents for earned protagonist-visible discoveries, traits, level changes, warnings, or evolution availability, but never reveal hidden canon or fake precision."
+          content: "You are the Deep Saga Game Master. Return only valid JSON matching the requested schema. Deep Saga is an AI-first roleplaying engine: the player supplies protagonist intent, then you reason from Book World, Story Guide, promptPackage, storyCanon, current character, current world state, knowledge, relationships, memories, recent story, playerJourney, and the latest action to continue naturally. Treat storyCanon and promptPackage as the authored canon spine: fixed milestones must eventually happen, but the route is improvised from the player's actions. Do not force the player into a branch, required action, or menu path. Do not use mechanical rejection language. Do not grant unearned powers, knowledge, items, NPC behavior, relationship changes, location access, success, evolution, or world facts just because the player typed them. If an action is impossible, risky, strange, or premature, let the world demonstrate that through immersive narration. If an action is clever or unexpectedly plausible, adapt. Preserve different knowledge states: an investigator notices clues, a protector notices bonds, a fighter notices threat and injury, and an accidental route notices confusion and displacement. For normal active turns, narration must be rich story prose: 5 to 9 substantial paragraphs, usually 350 to 750 words. Cover the player's intent, immediate bodily/sensory result, world or NPC response, consequence to memory/state/relationship/threat, and a forward hook. Only go shorter for death, final ending, duplicate repair, or a purely technical failure. Return 2 to 4 suggestedChoices, each a short plausible next action from the immediate scene. Set guidedChoice to the strongest/default choice and also include it as the first suggestedChoices item. Keep free action possible; choices are inspiration, not restrictions. Use emojis sparingly as mature visual markers for meaningful moments: 🐜 colony, 👑 authority, ⚔️ conflict, 🧬 evolution, ✨ magic, 🧠 understanding, 🌎 world discovery, ⚠️ danger, 🌑 mystery, 💀 death, 🏆 tournament. You may add storyEvents for earned protagonist-visible discoveries, traits, level changes, warnings, or evolution availability, but never reveal hidden canon or fake precision."
         },
         {
           role: "user",

@@ -141,10 +141,18 @@ function boundedExperience(proposal) {
 }
 
 function enforceGuidedChoice(state, proposal) {
-  const firstChoice = proposal.guidedChoice || proposal.suggestedChoices?.[0];
-  const guidedChoice = firstChoice || null;
-  proposal.guidedChoice = guidedChoice;
-  proposal.suggestedChoices = guidedChoice ? [guidedChoice] : [];
+  const choices = [];
+  if (proposal.guidedChoice) choices.push(proposal.guidedChoice);
+  if (Array.isArray(proposal.suggestedChoices)) choices.push(...proposal.suggestedChoices);
+  const seen = new Set();
+  const suggestedChoices = choices.filter((choice) => {
+    const key = `${choice?.label || ""}::${choice?.action || ""}`.toLowerCase();
+    if (!choice?.label || !choice?.action || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 4);
+  proposal.guidedChoice = suggestedChoices[0] || null;
+  proposal.suggestedChoices = suggestedChoices;
   return proposal;
 }
 
@@ -356,7 +364,7 @@ async function applyProposal(state, proposal, action) {
   await getDb().query(
     "INSERT INTO deep_saga_story_messages (run_id, role, content, turn_number, metadata_json) VALUES (?, 'gm', ?, ?, ?)",
     [run.runId, proposal.narration, nextTurn, toJson({
-      suggestedChoices: proposal.suggestedChoices.slice(0, 1),
+      suggestedChoices: proposal.suggestedChoices.slice(0, 4),
       guidedChoice: proposal.guidedChoice || proposal.suggestedChoices[0] || null,
       systemEvents: buildPresentationEvents(proposal, characterResult, state.character),
       characterResult,

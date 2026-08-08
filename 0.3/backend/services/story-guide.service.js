@@ -109,7 +109,7 @@ async function buildStoryContext({ book, run, character, chapter, discoveries, r
       hierarchy: ["Story Guide", "Game Master", "Engine", "Player"],
       roleplayModel: "Continue the roleplay from the full reality context. The player supplies protagonist intent; the Game Master reasons what realistically happens next.",
       storySpineRule: "Keep the story moving toward the chapter's canon milestones through the player's chosen route. Do not force a required action; adapt the route so canon arrives naturally.",
-      guidedChoiceRule: "Return exactly one short guidedChoice derived from current story, state, and world logic. It should be plausible for the protagonist's current reality.",
+      guidedChoiceRule: "Return 2 to 4 short suggestedChoices derived from current story, state, and world logic. Mark the strongest/default one as guidedChoice. Choices should be plausible next actions, not restrictions.",
       selfCheck: [
         "Does the response follow Book World and Story Guide?",
         "Does it preserve the fixed canon spine while honoring the player's route?",

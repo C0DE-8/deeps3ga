@@ -12,8 +12,14 @@ function actionId() {
 function latestChoices(messages) {
   const latestGm = [...messages].reverse().find((message) => message.role === 'gm')
   const guided = latestGm?.metadata?.guidedChoice
-  const choices = guided ? [guided] : latestGm?.metadata?.suggestedChoices || []
-  return choices.slice(0, 1)
+  const choices = [...(guided ? [guided] : []), ...(latestGm?.metadata?.suggestedChoices || [])]
+  const seen = new Set()
+  return choices.filter((choice) => {
+    const key = `${choice?.label || ''}::${choice?.action || ''}`.toLowerCase()
+    if (!choice?.label || !choice?.action || seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).slice(0, 4)
 }
 
 function chapterEmoji(chapterNumber) {
@@ -259,7 +265,7 @@ export function StoryPage() {
           <section className="composer">
             {choices.length > 0 && (
               <div className="suggested-action">
-                <p>🐜 Suggested action</p>
+                <p>🐜 Suggested actions</p>
                 {choices.map((choice) => (
                   <button key={choice.action || choice.label} disabled={busy} onClick={() => submit(choice.action || choice.label)}>
                     <strong>{choice.label}</strong>
