@@ -1,119 +1,105 @@
-# Deep Saga 0.3 - Ant World Story Flow
+# Deep Saga 0.3 - Book I Story Flow
 
 Book: The Ant World: The King's Soul
-Core arc: 3 chapters
+World: Eldara
 Engine idea: one canon, many player journeys
 
-## Story Spine
+## Central Canon
 
-A human dies and reincarnates as an ant larva.
+Eldara is ruled by intelligent insect civilizations: ants, spiders, bees, beetles, scorpions, grasshoppers, butterflies, flies, and mosquitoes. Human civilization is unknown, forgotten, or mythic depending on region.
 
-An old threat is moving toward the colony.
+The protagonist is a human soul reincarnated as an ant. They remember being human, but they are not simply the Ant King reborn.
 
-The player does not have to pick the "right" action. They can study, hide, bite, pray, sleep, follow, help, or do something strange. The AI should treat the action as real protagonist intent, then let the world answer naturally.
+The truth is deeper:
 
-The canon still moves:
+The protagonist is the beginning of the Ant King's next existence, while remaining their own person.
 
-1. Chapter 1 - The Strange Larva
-   The player awakens in the nursery, learns they are an ant, remembers being human, begins to understand pheromones, gains the attention of one worker, and experiences the first sign of a wrong scent or disturbance.
+The First King once united the ant civilizations and prevented an ancient war from destroying Eldara. He possessed Royal Soul Resonance, discovered a hidden soul-energy system, learned the Grand Insect Tournament was part of that system, failed to destroy it, fractured his soul, created a sanctuary, and disappeared from official history.
 
-2. Chapter 2 - Beneath the Colony
-   The colony investigates tunnel disturbances. Depending on the player's route, they discover the old sealed passage through evidence, relationship, danger, injury, evacuation, or accident. The ancient chamber beneath the colony becomes established.
+The hidden antagonist is the Hollow Sovereign, an ancient consciousness that cannot create true life. It consumes, redirects, and combines soul energy to build a perfect vessel. It manipulated the tournament and the Great War to produce energy. The First King discovered this, and that is why he vanished.
 
-3. Chapter 3 - The Soul Seed
-   The chamber opens. The dying Soul Seed awakens. A wave of energy freezes the ants. The protagonist feels something touch their soul and sees an enormous crowned, wounded, ancient ant. The vision disappears before the truth is fully explained.
+## 15 Chapter Spine
 
-## Example Routes
+1. The Smallest Soul
+   Awakening, ant body, human memory, pheromones, helplessness, first mystery.
+   Endpoint: I am an ant.
 
-### Player A - Investigation
+2. Under the Earth
+   Wider colony life, soldiers, hierarchy, ancient sealed structures, forgotten history, royal symbol.
+   Endpoint: Something about my world is wrong.
 
-Player action:
-I study the pheromones.
+3. The Soul Below
+   Ancient chamber, Soul Seed, partial Ant King vision, first direct resonance.
+   Endpoint: My reincarnation is not an accident.
 
-Story flow:
-The player notices the bitter scent does not behave like normal pheromones. Later they connect scent, symbols, and sealed passages. In Chapter 3, the Soul Seed awakening feels mysterious and intellectual.
+4. The King Who Disappeared
+   Official history cracks. The King chose disappearance and left safeguards.
+   Endpoint: The Ant King disappeared for a reason.
 
-Ending flavor:
-The symbols were not decoration. They were describing the crowned figure.
+5. The Grand Insect Tournament
+   Tournament appears publicly as honor, power, territory, prestige, and reward.
+   Endpoint: The world is hiding something.
 
-### Player B - Relationship
+6. The Soul That Should Not Exist
+   Royal Soul Resonance is named. The protagonist is tied to royal soul architecture but remains themselves.
+   Endpoint: I am connected to the King's legacy.
 
-Player action:
-I hide beneath the other larvae and stay close to the worker.
+7. The War of Many Wings
+   Insect civilizations move toward conflict, and the war is not natural.
+   Endpoint: The conflict is being manipulated.
 
-Story flow:
-The worker notices fear instead of cleverness. A bond forms through protection, evacuation, and danger. The chamber is found because the player follows, loses, or tries to save someone.
+8. The Broken Kingdom
+   War breaks colonies and alliances. Relationships decide allies, losses, and betrayals.
+   Endpoint: The world is collapsing.
 
-Ending flavor:
-The worker collapses beside the player as the light passes through them both. The awakening feels emotional and personal.
+9. The Sanctuary
+   The King's sanctuary reveals soul protection and the fractured soul plan.
+   Endpoint: The King prepared for my existence.
 
-### Player C - Conflict
+10. The Truth of the Tournament
+   The tournament is revealed as a soul-energy harvesting mechanism.
+   Endpoint: Soul energy is being harvested.
 
-Player action:
-I bite the worker touching me.
+11. The Hollow Sovereign
+   The true enemy is revealed and recognizes the protagonist as the new target.
+   Endpoint: There is an ancient intelligence behind it.
 
-Story flow:
-The worker recoils. Guards notice. The player learns their larval body is weak, but their aggression changes how the colony watches them. They later reach the chamber through guard movement, danger, wounds, and survival.
+12. The King's Last Memory
+   The protagonist learns the King could not destroy the system without killing countless connected souls.
+   Endpoint: I am not the King. I am his continuation.
 
-Ending flavor:
-The body should fail, but the soul stays awake. Something deep inside changes without explaining itself.
+13. The Last War
+   All forces converge at the heart of the ancient soul mechanism.
+   Endpoint: Everything converges.
 
-### Player D - Accidental
+14. The Soul of the King
+   The King gives no command. The final decision belongs to the protagonist.
+   Endpoint: I decide what I become.
 
-Player action:
-I eat, sleep, and let the workers carry me.
+15. The King's Soul
+   Final confrontation, final evolution, Hollow Sovereign's fate, and Eldara's future.
+   Endpoint: The final evolution and fate of Eldara.
 
-Story flow:
-The player does not investigate. The colony moves around them. They are carried during evacuation, displaced by collapse, or overlooked in a moment of panic. Canon still reaches them because the world is alive.
+## What Is Fixed
 
-Ending flavor:
-The player barely understands the chamber, but the light knows them anyway.
+The AI must preserve Eldara, the Ant Empire, the First King, Royal Soul Resonance, the tournament's hidden function, the manipulated Great War, the sanctuary, the Hollow Sovereign, the protagonist's connection to the King's next existence, and the protagonist's separate identity.
 
-## Sample Turn
+The major truths must eventually become discoverable. Chapter 15 resolves the central conflict.
+
+## What Is Free
+
+The AI decides who the protagonist befriends, who hates them, who dies, who survives, what enemies appear, how clues are discovered, what places matter, how the protagonist behaves, how strong they become, what abilities develop, what relationships form, what factions support them, what mistakes they make, whether they fail, how they reach each chapter, how each revelation feels, how final evolution manifests, and what exact ending occurs within the canon framework.
+
+No chapter requires a specific NPC, route, enemy, option, tournament role, or final identity.
+
+## Sample Principle
 
 Player action:
 I pray I grow as fast as possible.
 
-Game Master flow:
-You close whatever passes for eyes in this new body and push the wish outward.
+Story response:
+The prayer does not grant instant evolution. The larval body remains helpless. But the soul may stir, a worker may react, a strange warmth may answer from far away, and that moment may become part of the player's unique path toward Royal Soul Resonance later.
 
-Grow.
+The narrator should not say "you cannot do that." The narrator should ask:
 
-Survive.
-
-Please.
-
-Nothing dramatic happens. Your soft body does not split into strength. No wings open. No adult limbs tear free.
-
-But the prayer does not feel empty.
-
-For one breath, warmth gathers somewhere deeper than flesh. It is faint, distant, and gone almost as soon as you notice it, like something very far away turned its attention toward you and then looked elsewhere.
-
-✨ Soul Stirring
-Something heard nothing you can yet understand.
-
-The worker above you freezes. Her antennae hover over your body.
-
-Alive.
-Strange.
-Watch.
-
-Now the scent carries a trace of fear.
-
-Suggested next action:
-Try to answer the worker with scent.
-
-## Rule For The AI
-
-Do not say:
-You cannot do that.
-
-Do say:
-What happens when this body, this world, this scene, and this history answer the player's intent?
-
-That is the whole system:
-
-AI = Game Master
-Story Guide = Canon
-Player = Protagonist
-Engine = Reality
+What happens when this world, this body, this chapter, this history, and this player's past choices answer the intent?

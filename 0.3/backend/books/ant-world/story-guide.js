@@ -11,6 +11,21 @@ const antWorldMetadata = {
 const privateCanon = {
   world: "Eldara",
   civilizations: ["Ants", "Spiders", "Bees", "Beetles", "Scorpions", "Grasshoppers", "Butterflies", "Flies", "Mosquitoes"],
+  centralCanon: [
+    "The First King united the great ant civilizations and prevented an ancient war from destroying Eldara.",
+    "The First King possessed Royal Soul Resonance, an abnormal connection to the world's soul energy.",
+    "The Grand Insect Tournament is part of an ancient soul-energy collection mechanism.",
+    "The First King tried to destroy the mechanism, failed, fractured his soul, created a sanctuary, and hid safeguards.",
+    "The protagonist is not the Ant King reincarnated in a simple sense.",
+    "The protagonist is the beginning of the Ant King's next existence while remaining their own person."
+  ],
+  antagonistTruth: {
+    name: "The Hollow Sovereign",
+    publicTiming: "late Book I",
+    truth: "An ancient consciousness that cannot naturally create life, so it consumes, redirects, and combines soul energy to build a perfect vessel.",
+    relationshipToKing: "The First King discovered the Hollow Sovereign's system, which led to his disappearance.",
+    relationshipToProtagonist: "The protagonist carries the beginning of the resonance the Hollow Sovereign wanted from the King."
+  },
   laws: [
     "AI = GAME MASTER",
     "STORY GUIDE = CANON",
@@ -25,11 +40,14 @@ const privateCanon = {
     model: "One fixed canon spine, infinite possible player journeys.",
     fixedCanon: [
       "A human dies and reincarnates as an ant larva.",
-      "An old threat is approaching the colony.",
-      "An ancient underground chamber exists beneath the colony.",
-      "The chamber contains a dying Soul Seed tied to forgotten colony history.",
+      "The colony contains forgotten royal history beneath its current life.",
+      "The Soul Seed is one remnant left behind when the First King's soul was deliberately divided.",
       "In Chapter 3, the chamber opens and the Soul Seed awakens.",
-      "The protagonist briefly sees an enormous crowned, wounded, ancient ant before the vision disappears."
+      "Royal Soul Resonance connects the protagonist to ancient royal soul architecture.",
+      "The Grand Insect Tournament secretly harvests soul energy.",
+      "The Great War is manipulated to generate unstable soul energy.",
+      "The Hollow Sovereign is the hidden intelligence behind the ancient system.",
+      "The protagonist remains themselves and resolves the King's legacy through their own choices."
     ],
     flexibleJourneys: [
       "Analytical players may reach canon through pheromones, symbols, clues, and deduction.",
@@ -39,6 +57,23 @@ const privateCanon = {
     ],
     narratorInstruction: "The Story Guide defines what must eventually happen and what must not happen yet. It never requires a specific player action, route, branch, or menu choice."
   },
+  chapterArc: [
+    { chapter: 1, title: "The Smallest Soul", endpoint: "I am an ant." },
+    { chapter: 2, title: "Under the Earth", endpoint: "Something about my world is wrong." },
+    { chapter: 3, title: "The Soul Below", endpoint: "My reincarnation is not an accident." },
+    { chapter: 4, title: "The King Who Disappeared", endpoint: "The Ant King disappeared for a reason." },
+    { chapter: 5, title: "The Grand Insect Tournament", endpoint: "The world is hiding something." },
+    { chapter: 6, title: "The Soul That Should Not Exist", endpoint: "I am connected to the King's legacy." },
+    { chapter: 7, title: "The War of Many Wings", endpoint: "The conflict is being manipulated." },
+    { chapter: 8, title: "The Broken Kingdom", endpoint: "The world is collapsing." },
+    { chapter: 9, title: "The Sanctuary", endpoint: "The King prepared for my existence." },
+    { chapter: 10, title: "The Truth of the Tournament", endpoint: "Soul energy is being harvested." },
+    { chapter: 11, title: "The Hollow Sovereign", endpoint: "There is an ancient intelligence behind it." },
+    { chapter: 12, title: "The King's Last Memory", endpoint: "I am not the King. I am his continuation." },
+    { chapter: 13, title: "The Last War", endpoint: "Everything converges." },
+    { chapter: 14, title: "The Soul of the King", endpoint: "I decide what I become." },
+    { chapter: 15, title: "The King's Soul", endpoint: "The final evolution and fate of Eldara." }
+  ],
   futureTruths: [
     "Royal Soul Resonance connects the player to the vanished Ant King.",
     "The Grand Insect Tournament collects soul energy.",
@@ -129,19 +164,19 @@ const startingState = {
 };
 
 const revealBlocks = {
-  1: ["Soul Seed identity", "ancient chamber full truth", "full Ant King revelation", "Royal Soul Resonance name", "tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
-  2: ["Soul Seed awakening", "crowned ancient ant vision", "complete King's next existence truth", "tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
-  3: ["complete King's next existence truth", "Royal Soul Resonance name", "tournament soul-energy revelation", "sanctuary truth", "final enemy", "final evolution logic"],
-  4: ["tournament soul-energy revelation", "Great War full truth", "sanctuary truth", "final enemy", "final evolution logic"],
-  5: ["soul-energy mechanism", "sanctuary truth", "final enemy", "final evolution logic"],
-  6: ["sanctuary truth", "final enemy", "final evolution logic"],
-  7: ["soul-energy mechanism details", "sanctuary truth", "final enemy", "final evolution logic"],
-  8: ["sanctuary truth", "final enemy", "final evolution logic"],
-  9: ["complete sanctuary truth", "final enemy", "final evolution logic"],
-  10: ["sanctuary truth", "final evolution logic"],
-  11: ["sanctuary truth", "final enemy", "final evolution logic"],
-  12: ["final enemy", "final evolution result"],
-  13: ["final confrontation outcome"],
+  1: ["Soul Seed identity", "ancient chamber full truth", "full Ant King revelation", "Royal Soul Resonance name", "tournament soul-energy revelation", "Great War manipulation", "sanctuary truth", "Hollow Sovereign identity", "final enemy", "final evolution logic"],
+  2: ["Soul Seed full nature", "complete King's next existence truth", "Royal Soul Resonance name", "tournament soul-energy revelation", "Great War manipulation", "sanctuary truth", "Hollow Sovereign identity", "final evolution logic"],
+  3: ["complete King's next existence truth", "Royal Soul Resonance name", "tournament soul-energy revelation", "Great War manipulation", "sanctuary truth", "Hollow Sovereign identity", "final evolution logic"],
+  4: ["Royal Soul Resonance full nature", "tournament soul-energy revelation", "Great War manipulation", "sanctuary truth", "Hollow Sovereign identity", "final evolution logic"],
+  5: ["tournament soul-energy revelation", "Great War manipulation", "sanctuary truth", "Hollow Sovereign identity", "final evolution logic"],
+  6: ["Great War full manipulation", "sanctuary truth", "Hollow Sovereign identity", "final evolution logic"],
+  7: ["tournament mechanism full truth", "sanctuary truth", "Hollow Sovereign identity", "final evolution logic"],
+  8: ["complete sanctuary truth", "Hollow Sovereign identity", "final evolution logic"],
+  9: ["tournament mechanism full truth", "Hollow Sovereign identity", "final evolution logic"],
+  10: ["Hollow Sovereign identity", "final evolution logic"],
+  11: ["King's last memory full truth", "final evolution logic"],
+  12: ["final evolution result", "final confrontation outcome"],
+  13: ["final evolution result", "final ending result"],
   14: ["final ending result"],
   15: []
 };

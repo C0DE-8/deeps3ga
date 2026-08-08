@@ -152,7 +152,7 @@ function localGameMaster(context) {
     `You attempt: ${action || "to understand where you are"}.`,
     sensory,
     "A worker pauses over you. Her antennae brush your slick side, and a translated impression reaches you through pheromone rather than speech: alive, strange, watch. The word strange is not spoken, but it clings to you.",
-    chapter === 1 ? `Far below the normal nursery scent, something bitter moves through the tunnel air and vanishes before you can decide whether it was real. The moment marks your path as ${route}, but it does not trap you there.` : "The consequence settles into the living world around you."
+    chapter === 1 ? "Far below the normal nursery scent, something bitter moves through the tunnel air and vanishes before you can decide whether it was real. However you reached this moment, the nursery is no longer simply a place of warmth." : "The consequence settles into the living world around you."
   ].join("\n\n");
 
   const proposal = emptyProposal();

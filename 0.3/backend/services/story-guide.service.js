@@ -13,6 +13,7 @@ function readPromptFile(name) {
 function loadPromptPackage() {
   if (!promptPackageCache) {
     promptPackageCache = {
+      bookArc: readPromptFile("book-arc.md"),
       storyBible: readPromptFile("story-bible.md"),
       narrationStyle: readPromptFile("style-guide.md")
     };
@@ -74,7 +75,10 @@ async function buildStoryContext({ book, run, character, chapter, discoveries, r
 
   return {
     universalLaws: privateCanon.laws,
+    centralCanon: privateCanon.centralCanon,
+    antagonistTruth: privateCanon.antagonistTruth,
     storyCanon: privateCanon.coreStory,
+    chapterArc: privateCanon.chapterArc,
     promptPackage: loadPromptPackage(),
     book: {
       slug: book.slug,

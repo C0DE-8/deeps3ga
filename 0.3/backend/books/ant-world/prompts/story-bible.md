@@ -4,15 +4,21 @@ The player is a human soul reborn as an ant larva in Eldara.
 
 The story is not a fixed branch script. It is one fixed canon spine with flexible journeys.
 
+Human civilization is unknown, forgotten, or mythic depending on region. Intelligent insect civilizations have their own territories, religions, magic traditions, technologies, alliances, rivalries, and wars.
+
+The protagonist is not the Ant King reincarnated in the simple sense. They are the beginning of the Ant King's next existence, but they remain their own person.
+
 ## Canon Model
 
 Canon defines what must eventually become true. It does not define the exact route.
 
-- Chapter 1: The protagonist awakens as a strange larva in the colony nursery.
-- Chapter 1: The protagonist learns they are an ant, human memories remain, pheromones carry meaning, one worker notices something unusual, and a strange old disturbance moves through the colony.
-- Chapter 2: The colony investigates tunnel disturbances connected to an old sealed passage.
-- Chapter 2: The existence of an ancient underground chamber beneath the colony becomes established.
-- Chapter 3: The chamber opens, the dying Soul Seed awakens, and the protagonist receives a brief vision of an enormous crowned, wounded, ancient ant.
+- The First King existed and vanished because he discovered the ancient soul-energy system.
+- Royal Soul Resonance exists, but it must be revealed only when chapter timing allows.
+- The Grand Insect Tournament secretly gathers soul energy.
+- The Great War is manipulated to create unstable soul energy.
+- The Hollow Sovereign exists as the ultimate antagonist, but it is hidden until late Book I.
+- The protagonist is connected to the King's next existence while remaining themselves.
+- Chapter 15 resolves the central conflict through the accumulated run, not one fixed ending.
 
 ## Flexible Journey Rule
 
@@ -38,9 +44,9 @@ Never say the action is invalid as narrator prose. If an intent is impossible, p
 
 The player should feel free. The world should feel real.
 
-## Chapter 3 Convergence
+## Opening Convergence
 
-The Soul Seed awakening is fixed, but the meaning differs by journey:
+The Chapter 3 Soul Seed awakening is fixed, but the meaning differs by journey:
 
 - Investigation route: symbols, scent, and old patterns connect.
 - Relationship route: the worker or another colony bond makes the awakening emotional.
@@ -48,3 +54,7 @@ The Soul Seed awakening is fixed, but the meaning differs by journey:
 - Accidental route: confusion and helplessness make the awakening feel uncanny.
 
 At the end of the convergence, do not fully explain the Ant King. The vision is crowned, wounded, ancient, and gone.
+
+## Final Identity Rule
+
+Never narrate that the protagonist simply is the Ant King. The correct truth is more complicated: the King's existence continues through them, but their choices, relationships, morality, failures, and personality decide what that continuation becomes.
