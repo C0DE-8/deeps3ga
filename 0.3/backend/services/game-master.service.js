@@ -63,13 +63,23 @@ function validateGameMasterOutput(raw) {
     throw new Error("Game Master output must be an object.");
   }
 
-  for (const key of Object.keys(raw)) {
+  const normalized = { ...raw };
+  if (!normalized.narration && typeof normalized.playerResponse === "string") {
+    normalized.narration = normalized.playerResponse;
+    delete normalized.playerResponse;
+  }
+  if (!normalized.narration && typeof normalized.response === "string") {
+    normalized.narration = normalized.response;
+    delete normalized.response;
+  }
+
+  for (const key of Object.keys(normalized)) {
     if (!allowedTopLevelKeys.includes(key)) {
       throw new Error(`Game Master output included unsupported field: ${key}`);
     }
   }
 
-  const proposal = { ...emptyProposal(), ...raw };
+  const proposal = { ...emptyProposal(), ...normalized };
 
   if (typeof proposal.narration !== "string" || proposal.narration.trim().length < 20) {
     throw new Error("Game Master narration is missing or too short.");

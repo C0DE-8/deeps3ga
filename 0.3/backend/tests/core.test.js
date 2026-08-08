@@ -42,6 +42,13 @@ test("structured narrator validation normalizes optional choices", () => {
   assert.equal(output.death.occurred, false);
 });
 
+test("structured narrator validation accepts common narration aliases", () => {
+  const output = validateGameMasterOutput({
+    playerResponse: "You remain still, and the scent language of the nursery presses against your new instincts."
+  });
+  assert.match(output.narration, /remain still/);
+});
+
 test("experience awards are bounded", () => {
   assert.equal(boundedExperience({ proposedExperience: [{ amount: 500 }, { amount: 20 }] }), 35);
 });
