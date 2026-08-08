@@ -187,10 +187,11 @@ async function createGameMasterProposal(context) {
         repairInstruction: `Previous Game Master output failed validation: ${firstError.message}. Return a corrected JSON object only.`
       });
       if (remote) return remote;
-    } catch {
-      const error = new Error("Game Master returned invalid structured output. Try the action again.");
-      error.status = 502;
-      throw error;
+    } catch (secondError) {
+      console.warn("Remote Game Master failed; using local fallback.", {
+        firstError: firstError.message,
+        secondError: secondError.message
+      });
     }
   }
   return localGameMaster(context);

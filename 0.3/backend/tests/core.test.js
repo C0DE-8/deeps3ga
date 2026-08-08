@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { startingState, getBlockedRevelations } = require("../books/ant-world/story-guide");
-const { validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
+const { createGameMasterProposal, validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
 const { boundedExperience, categoryDevelopment, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
 const { assertDevelopmentResetAllowed } = require("../scripts/reset-db");
 const { createToken, verifyToken } = require("../utils/token");
@@ -104,6 +104,32 @@ test("auth tokens use the 0.3 user identity shape", () => {
   assert.equal(payload.email, "ant@example.com");
   if (previousSecret == null) delete process.env.AUTH_TOKEN_SECRET;
   else process.env.AUTH_TOKEN_SECRET = previousSecret;
+});
+
+test("remote Game Master failures fall back to local narration", async () => {
+  const previousKey = process.env.OPENAI_API_KEY;
+  const previousFetch = global.fetch;
+  const previousWarn = console.warn;
+
+  process.env.OPENAI_API_KEY = "test-key";
+  global.fetch = async () => {
+    throw new Error("simulated model outage");
+  };
+  console.warn = () => {};
+
+  const proposal = await createGameMasterProposal({
+    playerAction: "I stay still and observe.",
+    playerState: { location: "Ant Nursery" },
+    currentChapter: { chapterNumber: 1 }
+  });
+
+  assert.match(proposal.narration, /You attempt/);
+  assert.equal(proposal.death.occurred, false);
+
+  if (previousKey == null) delete process.env.OPENAI_API_KEY;
+  else process.env.OPENAI_API_KEY = previousKey;
+  global.fetch = previousFetch;
+  console.warn = previousWarn;
 });
 
 test("production reset protection refuses without strong override", () => {
