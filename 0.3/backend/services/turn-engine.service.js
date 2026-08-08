@@ -140,10 +140,30 @@ function boundedExperience(proposal) {
   return clamp(entries.reduce((sum, entry) => sum + clamp(entry.amount, 0, 25), 0), 0, 35);
 }
 
+function defaultChoicesForState(state) {
+  const location = state.character?.location || "where I am";
+  const chapter = Number(state.run?.currentChapter || 1);
+  if (chapter === 1) {
+    return [
+      { label: "Study the scent", action: "I study the strange scent and try to understand where it came from." },
+      { label: "Watch the worker", action: "I stay still and watch how the nearest worker reacts to me." },
+      { label: "Search my memory", action: "I search my human memories for anything that explains this rebirth." },
+      { label: "Try to signal", action: "I try to answer the colony with scent, movement, or instinct." }
+    ];
+  }
+  return [
+    { label: "Observe carefully", action: `I stay alert and study what is happening around ${location}.` },
+    { label: "Follow the clue", action: "I follow the strongest clue, scent, sound, or movement I can sense." },
+    { label: "Seek an ally", action: "I look for someone nearby who might help or understand the danger." },
+    { label: "Protect myself", action: "I focus on surviving the immediate danger before acting further." }
+  ];
+}
+
 function enforceGuidedChoice(state, proposal) {
   const choices = [];
   if (proposal.guidedChoice) choices.push(proposal.guidedChoice);
   if (Array.isArray(proposal.suggestedChoices)) choices.push(...proposal.suggestedChoices);
+  choices.push(...defaultChoicesForState(state));
   const seen = new Set();
   const suggestedChoices = choices.filter((choice) => {
     const key = `${choice?.label || ""}::${choice?.action || ""}`.toLowerCase();
@@ -454,6 +474,7 @@ module.exports = {
   applyProposal,
   boundedExperience,
   categoryDevelopment,
+  enforceGuidedChoice,
   resolvePlayerAction,
   validateAbility,
   validateCharacterStateChanges,

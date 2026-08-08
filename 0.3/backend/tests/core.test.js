@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const { startingState, getBlockedRevelations } = require("../books/ant-world/story-guide");
 const { createGameMasterProposal, validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
 const { buildStoryContext, deriveJourneyProfile } = require("../services/story-guide.service");
-const { boundedExperience, categoryDevelopment, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
+const { boundedExperience, categoryDevelopment, enforceGuidedChoice, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
 const { assertDevelopmentResetAllowed } = require("../scripts/reset-db");
 const { createToken, verifyToken } = require("../utils/token");
 
@@ -117,6 +117,16 @@ test("valid chapter progression advances one chapter", () => {
     validateChapterProgress({ currentChapter: 1 }, { chapterProgress: { chapterComplete: true, targetChapter: 2 } }),
     { advance: true, targetChapter: 2 }
   );
+});
+
+test("engine backfills story choices up to four", () => {
+  const proposal = validateGameMasterOutput({
+    narration: "The nursery shifts around you, and the first scent of danger begins to separate from the warmth.",
+    guidedChoice: { label: "Listen", action: "I listen through scent and vibration." }
+  });
+  const result = enforceGuidedChoice({ run: { currentChapter: 1 }, character: startingState.character }, proposal);
+  assert.equal(result.suggestedChoices.length, 4);
+  assert.equal(result.guidedChoice.label, "Listen");
 });
 
 test("powerful abilities require earned state", () => {
