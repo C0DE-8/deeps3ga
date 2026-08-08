@@ -147,6 +147,35 @@ function localGameMaster(context) {
   const chapter = context.currentChapter?.chapterNumber || 1;
   const route = context.playerJourney?.dominantRoute || "undetermined";
 
+  if (context.book?.slug === "trap-guild") {
+    const narration = [
+      `You attempt: ${action || "to understand the trap"}.`,
+      "The body answers before your fear does. Muscle tightens under borrowed skin, breath drags through ribs that remember old impacts, and the red guild marks beneath your feet flare as if they have been waiting for you to move.",
+      category === "combat"
+        ? "Violence feels possible here, but not free. The trap measures stance, weight, heartbeat, and intent. Somewhere beyond the first sealed gate, the thing wearing the first boss mark shifts with the slow confidence of something that has killed challengers before."
+        : category === "analysis"
+          ? "The chamber gives you more than stone and threat. The guild marks repeat in threes: three gates, three seals, three judgment circles cut into the floor. The trap has rules, and rules can be survived if you learn them before they learn you."
+          : "The arena does not care whether you are ready. Chains hidden inside the walls click one after another, and the contract voice hums through the floor: challenger recognized, freedom withheld, trial pending.",
+      "You are not alone in the sense that the guild is watching, but no friendly face steps from the dark. If other prisoners ever stood here, the floor has swallowed their names. Scratches mark the stone near the first gate, some frantic, some deliberate, some ending in lines of dried black rust.",
+      "The action gives you your first truth: this body can stand, but standing is not the same as winning. The OP Guild built this place to turn desperation into entertainment, and every breath you take inside it belongs to the contract until you break something important.",
+      chapter === 1 ? "The first boss gate opens another handspan. Heat spills out, carrying the smell of iron, old ash, and a living enemy waiting behind the seal." : "The arena records your choice, and one of the boss seals answers with a low, hungry pulse."
+    ].join("\n\n");
+    const proposal = emptyProposal();
+    proposal.narration = narration;
+    proposal.suggestedChoices = [
+      { label: "Test this body", action: "I test the strength, speed, and pain limits of this body before the fight starts." },
+      { label: "Study the contract", action: "I study the guild marks and try to understand the trap's rules." },
+      { label: "Search for a weapon", action: "I search the chamber for anything I can use against the first boss." },
+      { label: "Face the gate", action: "I step toward the first boss gate and prepare to fight." }
+    ];
+    proposal.guidedChoice = proposal.suggestedChoices[0];
+    proposal.sceneAssessment = { tone: "arena dread", threat: "medium", actionCategory: category, routeSignal: route, outcome: "AI_REASONED" };
+    proposal.proposedExperience = [{ category, amount: 8, reason: `The player tested ${category} inside the OP Guild trap.` }];
+    proposal.memoryCandidates = [{ content: `In ${location}, the player attempted to ${action || "understand the trap"} while the first boss seal stirred.`, importance: 5, tags: ["chapter-1", category, location] }];
+    proposal.sceneProgress = { nextScene: "trap-chamber", nextBeat: "first_gate_stirs", reason: "The first boss gate is becoming active." };
+    return validateGameMasterOutput(proposal);
+  }
+
   const sensory = category === "yearning"
     ? "You close whatever passes for eyes in this new body and push the wish outward. Nothing in your flesh changes at once. Still, the prayer does not feel entirely empty; warmth gathers somewhere deep and then fades, like something heard you from very far away."
     : category === "combat"

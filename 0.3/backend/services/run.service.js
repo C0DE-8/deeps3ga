@@ -1,7 +1,13 @@
 const db = require("../db");
 const { getBookBySlug, getChapter, serializeBook } = require("./book.service");
 const { parseJson, toJson } = require("./json");
-const { startingState } = require("../books/ant-world/story-guide");
+const antWorld = require("../books/ant-world/story-guide");
+const trapGuild = require("../books/trap-guild/story-guide");
+
+const startingStates = {
+  "ant-world": antWorld.startingState,
+  "trap-guild": trapGuild.startingState
+};
 
 function bool(value) {
   return value === true || value === 1 || value === "1";
@@ -62,9 +68,12 @@ function serializeCharacter(row) {
   };
 }
 
-async function createAntWorldRun(userId) {
-  const book = await getBookBySlug("ant-world");
-  if (!book) throw new Error("Ant World book has not been seeded. Run migrations first.");
+async function createBookRun(userId, slug = "ant-world") {
+  const startingState = startingStates[slug];
+  if (!startingState) throw new Error("That book is not active in 0.3.");
+
+  const book = await getBookBySlug(slug);
+  if (!book) throw new Error(`${slug} has not been seeded. Run migrations first.`);
 
   await db.query(
     `INSERT INTO deep_saga_runs (user_id, book_id, current_chapter, current_scene, story_beat, chapter_flags_json, last_played_at)
@@ -217,7 +226,8 @@ async function loadRunState(userId, runId) {
 }
 
 module.exports = {
-  createAntWorldRun,
+  createAntWorldRun: (userId) => createBookRun(userId, "ant-world"),
+  createBookRun,
   getRunForUser,
   listRunsForUser,
   loadRunState,

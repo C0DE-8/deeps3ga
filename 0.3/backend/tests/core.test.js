@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { startingState, getBlockedRevelations } = require("../books/ant-world/story-guide");
+const { startingState: trapGuildStartingState } = require("../books/trap-guild/story-guide");
 const { createGameMasterProposal, validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
 const { buildStoryContext, deriveJourneyProfile } = require("../services/story-guide.service");
 const { boundedExperience, categoryDevelopment, enforceGuidedChoice, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
@@ -97,6 +98,36 @@ test("story context derives soft route signals without branch locking", () => {
   assert.ok(profile.signals.includes("conflict"));
   assert.ok(profile.signals.includes("investigation"));
   assert.match(profile.instruction, /soft continuity signals/);
+});
+
+test("trap guild story context uses its own canon", async () => {
+  const context = await buildStoryContext({
+    book: { bookId: 2, slug: "trap-guild", title: "Trap Guild: Three Bosses to Freedom", world: "Veyra", genre: [] },
+    run: { currentChapter: 1, currentScene: "awakening", storyBeat: "body_trap" },
+    character: trapGuildStartingState.character,
+    chapter: {
+      chapterNumber: 1,
+      slug: "the-body-in-the-trap",
+      title: "The Body in the Trap",
+      purpose: "Opening",
+      majorRevelations: [],
+      sceneGuidance: ["awakening"]
+    },
+    discoveries: trapGuildStartingState.discoveries,
+    relationships: trapGuildStartingState.relationships,
+    facts: [],
+    memories: [],
+    threads: [],
+    worldState: trapGuildStartingState.worldState,
+    traits: [],
+    abilities: [],
+    resources: [],
+    recentMessages: [],
+    action: "I test this body."
+  });
+  assert.equal(context.book.slug, "trap-guild");
+  assert.match(JSON.stringify(context.storyCanon.fixedCanon), /three boss seals/i);
+  assert.match(JSON.stringify(context.promptPackage.storyBible), /OP Guild/i);
 });
 
 test("behavior signals map to hidden development columns", () => {
@@ -206,6 +237,22 @@ test("local Game Master turns impossible wishes into story flow", async () => {
   });
   assert.match(proposal.narration, /wish|heard|warmth|far away/i);
   assert.ok(proposal.narration.length > 900);
+  assert.equal(proposal.suggestedChoices.length, 4);
+  if (previousKey == null) delete process.env.OPENAI_API_KEY;
+  else process.env.OPENAI_API_KEY = previousKey;
+});
+
+test("local Game Master supports trap guild narration", async () => {
+  const previousKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  const proposal = await createGameMasterProposal({
+    book: { slug: "trap-guild" },
+    playerAction: "I test this body and walk toward the first gate.",
+    playerState: trapGuildStartingState.character,
+    currentChapter: { chapterNumber: 1 },
+    playerJourney: { dominantRoute: "conflict" }
+  });
+  assert.match(proposal.narration, /boss gate|OP Guild|contract/i);
   assert.equal(proposal.suggestedChoices.length, 4);
   if (previousKey == null) delete process.env.OPENAI_API_KEY;
   else process.env.OPENAI_API_KEY = previousKey;

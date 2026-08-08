@@ -1,7 +1,7 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const { getBookBySlug, listBooks } = require("../services/book.service");
-const { createAntWorldRun, getRunForUser, listRunsForUser, loadRunState } = require("../services/run.service");
+const { createBookRun, getRunForUser, listRunsForUser, loadRunState } = require("../services/run.service");
 const { resolvePlayerAction } = require("../services/turn-engine.service");
 
 const router = express.Router();
@@ -42,8 +42,9 @@ router.get("/runs", requireAuth, async (req, res) => {
 router.post("/runs", requireAuth, async (req, res) => {
   try {
     const slug = String(req.body.bookSlug || req.body.slug || "ant-world");
-    if (slug !== "ant-world") return res.status(400).json({ success: false, message: "Only Ant World is active in 0.3." });
-    const run = await createAntWorldRun(userId(req));
+    const book = await getBookBySlug(slug);
+    if (!book || book.status !== "active") return res.status(400).json({ success: false, message: "That book is not active in 0.3." });
+    const run = await createBookRun(userId(req), slug);
     return res.status(201).json({ success: true, data: run });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Run could not be created.", error: error.message });

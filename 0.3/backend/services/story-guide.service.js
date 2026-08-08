@@ -1,10 +1,20 @@
 const { getChapter } = require("./book.service");
-const { getBlockedRevelations, privateCanon } = require("../books/ant-world/story-guide");
+const antWorld = require("../books/ant-world/story-guide");
+const trapGuild = require("../books/trap-guild/story-guide");
 const fs = require("node:fs");
 const path = require("node:path");
 
 const promptDir = path.join(__dirname, "..", "books", "ant-world", "prompts");
 let promptPackageCache = null;
+
+const guides = {
+  "ant-world": antWorld,
+  "trap-guild": trapGuild
+};
+
+function guideForBook(slug) {
+  return guides[slug] || antWorld;
+}
 
 function readPromptFile(name) {
   return fs.readFileSync(path.join(promptDir, name), "utf8").trim();
@@ -19,6 +29,15 @@ function loadPromptPackage() {
     };
   }
   return promptPackageCache;
+}
+
+function promptPackageForBook(book, guide) {
+  if (book.slug === "ant-world") return loadPromptPackage();
+  return {
+    bookArc: guide.privateCanon.chapterArc,
+    storyBible: guide.privateCanon.coreStory,
+    narrationStyle: "Write as a kinetic fantasy Game Master. Keep the trap, body, guild contract, boss seals, pain, tactics, and freedom goal present. Choices are playable next actions, not restrictions."
+  };
 }
 
 function countMatches(text, patterns) {
@@ -70,16 +89,17 @@ function publicChapterView(chapter) {
 
 async function buildStoryContext({ book, run, character, chapter, discoveries, relationships, facts, memories, threads, worldState, traits, abilities, resources, recentMessages, action }) {
   const currentChapter = chapter || await getChapter(book.bookId, run.currentChapter);
-  const blocked = getBlockedRevelations(run.currentChapter);
+  const guide = guideForBook(book.slug);
+  const blocked = guide.getBlockedRevelations(run.currentChapter);
   const playerJourney = deriveJourneyProfile({ action, memories, facts, discoveries, recentMessages });
 
   return {
-    universalLaws: privateCanon.laws,
-    centralCanon: privateCanon.centralCanon,
-    antagonistTruth: privateCanon.antagonistTruth,
-    storyCanon: privateCanon.coreStory,
-    chapterArc: privateCanon.chapterArc,
-    promptPackage: loadPromptPackage(),
+    universalLaws: guide.privateCanon.laws,
+    centralCanon: guide.privateCanon.centralCanon || [],
+    antagonistTruth: guide.privateCanon.antagonistTruth || null,
+    storyCanon: guide.privateCanon.coreStory,
+    chapterArc: guide.privateCanon.chapterArc,
+    promptPackage: promptPackageForBook(book, guide),
     book: {
       slug: book.slug,
       title: book.title,

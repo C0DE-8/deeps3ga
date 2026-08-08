@@ -5,7 +5,10 @@ import { createRun, fetchLibrary } from '../../../api/deepSagaApi'
 import { Shell } from '../../shell/Shell'
 
 function latestRunForBook(runs, slug) {
-  return runs.find((run) => run.book?.slug === slug && run.status === 'active') || runs.find((run) => run.book?.slug === slug)
+  return runs
+    .filter((run) => run.book?.slug === slug)
+    .sort((a, b) => Number(b.runId) - Number(a.runId))
+    .find((run) => run.status === 'active') || runs.find((run) => run.book?.slug === slug)
 }
 
 export function LibraryPage() {
@@ -54,7 +57,7 @@ export function LibraryPage() {
               const run = latestRunForBook(state.runs, book.slug)
               return (
                 <article className="book-card" key={book.slug}>
-                  <div className="mini-cover" aria-hidden="true" />
+                  <div className={`mini-cover cover-${book.slug}`} aria-hidden="true" />
                   <div className="stack">
                     <p className="meta">Book {book.bookNumber} · {book.world}</p>
                     <h2>{book.title}</h2>

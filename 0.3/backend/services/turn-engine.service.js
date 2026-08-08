@@ -143,6 +143,14 @@ function boundedExperience(proposal) {
 function defaultChoicesForState(state) {
   const location = state.character?.location || "where I am";
   const chapter = Number(state.run?.currentChapter || 1);
+  if (state.book?.slug === "trap-guild") {
+    return [
+      { label: "Test this body", action: "I test the strength, speed, and pain limits of this body before the fight starts." },
+      { label: "Study the contract", action: "I study the guild marks and try to understand the trap's rules." },
+      { label: "Search for a weapon", action: "I search the chamber for anything I can use against the next boss." },
+      { label: "Face the gate", action: "I step toward the active boss gate and prepare to fight." }
+    ];
+  }
   if (chapter === 1) {
     return [
       { label: "Study the scent", action: "I study the strange scent and try to understand where it came from." },
