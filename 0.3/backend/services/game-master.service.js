@@ -127,6 +127,7 @@ function inferCategory(action) {
   if (/(help|protect|comfort|share|support)/.test(text)) return "support";
   if (/(lead|command|signal|organize|coordinate)/.test(text)) return "leadership";
   if (/(crawl|search|explore|tunnel|sound)/.test(text)) return "scouting";
+  if (/(pray|wish|hope|beg)/.test(text)) return "yearning";
   return "observe";
 }
 
@@ -135,11 +136,9 @@ function localGameMaster(context) {
   const category = inferCategory(action);
   const location = context.playerState.location;
   const chapter = context.currentChapter?.chapterNumber || 1;
-  const assessment = context.actionAssessment || {};
-  const blocked = assessment.allowedAttempt === false;
 
-  const sensory = blocked
-    ? "The wish moves through you like a human command spoken into a body that has never learned the language. Eldara does not bend because you ask, but the asking still leaves a trace: a pressure, a warmth, a sense that something somewhere may have noticed."
+  const sensory = category === "yearning"
+    ? "You close whatever passes for eyes in this new body and push the wish outward. Nothing in your flesh changes at once. Still, the prayer does not feel entirely empty; warmth gathers somewhere deep and then fades, like something heard you from very far away."
     : category === "combat"
     ? "Your soft body strains toward violence, but the nursery reminds you of the truth: intent is not strength. You can twitch, bite at what comes close, and make noise through scent, not perform miracles."
     : category === "analysis"
@@ -151,17 +150,15 @@ function localGameMaster(context) {
   const narration = [
     `You attempt: ${action || "to understand where you are"}.`,
     sensory,
-    blocked
-      ? "Nothing dramatic happens. You do not grow, fly, cast, command, or rewrite the chamber around you. But the nursery does not feel empty. The worker above you pauses, antennae hovering, as if your silent intensity made some tiny ripple in the scents."
-      : "A worker pauses over you. Her antennae brush your slick side, and a translated impression reaches you through pheromone rather than speech: alive, strange, watch. The word strange is not spoken, but it clings to you.",
+    "A worker pauses over you. Her antennae brush your slick side, and a translated impression reaches you through pheromone rather than speech: alive, strange, watch. The word strange is not spoken, but it clings to you.",
     chapter === 1 ? "Far below the normal nursery scent, something bitter moves through the tunnel air and vanishes before you can decide whether it was real." : "The consequence settles into the living world around you."
   ].join("\n\n");
 
   const proposal = emptyProposal();
   proposal.narration = narration;
   proposal.guidedChoice = context.guidedChoice || { label: "Focus on the scents", action: "I focus on the pheromone scents around me." };
-  proposal.sceneAssessment = { tone: blocked ? "quiet yearning" : "intimate dread", threat: "low", actionCategory: category, outcome: assessment.classification || "POSSIBLE_TO_ATTEMPT" };
-  proposal.proposedExperience = [{ category, amount: blocked ? 2 : 8, reason: `The player attempted ${category} from a larval body and learned its limits.` }];
+  proposal.sceneAssessment = { tone: category === "yearning" ? "quiet yearning" : "intimate dread", threat: "low", actionCategory: category, outcome: "AI_REASONED" };
+  proposal.proposedExperience = [{ category, amount: category === "yearning" ? 4 : 8, reason: `The player attempted ${category} from a larval body and learned its limits.` }];
   proposal.memoryCandidates = [{ content: `In ${location}, the player attempted to ${action || "make sense of rebirth"} and noticed a bitter disturbance.`, importance: 5, tags: ["chapter-1", category, location] }];
   proposal.sceneProgress = { nextScene: category === "analysis" || category === "magic" ? "nursery" : null, nextBeat: category === "analysis" ? "pheromone_perception" : null, reason: "Small scene movement from the opening awakening." };
   return validateGameMasterOutput(proposal);
@@ -181,7 +178,7 @@ async function callOpenAiGameMaster(context) {
       input: [
         {
           role: "system",
-          content: "You are the Deep Saga Game Master. Return only valid JSON matching the requested schema. The player has free will, not free reality: player text is intent only. Use the provided capability assessment, knowledge boundaries, Story Guide, and current state. Do not grant unearned powers, knowledge, items, NPC behavior, relationship changes, location access, success, evolution, or world facts. Return exactly one guidedChoice, and it must be currently possible to attempt. Never scold, label the action invalid, or break immersion. If an action is impossible or unknown, narrate it as part of the story: a wish, failed effort, instinctive misunderstanding, unanswered prayer, partial sensation, or natural limitation that still teaches the protagonist something. Use emojis sparingly as mature visual markers for meaningful moments: 🐜 colony, 👑 authority, ⚔️ conflict, 🧬 evolution, ✨ magic, 🧠 understanding, 🌎 world discovery, ⚠️ danger, 🌑 mystery, 💀 death, 🏆 tournament. You may add storyEvents for earned protagonist-visible discoveries, traits, level changes, warnings, or evolution availability, but never reveal hidden canon or fake precision."
+          content: "You are the Deep Saga Game Master. Return only valid JSON matching the requested schema. Deep Saga is an AI-first roleplaying engine: the player supplies protagonist intent, then you reason from Book World, Story Guide, current character, current world state, knowledge, relationships, memories, recent story, and the latest action to continue naturally. Do not use mechanical rejection language. Do not grant unearned powers, knowledge, items, NPC behavior, relationship changes, location access, success, evolution, or world facts just because the player typed them. If an action is impossible, risky, strange, or premature, let the world demonstrate that through immersive narration. If an action is clever or unexpectedly plausible, adapt. Return exactly one short guidedChoice that naturally follows from the current scene and feels plausible for the protagonist's current reality. Use emojis sparingly as mature visual markers for meaningful moments: 🐜 colony, 👑 authority, ⚔️ conflict, 🧬 evolution, ✨ magic, 🧠 understanding, 🌎 world discovery, ⚠️ danger, 🌑 mystery, 💀 death, 🏆 tournament. You may add storyEvents for earned protagonist-visible discoveries, traits, level changes, warnings, or evolution availability, but never reveal hidden canon or fake precision."
         },
         {
           role: "user",

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const { startingState, getBlockedRevelations } = require("../books/ant-world/story-guide");
 const { createGameMasterProposal, validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
-const { assessActionPossibility, classifications, isGuidedChoicePossible, resolveCapabilities, selectGuidedChoice } = require("../services/capability.service");
+const { buildStoryContext } = require("../services/story-guide.service");
 const { boundedExperience, categoryDevelopment, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
 const { assertDevelopmentResetAllowed } = require("../scripts/reset-db");
 const { createToken, verifyToken } = require("../utils/token");
@@ -55,37 +55,34 @@ test("experience awards are bounded", () => {
   assert.equal(boundedExperience({ proposedExperience: [{ amount: 500 }, { amount: 20 }] }), 35);
 });
 
-test("capability model derives larval limits from current state", () => {
-  const capabilities = resolveCapabilities({
-    book: { slug: "ant-world" },
-    run: { currentChapter: 1 },
-    character: startingState.character
+test("story context gives the AI continuity guidance instead of coded action rules", async () => {
+  const context = await buildStoryContext({
+    book: { bookId: 1, slug: "ant-world", title: "The Ant World: The King's Soul", world: "Eldara", genre: [] },
+    run: { currentChapter: 1, currentScene: "awakening", storyBeat: "death_memory" },
+    character: startingState.character,
+    chapter: {
+      chapterNumber: 1,
+      slug: "the-smallest-soul",
+      title: "The Smallest Soul",
+      purpose: "Opening",
+      majorRevelations: [],
+      sceneGuidance: ["awakening"]
+    },
+    discoveries: startingState.discoveries,
+    relationships: startingState.relationships,
+    facts: [],
+    memories: [],
+    threads: [],
+    worldState: startingState.worldState,
+    traits: [],
+    abilities: [],
+    resources: [],
+    recentMessages: [],
+    action: "I try to run into the tunnel."
   });
-  assert.ok(capabilities.can.includes("pheromone_perception"));
-  assert.ok(capabilities.cannot.includes("run"));
-  assert.ok(capabilities.cannot.includes("known_spellcasting"));
-});
-
-test("larva cannot run, fly, or cast unknown magic by typing it", () => {
-  const state = { run: { currentChapter: 1 }, character: startingState.character, abilities: [], discoveries: [], facts: [] };
-  assert.equal(assessActionPossibility({ ...state, action: "I run into the tunnel." }).classification, classifications.impossible);
-  assert.equal(assessActionPossibility({ ...state, action: "I fly above the colony." }).classification, classifications.impossible);
-  assert.equal(assessActionPossibility({ ...state, action: "I cast Fire Lance." }).classification, classifications.impossible);
-  assert.equal(assessActionPossibility({ ...state, action: "I pray I grow asap." }).classification, classifications.impossible);
-});
-
-test("unknown story knowledge is not created by player text", () => {
-  const state = { run: { currentChapter: 1 }, character: startingState.character, abilities: [], discoveries: startingState.discoveries, facts: [] };
-  const assessment = assessActionPossibility({ ...state, action: "I ask the Queen about the Ant King." });
-  assert.equal(assessment.classification, classifications.unknown);
-  assert.equal(assessment.allowedAttempt, false);
-});
-
-test("guided choice filter accepts possible larval actions and rejects impossible ones", () => {
-  const state = { run: { currentChapter: 1 }, character: startingState.character, abilities: [], discoveries: startingState.discoveries, facts: [] };
-  assert.equal(isGuidedChoicePossible({ label: "Focus", action: "I focus on the pheromone scents around me." }, state), true);
-  assert.equal(isGuidedChoicePossible({ label: "Fly", action: "I fly above the colony." }, state), false);
-  assert.match(selectGuidedChoice(state).action, /pheromone|body|observe|memories/i);
+  assert.equal(context.playerAction, "I try to run into the tunnel.");
+  assert.ok(context.continuityGuidance.selfCheck.includes("Does it contradict established facts or current character state?"));
+  assert.equal(Object.prototype.hasOwnProperty.call(context, "codedActionRules"), false);
 });
 
 test("behavior signals map to hidden development columns", () => {
@@ -177,22 +174,13 @@ test("remote Game Master failures fall back to local narration", async () => {
 test("local Game Master turns impossible wishes into story flow", async () => {
   const previousKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
-  const assessment = assessActionPossibility({
-    action: "I pray I grow wings and fly away.",
-    run: { currentChapter: 1 },
-    character: startingState.character,
-    abilities: [],
-    discoveries: startingState.discoveries,
-    facts: []
-  });
   const proposal = await createGameMasterProposal({
     playerAction: "I pray I grow wings and fly away.",
     playerState: startingState.character,
     currentChapter: { chapterNumber: 1 },
-    actionAssessment: assessment,
     guidedChoice: { label: "Focus on the scents", action: "I focus on the pheromone scents around me." }
   });
-  assert.match(proposal.narration, /wish|noticed|Nothing dramatic happens/i);
+  assert.match(proposal.narration, /wish|heard|warmth|far away/i);
   assert.equal(proposal.suggestedChoices.length, 1);
   if (previousKey == null) delete process.env.OPENAI_API_KEY;
   else process.env.OPENAI_API_KEY = previousKey;

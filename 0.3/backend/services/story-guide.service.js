@@ -1,5 +1,4 @@
 const { getChapter } = require("./book.service");
-const { assessActionPossibility, resolveCapabilities, selectGuidedChoice } = require("./capability.service");
 const { getBlockedRevelations, privateCanon } = require("../books/ant-world/story-guide");
 
 function publicChapterView(chapter) {
@@ -15,10 +14,6 @@ function publicChapterView(chapter) {
 async function buildStoryContext({ book, run, character, chapter, discoveries, relationships, facts, memories, threads, worldState, traits, abilities, resources, recentMessages, action }) {
   const currentChapter = chapter || await getChapter(book.bookId, run.currentChapter);
   const blocked = getBlockedRevelations(run.currentChapter);
-  const capabilityState = { book, run, character, discoveries, facts, traits, abilities, resources };
-  const capabilities = resolveCapabilities(capabilityState);
-  const actionAssessment = assessActionPossibility({ action, run, character, discoveries, facts, abilities });
-  const guidedChoice = selectGuidedChoice(capabilityState);
 
   return {
     universalLaws: privateCanon.laws,
@@ -43,18 +38,23 @@ async function buildStoryContext({ book, run, character, chapter, discoveries, r
     openThreads: threads,
     relevantMemories: memories,
     worldState,
-    capabilities,
-    actionAssessment,
-    guidedChoice,
-    possibilityLaw: {
-      hierarchy: ["Story Guide", "Engine", "Game Master", "Player"],
-      rule: "Free will is protagonist intent, not world control.",
-      guidedChoiceRule: "Return exactly one guidedChoice and it must be possible to attempt from current state.",
-      consequenceRule: "Impossible, unknown, or world-breaking actions may be narrated as failed attempts but must not create state."
+    traits,
+    abilities,
+    resources,
+    continuityGuidance: {
+      hierarchy: ["Story Guide", "Game Master", "Engine", "Player"],
+      roleplayModel: "Continue the roleplay from the full reality context. The player supplies protagonist intent; the Game Master reasons what realistically happens next.",
+      guidedChoiceRule: "Return exactly one short guidedChoice derived from current story, state, and world logic. It should be plausible for the protagonist's current reality.",
+      selfCheck: [
+        "Does the response follow Book World and Story Guide?",
+        "Does it contradict established facts or current character state?",
+        "Does it grant unearned knowledge, power, items, relationships, evolution, location access, or success?",
+        "Does it reveal future story information too early?",
+        "Does the guided choice feel like a natural next action rather than a menu option?"
+      ]
     },
     recentMessages,
     playerAction: action,
-    normalizedIntent: actionAssessment.normalizedIntent,
     strictSchema: "Return only the structured game master schema internally; the API never exposes raw model JSON."
   };
 }
@@ -73,8 +73,6 @@ function playerVisibleContext(context) {
       manaKnown: context.playerState.manaKnown
     },
     playerKnowledge: context.playerKnowledge,
-    capabilities: context.capabilities,
-    guidedChoice: context.guidedChoice,
     relationships: context.relationships,
     openThreads: context.openThreads
   };

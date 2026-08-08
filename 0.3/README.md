@@ -53,9 +53,9 @@ If `OPENAI_API_KEY` is configured, the backend can call the Responses API. Witho
 
 `backend/services/turn-engine.service.js` treats player text as intent, not reality. It bounds experience, mana, health, abilities, relationship deltas, chapter movement, death, and completion. It rejects arbitrary chapter skipping and overpowered early abilities.
 
-`backend/services/capability.service.js` enforces the core law: free will is not free reality. The engine derives current capabilities from book, chapter, species, life stage, level, condition, location, known discoveries, learned abilities, traits, resources, relationships, and canonical facts. A player can attempt anything, but text cannot create powers, knowledge, items, NPC behavior, relationships, success, evolution, locations, or world facts.
+Deep Saga is AI-first roleplay, not a coded action tree. The backend sends the Game Master the Book World, Story Guide, character state, world state, knowledge, relationships, memories, recent story, and the player's latest action. The Game Master reasons what realistically happens next. Backend code owns authentication, ownership, idempotency, schema validation, numeric sanity, allowed database fields, and persistence; it does not hard-code Ant biology or fiction-specific action tables.
 
-Generated guidance is limited to one short guided choice, and the backend validates that it is currently possible to attempt. Impossible or metagame actions are resolved in narration as failed or partial attempts without persisting impossible consequences.
+Generated guidance is limited to one short guided choice. The Game Master creates it from the current scene and reality context rather than a hard-coded option table.
 
 The story reader presents the single guided choice as an in-world suggested action rather than an A/B/C menu. Game Master output may use intentional emojis and protagonist-visible system-style events for discoveries, traits, level changes, danger, evolution availability, and other important moments. These presentation events must not expose hidden canon, private engine facts, or fake precision.
 
