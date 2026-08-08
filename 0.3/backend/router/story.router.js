@@ -73,6 +73,8 @@ router.get("/runs/:runId/journal", requireAuth, async (req, res) => {
         discoveries: state.discoveries,
         relationships: state.relationships,
         openThreads: state.threads,
+        resources: state.resources,
+        events: state.events,
         worldState: state.worldState.filter((entry) => entry.visibility === "player")
       }
     });
@@ -139,7 +141,9 @@ router.get("/journey/:runId", requireAuth, async (req, res) => {
         facts: state.facts,
         traits: state.traits,
         abilities: state.abilities,
-        relationships: state.relationships
+        relationships: state.relationships,
+        resources: state.resources,
+        events: state.events
       }
     });
   } catch (error) {

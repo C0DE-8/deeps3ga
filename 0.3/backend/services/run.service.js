@@ -188,7 +188,7 @@ async function loadRunState(userId, runId) {
   const bundle = await getRunForUser(userId, runId);
   if (!bundle) return null;
 
-  const [discoveries, relationships, facts, memories, threads, worldState, traits, abilities] = await Promise.all([
+  const [discoveries, relationships, facts, memories, threads, worldState, traits, abilities, resources, events] = await Promise.all([
     db.query("SELECT * FROM deep_saga_discoveries WHERE run_id = ? ORDER BY discovery_id", [runId]),
     db.query("SELECT * FROM deep_saga_relationships WHERE run_id = ? ORDER BY relationship_id", [runId]),
     db.query("SELECT * FROM deep_saga_canonical_facts WHERE run_id = ? ORDER BY fact_id DESC LIMIT 40", [runId]),
@@ -196,7 +196,9 @@ async function loadRunState(userId, runId) {
     db.query("SELECT * FROM deep_saga_open_threads WHERE run_id = ? AND status = 'open' ORDER BY thread_id DESC LIMIT 20", [runId]),
     db.query("SELECT * FROM deep_saga_world_state WHERE run_id = ? ORDER BY state_key", [runId]),
     db.query("SELECT * FROM deep_saga_traits WHERE run_id = ? ORDER BY trait_id", [runId]),
-    db.query("SELECT * FROM deep_saga_abilities WHERE run_id = ? AND visible = 1 ORDER BY ability_id", [runId])
+    db.query("SELECT * FROM deep_saga_abilities WHERE run_id = ? AND visible = 1 ORDER BY ability_id", [runId]),
+    db.query("SELECT * FROM deep_saga_resources WHERE run_id = ? AND quantity > 0 ORDER BY resource_id", [runId]),
+    db.query("SELECT * FROM deep_saga_story_events WHERE run_id = ? ORDER BY event_id DESC LIMIT 40", [runId])
   ]);
 
   return {
@@ -208,7 +210,9 @@ async function loadRunState(userId, runId) {
     threads: threads.map((row) => ({ key: row.thread_key, title: row.title, status: row.status, content: row.content, chapterNumber: Number(row.chapter_number) })),
     worldState: worldState.map((row) => ({ key: row.state_key, value: parseJson(row.value_json, {}), visibility: row.visibility })),
     traits: traits.map((row) => ({ key: row.trait_key, name: row.name, description: row.description, reason: row.reason })),
-    abilities: abilities.map((row) => ({ key: row.ability_key, name: row.name, description: row.description, reason: row.reason, powerTier: Number(row.power_tier) }))
+    abilities: abilities.map((row) => ({ key: row.ability_key, name: row.name, description: row.description, reason: row.reason, powerTier: Number(row.power_tier) })),
+    resources: resources.map((row) => ({ key: row.resource_key, name: row.name, quantity: Number(row.quantity), storageType: row.storage_type, notes: row.notes })),
+    events: events.map((row) => ({ key: row.event_key, type: row.event_type, title: row.title, content: row.content, chapterNumber: Number(row.chapter_number), turnNumber: Number(row.turn_number), metadata: parseJson(row.metadata_json, {}) }))
   };
 }
 

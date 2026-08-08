@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const { startingState, getBlockedRevelations } = require("../books/ant-world/story-guide");
 const { validateGameMasterOutput, inferCategory } = require("../services/game-master.service");
-const { boundedExperience, categoryDevelopment, validateAbility, validateChapterProgress } = require("../services/turn-engine.service");
+const { boundedExperience, categoryDevelopment, validateAbility, validateCharacterStateChanges, validateChapterProgress } = require("../services/turn-engine.service");
 const { assertDevelopmentResetAllowed } = require("../scripts/reset-db");
 
 test("Ant World canonical starting state is an ant larva with human memories", () => {
@@ -31,9 +31,13 @@ test("structured narrator validation rejects malformed or unsafe fields", () => 
 test("structured narrator validation normalizes optional choices", () => {
   const output = validateGameMasterOutput({
     narration: "The nursery breathes around you while scent becomes almost-language.",
-    suggestedChoices: ["Stay still"]
+    suggestedChoices: ["Stay still"],
+    proposedResources: [{ name: "Dew bead", quantity: 1 }],
+    storyEvents: [{ eventType: "FIRST_SCENT_MEMORY", title: "First Scent Memory" }]
   });
   assert.equal(output.suggestedChoices[0].label, "Stay still");
+  assert.equal(output.proposedResources.length, 1);
+  assert.equal(output.storyEvents.length, 1);
   assert.equal(output.death.occurred, false);
 });
 
@@ -66,6 +70,28 @@ test("powerful abilities require earned state", () => {
     () => validateAbility({ name: "Royal Cataclysm", reason: "earned by asking", powerTier: 5 }, { level: 1 }),
     /too high/
   );
+});
+
+test("early evolution state changes are rejected", () => {
+  assert.throws(
+    () => validateCharacterStateChanges(
+      { character: { lifeStage: "Royal Ant", evolutionReason: "The narrator thought it sounded dramatic." } },
+      { lifeStage: "Larva", level: 1, evolutionState: {} },
+      { currentChapter: 1 }
+    ),
+    /evolution requires/
+  );
+});
+
+test("allowed character state changes are converted to SQL assignments", () => {
+  const result = validateCharacterStateChanges(
+    { character: { conditionText: "Alert and hungry.", location: "Nursery edge", manaKnown: true } },
+    { lifeStage: "Larva", level: 1, evolutionState: {} },
+    { currentChapter: 1 }
+  );
+  assert.ok(result.assignments.includes("condition_text = ?"));
+  assert.ok(result.assignments.includes("location = ?"));
+  assert.ok(result.assignments.includes("mana_known = 1"));
 });
 
 test("production reset protection refuses without strong override", () => {

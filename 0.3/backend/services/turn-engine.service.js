@@ -66,6 +66,75 @@ function validateTrait(trait) {
   };
 }
 
+function validateCharacterStateChanges(changes, character, run) {
+  const raw = changes?.character && typeof changes.character === "object" ? changes.character : {};
+  const assignments = [];
+  const params = [];
+
+  if (raw.conditionText || raw.condition_text) {
+    assignments.push("condition_text = ?");
+    params.push(String(raw.conditionText || raw.condition_text).slice(0, 255));
+  }
+
+  if (raw.location) {
+    assignments.push("location = ?");
+    params.push(String(raw.location).slice(0, 180));
+  }
+
+  if (raw.territory) {
+    assignments.push("territory = ?");
+    params.push(String(raw.territory).slice(0, 180));
+  }
+
+  if (raw.manaKnown === true || raw.mana_known === true || raw.manaKnown === 1 || raw.mana_known === 1) {
+    assignments.push("mana_known = 1");
+  }
+
+  const proposedLifeStage = raw.lifeStage || raw.life_stage;
+  if (proposedLifeStage && proposedLifeStage !== character.lifeStage) {
+    const reason = String(raw.evolutionReason || raw.reason || "");
+    const allowedStage = /^(Larva|Juvenile Ant|Worker Ant|Soldier Ant|Royal Ant|Evolved Ant)$/i.test(proposedLifeStage);
+    if (!allowedStage) {
+      throw new Error("State change rejected: illegal ant life stage.");
+    }
+    if (Number(character.level) < 3 || Number(run.currentChapter) < 4 || reason.length < 10) {
+      throw new Error("State change rejected: evolution requires earned level, chapter timing, and reason.");
+    }
+    assignments.push("life_stage = ?");
+    params.push(String(proposedLifeStage).slice(0, 80));
+  }
+
+  if (raw.evolutionState || raw.evolution_state) {
+    const nextEvolution = { ...character.evolutionState, ...(raw.evolutionState || raw.evolution_state) };
+    assignments.push("evolution_state_json = ?");
+    params.push(toJson(nextEvolution));
+  }
+
+  return { assignments, params };
+}
+
+function validateResource(resource) {
+  const name = String(resource.name || resource.title || "Resource").slice(0, 140);
+  return {
+    key: String(resource.key || resource.resourceKey || resource.resource_key || keyFromName(name)).slice(0, 100),
+    name,
+    quantity: clamp(resource.quantity ?? resource.amount ?? 0, -20, 20),
+    storageType: String(resource.storageType || resource.storage_type || "colony").slice(0, 80),
+    notes: String(resource.notes || resource.reason || "").slice(0, 1000)
+  };
+}
+
+function validateStoryEvent(event, run, turnNumber) {
+  const title = String(event.title || event.eventType || event.event_type || "Story Event").slice(0, 180);
+  return {
+    key: String(event.key || event.eventKey || event.event_key || keyFromName(`${run.runId}-${turnNumber}-${title}`)).slice(0, 120),
+    type: String(event.type || event.eventType || event.event_type || "STORY_EVENT").slice(0, 100),
+    title,
+    content: String(event.content || event.summary || "").slice(0, 1500),
+    metadata: event.metadata && typeof event.metadata === "object" ? event.metadata : {}
+  };
+}
+
 function boundedExperience(proposal) {
   const entries = Array.isArray(proposal.proposedExperience) ? proposal.proposedExperience : [];
   return clamp(entries.reduce((sum, entry) => sum + clamp(entry.amount, 0, 25), 0), 0, 35);
@@ -107,6 +176,7 @@ async function applyCharacterProgress(run, character, proposal, action) {
   const manaDelta = clamp(proposal.proposedManaChanges?.reduce?.((sum, entry) => sum + Number(entry.amount || 0), 0) || 0, -2, 2);
   const healthCurrent = clamp(Number(character.healthCurrent) + healthDelta, 0, character.healthMax);
   const manaCurrent = clamp(Number(character.manaCurrent) + manaDelta, 0, character.manaMax);
+  const stateChanges = validateCharacterStateChanges(proposal.proposedStateChanges, character, run);
   const assignments = [
     "level = ?",
     "experience = ?",
@@ -114,9 +184,10 @@ async function applyCharacterProgress(run, character, proposal, action) {
     "health_current = ?",
     "mana_current = ?",
     `${developmentColumn} = ${developmentColumn} + ?`,
+    ...stateChanges.assignments,
     "updated_at = CURRENT_TIMESTAMP"
   ];
-  const params = [level, experience, experienceToNext, healthCurrent, manaCurrent, maxDevelopmentDelta, run.runId];
+  const params = [level, experience, experienceToNext, healthCurrent, manaCurrent, maxDevelopmentDelta, ...stateChanges.params, run.runId];
 
   await getDb().query(`UPDATE deep_saga_character_states SET ${assignments.join(", ")} WHERE run_id = ?`, params);
   return { xp, category, level, healthCurrent, manaCurrent };
@@ -124,8 +195,14 @@ async function applyCharacterProgress(run, character, proposal, action) {
 
 async function applyProposal(state, proposal, action) {
   const run = state.run;
-  const characterResult = await applyCharacterProgress(run, state.character, proposal, action);
   const nextTurn = run.turnVersion + 1;
+
+  for (const trait of proposal.proposedTraits.slice(0, 2)) validateTrait(trait);
+  for (const abilityRaw of proposal.proposedAbilities.slice(0, 1)) validateAbility(abilityRaw, state.character);
+  validateCharacterStateChanges(proposal.proposedStateChanges, state.character, run);
+  validateChapterProgress(run, proposal);
+
+  const characterResult = await applyCharacterProgress(run, state.character, proposal, action);
 
   for (const trait of proposal.proposedTraits.slice(0, 2).map(validateTrait)) {
     await getDb().query(
@@ -143,6 +220,15 @@ async function applyProposal(state, proposal, action) {
        VALUES (?, ?, ?, ?, ?, ?, 1)
        ON DUPLICATE KEY UPDATE description = VALUES(description), reason = VALUES(reason)`,
       [run.runId, ability.key, ability.name, ability.description, ability.reason, ability.powerTier]
+    );
+  }
+
+  for (const resourceRaw of proposal.proposedResources.slice(0, 4).map(validateResource)) {
+    await getDb().query(
+      `INSERT INTO deep_saga_resources (run_id, resource_key, name, quantity, storage_type, notes)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE quantity = GREATEST(0, quantity + VALUES(quantity)), storage_type = VALUES(storage_type), notes = VALUES(notes)`,
+      [run.runId, resourceRaw.key, resourceRaw.name, resourceRaw.quantity, resourceRaw.storageType, resourceRaw.notes]
     );
   }
 
@@ -197,6 +283,16 @@ async function applyProposal(state, proposal, action) {
        VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE value_json = VALUES(value_json), updated_at = CURRENT_TIMESTAMP`,
       [run.runId, stateChange.key || keyFromName(stateChange.title), toJson(stateChange.value || {}), String(stateChange.visibility || "engine").slice(0, 40)]
+    );
+  }
+
+  for (const eventRaw of proposal.storyEvents.slice(0, 3)) {
+    const event = validateStoryEvent(eventRaw, run, nextTurn);
+    await getDb().query(
+      `INSERT INTO deep_saga_story_events (run_id, event_key, event_type, title, content, chapter_number, turn_number, metadata_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE content = VALUES(content), metadata_json = VALUES(metadata_json)`,
+      [run.runId, event.key, event.type, event.title, event.content, run.currentChapter, nextTurn, toJson(event.metadata)]
     );
   }
 
@@ -259,6 +355,11 @@ async function resolvePlayerAction({ userId, runId, action, clientActionId, expe
   const request = await insertActionRequest(state.run, clientActionId, action);
   if (request.duplicate) {
     const response = parseJson(request.request.response_json, null);
+    if (!response) {
+      const error = new Error("This action is already being processed. Wait for the current request to finish, then refresh.");
+      error.status = 409;
+      throw error;
+    }
     return { duplicate: true, response };
   }
 
@@ -288,5 +389,6 @@ module.exports = {
   categoryDevelopment,
   resolvePlayerAction,
   validateAbility,
+  validateCharacterStateChanges,
   validateChapterProgress
 };

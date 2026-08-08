@@ -10,12 +10,14 @@ const allowedTopLevelKeys = [
   "proposedHealthChanges",
   "proposedTraits",
   "proposedAbilities",
+  "proposedResources",
   "relationshipChanges",
   "newDiscoveries",
   "canonicalFacts",
   "memoryCandidates",
   "openThreadUpdates",
   "worldStateChanges",
+  "storyEvents",
   "chapterProgress",
   "sceneProgress",
   "death",
@@ -33,12 +35,14 @@ function emptyProposal() {
     proposedHealthChanges: [],
     proposedTraits: [],
     proposedAbilities: [],
+    proposedResources: [],
     relationshipChanges: [],
     newDiscoveries: [],
     canonicalFacts: [],
     memoryCandidates: [],
     openThreadUpdates: [],
     worldStateChanges: [],
+    storyEvents: [],
     chapterProgress: { chapterComplete: false, targetChapter: null, reason: "" },
     sceneProgress: { nextScene: null, nextBeat: null, reason: "" },
     death: { occurred: false, reason: "", location: "" },
@@ -74,14 +78,18 @@ function validateGameMasterOutput(raw) {
   proposal.narration = proposal.narration.trim();
   proposal.suggestedChoices = Array.isArray(proposal.suggestedChoices) ? proposal.suggestedChoices.slice(0, 4).map(sanitizeChoice) : [];
   proposal.proposedExperience = Array.isArray(proposal.proposedExperience) ? proposal.proposedExperience : [];
+  proposal.proposedManaChanges = Array.isArray(proposal.proposedManaChanges) ? proposal.proposedManaChanges : [];
+  proposal.proposedHealthChanges = Array.isArray(proposal.proposedHealthChanges) ? proposal.proposedHealthChanges : [];
   proposal.proposedTraits = Array.isArray(proposal.proposedTraits) ? proposal.proposedTraits : [];
   proposal.proposedAbilities = Array.isArray(proposal.proposedAbilities) ? proposal.proposedAbilities : [];
+  proposal.proposedResources = Array.isArray(proposal.proposedResources) ? proposal.proposedResources : [];
   proposal.relationshipChanges = Array.isArray(proposal.relationshipChanges) ? proposal.relationshipChanges : [];
   proposal.newDiscoveries = Array.isArray(proposal.newDiscoveries) ? proposal.newDiscoveries : [];
   proposal.canonicalFacts = Array.isArray(proposal.canonicalFacts) ? proposal.canonicalFacts : [];
   proposal.memoryCandidates = Array.isArray(proposal.memoryCandidates) ? proposal.memoryCandidates : [];
   proposal.openThreadUpdates = Array.isArray(proposal.openThreadUpdates) ? proposal.openThreadUpdates : [];
   proposal.worldStateChanges = Array.isArray(proposal.worldStateChanges) ? proposal.worldStateChanges : [];
+  proposal.storyEvents = Array.isArray(proposal.storyEvents) ? proposal.storyEvents : [];
   proposal.death = { ...emptyProposal().death, ...(proposal.death || {}) };
   proposal.chapterProgress = { ...emptyProposal().chapterProgress, ...(proposal.chapterProgress || {}) };
   proposal.sceneProgress = { ...emptyProposal().sceneProgress, ...(proposal.sceneProgress || {}) };
@@ -169,8 +177,23 @@ async function callOpenAiGameMaster(context) {
 }
 
 async function createGameMasterProposal(context) {
-  const remote = await callOpenAiGameMaster(context);
-  return remote || localGameMaster(context);
+  try {
+    const remote = await callOpenAiGameMaster(context);
+    if (remote) return remote;
+  } catch (firstError) {
+    try {
+      const remote = await callOpenAiGameMaster({
+        ...context,
+        repairInstruction: `Previous Game Master output failed validation: ${firstError.message}. Return a corrected JSON object only.`
+      });
+      if (remote) return remote;
+    } catch {
+      const error = new Error("Game Master returned invalid structured output. Try the action again.");
+      error.status = 502;
+      throw error;
+    }
+  }
+  return localGameMaster(context);
 }
 
 module.exports = {
