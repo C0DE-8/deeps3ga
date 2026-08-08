@@ -162,10 +162,11 @@ p {
 .book-cover {
   align-self: stretch;
   background:
-    linear-gradient(rgba(7, 7, 6, 0.1), rgba(7, 7, 6, 0.78)),
-    url('./assets/hero.png') center/cover;
+    linear-gradient(rgba(7, 7, 6, 0), rgba(7, 7, 6, 0.62)),
+    url('./assets/ant-world-cover.jpg') center/cover;
   border: 1px solid rgba(230, 211, 168, 0.2);
   border-radius: 8px;
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.42);
   min-height: 420px;
   overflow: hidden;
   position: relative;
@@ -208,11 +209,12 @@ p {
 
 .mini-cover {
   background:
-    linear-gradient(rgba(20, 16, 10, 0.04), rgba(20, 16, 10, 0.82)),
-    url('./assets/hero.png') center/cover;
+    linear-gradient(rgba(20, 16, 10, 0), rgba(20, 16, 10, 0.58)),
+    url('./assets/ant-world-cover.jpg') center/cover;
   border: 1px solid rgba(230, 211, 168, 0.18);
   border-radius: 8px;
   min-height: 164px;
+  overflow: hidden;
 }
 
 .stack {

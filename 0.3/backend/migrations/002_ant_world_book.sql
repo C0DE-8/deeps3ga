@@ -10,7 +10,7 @@ VALUES
     JSON_ARRAY('Fantasy', 'Reincarnation', 'Evolution', 'War', 'Mystery', 'Adventure'),
     'A dead human awakens as a helpless ant larva in Eldara, where a strange colony disturbance leads toward an ancient chamber, a dying Soul Seed, and the mystery of a vanished Ant King.',
     '0.3.0',
-    JSON_OBJECT('tone', 'dark fantasy', 'palette', 'amber, bone, obsidian, moss', 'symbol', 'ant larva under a fractured crown')
+    JSON_OBJECT('tone', 'dark fantasy', 'palette', 'amber, bone, obsidian, moss', 'symbol', 'ant larva under a fractured crown', 'image', 'ant-world-cover.jpg')
   )
 ON DUPLICATE KEY UPDATE
   title = VALUES(title),

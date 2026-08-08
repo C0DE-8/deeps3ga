@@ -3,7 +3,8 @@ SET @ant_world_book_id = (SELECT book_id FROM deep_saga_books WHERE slug = 'ant-
 UPDATE deep_saga_books
 SET
   title = 'The Ant World: The King''s Soul',
-  description = 'A human soul reincarnates as an ant in Eldara and discovers the First King, Royal Soul Resonance, the hidden purpose of the Grand Insect Tournament, and the Hollow Sovereign behind the ancient soul system.'
+  description = 'A human soul reincarnates as an ant in Eldara and discovers the First King, Royal Soul Resonance, the hidden purpose of the Grand Insect Tournament, and the Hollow Sovereign behind the ancient soul system.',
+  cover_config_json = JSON_OBJECT('tone', 'dark fantasy', 'palette', 'amber, bone, obsidian, moss', 'symbol', 'glowing ant larva beneath a crowned ancient ant vision', 'image', 'ant-world-cover.jpg')
 WHERE book_id = @ant_world_book_id;
 
 UPDATE deep_saga_story_guides
