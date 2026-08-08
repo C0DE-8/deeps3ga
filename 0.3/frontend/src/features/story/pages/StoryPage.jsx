@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 /* eslint-disable react-hooks/set-state-in-effect */
 import { Link, useParams } from 'react-router-dom'
-import { BookMarked, Send, Skull } from 'lucide-react'
+import { BookMarked, HeartPulse, MapPin, Send, Skull, Sparkles, Target, Users } from 'lucide-react'
 import { fetchJournal, fetchRun, sendRunAction } from '../../../api/deepSagaApi'
 import { Shell } from '../../shell/Shell'
 
@@ -29,6 +29,15 @@ function eventTypeLabel(type = 'STORY_EVENT') {
   return String(type).replace(/_/g, ' ')
 }
 
+function percent(current = 0, max = 1) {
+  if (!max) return 0
+  return Math.max(0, Math.min(100, Math.round((Number(current || 0) / Number(max)) * 100)))
+}
+
+function formatBeat(value = '') {
+  return String(value || 'unknown').replace(/[-_]/g, ' ')
+}
+
 function StoryText({ content }) {
   return (
     <div className="story-text">
@@ -48,6 +57,28 @@ function StoryText({ content }) {
   )
 }
 
+function StoryHeader({ bundle }) {
+  const chapter = bundle.chapter || {}
+  const run = bundle.run || {}
+  const character = bundle.character || {}
+
+  return (
+    <header className="reader-header">
+      <div className="chapter-kicker">
+        <span>{chapterEmoji(chapter.chapterNumber)} Chapter {chapter.chapterNumber}</span>
+        <span>{bundle.book?.world}</span>
+      </div>
+      <h1>{chapter.title}</h1>
+      {chapter.purpose && <p>{chapter.purpose}</p>}
+      <div className="story-state-strip" aria-label="Current story state">
+        <span><MapPin size={15} /> {character.location || 'Unknown location'}</span>
+        <span><Target size={15} /> {formatBeat(run.storyBeat)}</span>
+        <span><Sparkles size={15} /> Turn {run.turnVersion}</span>
+      </div>
+    </header>
+  )
+}
+
 function SystemEvents({ events = [] }) {
   if (!events.length) return null
   return (
@@ -59,6 +90,19 @@ function SystemEvents({ events = [] }) {
           {event.body && <p>{event.body}</p>}
         </aside>
       ))}
+    </div>
+  )
+}
+
+function Meter({ label, value, max, tone = 'gold' }) {
+  const fill = percent(value, max)
+  return (
+    <div className={`meter meter-${tone}`}>
+      <div className="meter-label">
+        <span>{label}</span>
+        <strong>{value}/{max}</strong>
+      </div>
+      <div className="meter-track"><span style={{ width: `${fill}%` }} /></div>
     </div>
   )
 }
@@ -82,6 +126,12 @@ function StatusScreen({ run }) {
 }
 
 function JournalPanel({ runId, journal, onRefresh }) {
+  const character = journal?.character || {}
+  const discoveries = journal?.discoveries || []
+  const relationships = journal?.relationships || []
+  const events = journal?.events || []
+  const threads = journal?.openThreads || []
+
   return (
     <aside className="side-panel">
       <section className="panel">
@@ -90,20 +140,47 @@ function JournalPanel({ runId, journal, onRefresh }) {
           <h3>Character</h3>
         </div>
         <dl>
-          <div><dt>Species</dt><dd>{journal?.character?.species || 'Ant'}</dd></div>
-          <div><dt>Stage</dt><dd>{journal?.character?.lifeStage || 'Larva'}</dd></div>
-          <div><dt>Level</dt><dd>{journal?.character?.level || 1}</dd></div>
-          <div><dt>Condition</dt><dd>{journal?.character?.conditionText || 'Unknown'}</dd></div>
-          {journal?.character?.manaKnown && <div><dt>Mana</dt><dd>{journal.character.manaCurrent}/{journal.character.manaMax}</dd></div>}
+          <div><dt>Species</dt><dd>{character.species || 'Ant'}</dd></div>
+          <div><dt>Stage</dt><dd>{character.lifeStage || 'Larva'}</dd></div>
+          <div><dt>Level</dt><dd>{character.level || 1}</dd></div>
+          <div><dt>Condition</dt><dd>{character.conditionText || 'Unknown'}</dd></div>
         </dl>
+        <div className="meter-stack">
+          <Meter label="Health" value={character.healthCurrent ?? 0} max={character.healthMax ?? 1} tone="red" />
+          <Meter label="Experience" value={character.experience ?? 0} max={character.experienceToNext ?? 1} />
+          {character.manaKnown && <Meter label="Mana" value={character.manaCurrent ?? 0} max={character.manaMax ?? 1} tone="blue" />}
+        </div>
       </section>
       <section className="panel">
-        <h3>Discoveries</h3>
-        {(journal?.discoveries || []).slice(-5).map((item) => <p key={item.key}><strong>{item.title}</strong><br />{item.content}</p>)}
+        <div className="row">
+          <Sparkles size={18} />
+          <h3>Discoveries</h3>
+        </div>
+        {discoveries.length ? discoveries.slice(-4).map((item) => (
+          <p key={item.key}><strong>{item.title}</strong><br />{item.content}</p>
+        )) : <p>No new discoveries yet.</p>}
+      </section>
+      <section className="panel">
+        <div className="row">
+          <Users size={18} />
+          <h3>Relations</h3>
+        </div>
+        {relationships.length ? relationships.slice(0, 4).map((item) => (
+          <p key={item.targetKey}><strong>{item.displayName}</strong><br />Trust {item.trust} · Fear {item.fear} · Respect {item.respect}</p>
+        )) : <p>No relationships are clear yet.</p>}
+      </section>
+      <section className="panel">
+        <div className="row">
+          <HeartPulse size={18} />
+          <h3>Story Pulse</h3>
+        </div>
+        {events.length ? events.slice(0, 3).map((item) => (
+          <p key={item.key}><strong>{item.title}</strong><br />{item.content}</p>
+        )) : <p>No major event has settled yet.</p>}
       </section>
       <section className="panel">
         <h3>Objectives</h3>
-        {(journal?.openThreads || []).length ? journal.openThreads.map((item) => <p key={item.key}>{item.title}</p>) : <p>No formal objective has settled yet.</p>}
+        {threads.length ? threads.map((item) => <p key={item.key}><strong>{item.title}</strong><br />{item.content}</p>) : <p>No formal objective has settled yet.</p>}
         <button className="ghost-button" onClick={() => onRefresh(runId)}>Refresh Journal</button>
       </section>
     </aside>
@@ -169,11 +246,10 @@ export function StoryPage() {
       <section className="page reader-layout">
         <div>
           <article className="reader">
-            <p className="eyebrow">{chapterEmoji(bundle.chapter.chapterNumber)} Chapter {bundle.chapter.chapterNumber}</p>
-            <h1>{bundle.chapter.title}</h1>
+            <StoryHeader bundle={bundle} />
             {(bundle.messages || []).map((message) => (
               <section className={`message ${message.role}`} key={message.id || `${message.role}-${message.turnNumber}`}>
-                {message.role === 'player' && <p className="meta">You attempted</p>}
+                <p className="message-label">{message.role === 'player' ? 'You attempted' : 'Game Master'}</p>
                 <div className="narration"><StoryText content={message.content} /></div>
                 {message.role === 'gm' && <SystemEvents events={message.metadata?.systemEvents || []} />}
               </section>
@@ -195,7 +271,7 @@ export function StoryPage() {
             {error && <p className="notice">{error}</p>}
             <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="What do you do?" disabled={busy} />
             <div className="row" style={{ marginTop: 10, justifyContent: 'space-between' }}>
-              <span className="meta">{busy ? 'The world shifts...' : '✍️ Your action'}</span>
+              <span className="meta">{busy ? 'The world shifts...' : 'Free action is always available'}</span>
               <button className="button" disabled={busy || !draft.trim()} onClick={() => submit()}>
                 <Send size={17} /> Act
               </button>
