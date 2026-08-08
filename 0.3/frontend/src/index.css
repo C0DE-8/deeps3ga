@@ -245,6 +245,19 @@ p {
   font-size: clamp(1.1rem, 2vw, 1.32rem);
   line-height: 1.82;
   margin: 26px 0;
+}
+
+.story-text {
+  display: grid;
+  gap: 22px;
+}
+
+.narration-paragraph {
+  color: #eadfcc;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0;
   white-space: pre-wrap;
 }
 
@@ -257,6 +270,55 @@ p {
   color: #bfae91;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 0.98rem;
+}
+
+.message.player .narration-paragraph {
+  color: #bfae91;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+
+.system-events {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 4px;
+}
+
+.system-event {
+  border: 1px solid rgba(216, 189, 121, 0.28);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(216, 189, 121, 0.10), rgba(255, 255, 255, 0.035));
+  box-shadow: inset 3px 0 0 rgba(216, 189, 121, 0.55);
+  color: #f4ecd9;
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+}
+
+.system-event.inline-event {
+  margin: 2px 0;
+}
+
+.system-event span {
+  color: #d8bd79;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.system-event strong {
+  color: #fff5dd;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.02rem;
+  line-height: 1.35;
+}
+
+.system-event p {
+  color: #d7cdbb;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0;
 }
 
 .composer {
@@ -277,20 +339,51 @@ p {
   width: 100%;
 }
 
-.choice-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+.suggested-action {
+  display: grid;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
-.choice-list button {
-  background: rgba(216, 189, 121, 0.08);
-  border: 1px solid rgba(216, 189, 121, 0.28);
+.suggested-action > p {
+  color: #b9aa8c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.suggested-action button {
+  background:
+    linear-gradient(180deg, rgba(216, 189, 121, 0.14), rgba(216, 189, 121, 0.06));
+  border: 1px solid rgba(216, 189, 121, 0.32);
   border-radius: 8px;
   color: #f3e6c8;
-  min-height: 40px;
-  padding: 9px 12px;
+  display: grid;
+  gap: 4px;
+  min-height: 66px;
+  padding: 12px 14px;
+  text-align: left;
+  width: 100%;
+}
+
+.suggested-action button:hover:not(:disabled) {
+  border-color: rgba(216, 189, 121, 0.58);
+  background:
+    linear-gradient(180deg, rgba(216, 189, 121, 0.22), rgba(216, 189, 121, 0.09));
+}
+
+.suggested-action strong {
+  color: #fff3d5;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.04rem;
+}
+
+.suggested-action span {
+  color: #cfc1a6;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .side-panel {

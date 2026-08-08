@@ -161,6 +161,51 @@ function enforceGuidedChoice(state, proposal) {
   return proposal;
 }
 
+function buildPresentationEvents(proposal, characterResult, previousCharacter) {
+  const events = [];
+  if (Number(characterResult.level) > Number(previousCharacter.level)) {
+    events.push({
+      type: "LEVEL_INCREASED",
+      emoji: "✨",
+      title: "Level Increased",
+      body: `Level ${previousCharacter.level} -> Level ${characterResult.level}`
+    });
+  }
+  for (const discovery of proposal.newDiscoveries.slice(0, 2)) {
+    events.push({
+      type: "DISCOVERY",
+      emoji: "🧠",
+      title: discovery.title || "Discovery",
+      body: discovery.content || "Something new begins to make sense."
+    });
+  }
+  for (const trait of proposal.proposedTraits.slice(0, 1)) {
+    events.push({
+      type: "TRAIT_EMERGING",
+      emoji: "👁️",
+      title: trait.name || "Trait Emerging",
+      body: trait.description || trait.reason || "Your repeated behavior is shaping something within you."
+    });
+  }
+  for (const ability of proposal.proposedAbilities.slice(0, 1)) {
+    events.push({
+      type: "ABILITY_LEARNED",
+      emoji: "✨",
+      title: ability.name || "Ability Learned",
+      body: ability.description || ability.reason || "A new capability has been earned."
+    });
+  }
+  for (const event of proposal.storyEvents.slice(0, 2)) {
+    events.push({
+      type: event.eventType || event.type || "STORY_EVENT",
+      emoji: event.emoji || "⚠️",
+      title: event.title || "Story Event",
+      body: event.content || event.summary || ""
+    });
+  }
+  return events.slice(0, 3);
+}
+
 function sanitizeProposalForCapability(proposal, actionAssessment) {
   if (actionAssessment.allowedAttempt) {
     proposal.sceneAssessment = {
@@ -363,7 +408,13 @@ async function applyProposal(state, proposal, action) {
   );
   await getDb().query(
     "INSERT INTO deep_saga_story_messages (run_id, role, content, turn_number, metadata_json) VALUES (?, 'gm', ?, ?, ?)",
-    [run.runId, proposal.narration, nextTurn, toJson({ suggestedChoices: proposal.suggestedChoices, characterResult, sceneAssessment: proposal.sceneAssessment })]
+    [run.runId, proposal.narration, nextTurn, toJson({
+      suggestedChoices: proposal.suggestedChoices.slice(0, 1),
+      guidedChoice: proposal.guidedChoice || proposal.suggestedChoices[0] || null,
+      systemEvents: buildPresentationEvents(proposal, characterResult, state.character),
+      characterResult,
+      sceneAssessment: proposal.sceneAssessment
+    })]
   );
 
   const progress = validateChapterProgress(run, proposal);

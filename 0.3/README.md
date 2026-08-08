@@ -57,6 +57,8 @@ If `OPENAI_API_KEY` is configured, the backend can call the Responses API. Witho
 
 Generated guidance is limited to one short guided choice, and the backend validates that it is currently possible to attempt. Impossible or metagame actions are resolved in narration as failed or partial attempts without persisting impossible consequences.
 
+The story reader presents the single guided choice as an in-world suggested action rather than an A/B/C menu. Game Master output may use intentional emojis and protagonist-visible system-style events for discoveries, traits, level changes, danger, evolution availability, and other important moments. These presentation events must not expose hidden canon, private engine facts, or fake precision.
+
 ## Progression
 
 There is no class picker. Hidden development signals accumulate from behavior:

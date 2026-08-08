@@ -11,7 +11,56 @@ function actionId() {
 
 function latestChoices(messages) {
   const latestGm = [...messages].reverse().find((message) => message.role === 'gm')
-  return latestGm?.metadata?.suggestedChoices || []
+  const guided = latestGm?.metadata?.guidedChoice
+  const choices = guided ? [guided] : latestGm?.metadata?.suggestedChoices || []
+  return choices.slice(0, 1)
+}
+
+function chapterEmoji(chapterNumber) {
+  if (chapterNumber >= 13) return '🧬'
+  if (chapterNumber >= 11) return '⚔️'
+  if (chapterNumber >= 8) return '🏆'
+  if (chapterNumber >= 6) return '🌎'
+  if (chapterNumber >= 2) return '👑'
+  return '🐜'
+}
+
+function eventTypeLabel(type = 'STORY_EVENT') {
+  return String(type).replace(/_/g, ' ')
+}
+
+function StoryText({ content }) {
+  return (
+    <div className="story-text">
+      {String(content || '').split(/\n{2,}/).filter(Boolean).map((paragraph, index) => {
+        const eventMatch = paragraph.match(/^\[(DISCOVERY|TRAIT EMERGING|EVOLUTION AVAILABLE|WARNING|SYSTEM|LEVEL INCREASED)\]\s*(.*)$/i)
+        if (eventMatch) {
+          return (
+            <aside className="system-event inline-event" key={`${paragraph}-${index}`}>
+              <span>✨ {eventMatch[1]}</span>
+              <strong>{eventMatch[2] || 'Something changes.'}</strong>
+            </aside>
+          )
+        }
+        return <p className="narration-paragraph" key={`${paragraph}-${index}`}>{paragraph}</p>
+      })}
+    </div>
+  )
+}
+
+function SystemEvents({ events = [] }) {
+  if (!events.length) return null
+  return (
+    <div className="system-events">
+      {events.slice(0, 3).map((event, index) => (
+        <aside className="system-event" key={`${event.type || 'event'}-${event.title || index}`}>
+          <span>{event.emoji || '✨'} {eventTypeLabel(event.type)}</span>
+          <strong>{event.title}</strong>
+          {event.body && <p>{event.body}</p>}
+        </aside>
+      ))}
+    </div>
+  )
 }
 
 function StatusScreen({ run }) {
@@ -120,22 +169,25 @@ export function StoryPage() {
       <section className="page reader-layout">
         <div>
           <article className="reader">
-            <p className="eyebrow">Chapter {bundle.chapter.chapterNumber}</p>
+            <p className="eyebrow">{chapterEmoji(bundle.chapter.chapterNumber)} Chapter {bundle.chapter.chapterNumber}</p>
             <h1>{bundle.chapter.title}</h1>
             {(bundle.messages || []).map((message) => (
               <section className={`message ${message.role}`} key={message.id || `${message.role}-${message.turnNumber}`}>
                 {message.role === 'player' && <p className="meta">You attempted</p>}
-                <div className="narration">{message.content}</div>
+                <div className="narration"><StoryText content={message.content} /></div>
+                {message.role === 'gm' && <SystemEvents events={message.metadata?.systemEvents || []} />}
               </section>
             ))}
           </article>
 
           <section className="composer">
             {choices.length > 0 && (
-              <div className="choice-list">
+              <div className="suggested-action">
+                <p>🐜 Suggested action</p>
                 {choices.map((choice) => (
                   <button key={choice.action || choice.label} disabled={busy} onClick={() => submit(choice.action || choice.label)}>
-                    {choice.label}
+                    <strong>{choice.label}</strong>
+                    {choice.action && choice.action !== choice.label && <span>{choice.action}</span>}
                   </button>
                 ))}
               </div>
@@ -143,7 +195,7 @@ export function StoryPage() {
             {error && <p className="notice">{error}</p>}
             <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="What do you do?" disabled={busy} />
             <div className="row" style={{ marginTop: 10, justifyContent: 'space-between' }}>
-              <span className="meta">{busy ? 'The world shifts...' : 'Free action is always available'}</span>
+              <span className="meta">{busy ? 'The world shifts...' : '✍️ Your action'}</span>
               <button className="button" disabled={busy || !draft.trim()} onClick={() => submit()}>
                 <Send size={17} /> Act
               </button>
