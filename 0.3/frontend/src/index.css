@@ -390,10 +390,10 @@ p {
 }
 
 .composer {
-  bottom: 16px;
   margin-top: 18px;
   padding: 14px;
-  position: sticky;
+  position: relative;
+  z-index: 1;
 }
 
 .composer textarea {
@@ -597,9 +597,6 @@ p {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .composer {
-    bottom: 8px;
-  }
 }
 
 @media (max-width: 560px) {

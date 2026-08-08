@@ -195,6 +195,7 @@ test("local Game Master turns impossible wishes into story flow", async () => {
     guidedChoice: { label: "Focus on the scents", action: "I focus on the pheromone scents around me." }
   });
   assert.match(proposal.narration, /wish|heard|warmth|far away/i);
+  assert.ok(proposal.narration.length > 900);
   assert.equal(proposal.suggestedChoices.length, 1);
   if (previousKey == null) delete process.env.OPENAI_API_KEY;
   else process.env.OPENAI_API_KEY = previousKey;
